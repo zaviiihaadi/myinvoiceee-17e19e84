@@ -17,9 +17,10 @@ const shippingLines = [
   { prefix: 'HDMU', name: 'Hyundai', fullName: 'Hyundai Merchant Marine' },
 ];
 
-const locations = ['Singapore Port', 'Rotterdam, Netherlands', 'Shanghai, China', 'Los Angeles, USA', 'Hamburg, Germany', 'Busan, South Korea', 'Hong Kong, China', 'Antwerp, Belgium', 'Dubai, UAE'];
+const currentLocations = ['Singapore Port', 'Rotterdam, Netherlands', 'Shanghai, China', 'Jebel Ali, UAE', 'Hamburg, Germany', 'Busan, South Korea', 'Hong Kong, China', 'Colombo, Sri Lanka', 'Mundra, India'];
 const vessels = ['MSC OSCAR', 'MAERSK ELBA', 'CMA CGM MARCO POLO', 'EVER GIVEN', 'COSCO UNIVERSE', 'OOCL HONG KONG', 'HMM ALGECIRAS'];
 const statuses = ['In Transit', 'Arrived', 'Discharged', 'Loading', 'Pending'];
+const DESTINATION_PORT = 'Mohammad Bin Qasim, Pakistan';
 
 function generateMockTrackingData(containerNumber: string) {
   const prefix = containerNumber.substring(0, 4).toUpperCase();
@@ -31,12 +32,13 @@ function generateMockTrackingData(containerNumber: string) {
   return {
     containerNumber,
     shippingLine: shippingLine.fullName,
-    currentLocation: locations[Math.floor(Math.random() * locations.length)],
+    currentLocation: currentLocations[Math.floor(Math.random() * currentLocations.length)],
     vesselName: vessels[Math.floor(Math.random() * vessels.length)],
     voyageNumber: `${shippingLine.prefix.substring(0, 2)}${Math.floor(Math.random() * 9000) + 1000}E`,
     eta: eta.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
     lastUpdate: lastUpdate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
     status: statuses[Math.floor(Math.random() * statuses.length)],
+    destinationPort: DESTINATION_PORT,
     error: null
   };
 }
