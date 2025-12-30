@@ -97,7 +97,8 @@ export function TrackingTable({ data }: TrackingTableProps) {
               <TableHead className="font-semibold">Location</TableHead>
               <TableHead className="font-semibold">Vessel</TableHead>
               <TableHead className="font-semibold">Voyage</TableHead>
-              <TableHead className="font-semibold">ETA</TableHead>
+              <TableHead className="font-semibold">ETA Port</TableHead>
+              <TableHead className="font-semibold">ETA Date</TableHead>
               <TableHead className="font-semibold">Last Update</TableHead>
               <TableHead className="font-semibold">Status</TableHead>
             </TableRow>
@@ -143,6 +144,14 @@ export function TrackingTable({ data }: TrackingTableProps) {
                 </TableCell>
                 <TableCell className="font-mono text-sm">
                   {container.voyageNumber || '-'}
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <Anchor className="w-4 h-4 text-primary" />
+                    <span className="max-w-[150px] truncate">
+                      {container.destinationPort || 'Mohammad Bin Qasim'}
+                    </span>
+                  </div>
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">

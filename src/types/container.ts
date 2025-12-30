@@ -7,6 +7,7 @@ export interface ContainerData {
   eta: string;
   lastUpdate: string;
   status: ContainerStatus;
+  destinationPort?: string;
   isTracking?: boolean;
   error?: string;
 }
