@@ -3,42 +3,91 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Shipping line configurations
-const shippingLines = [
-  { prefix: 'MSCU', name: 'MSC', fullName: 'Mediterranean Shipping Company' },
-  { prefix: 'MAEU', name: 'Maersk', fullName: 'Maersk Line' },
-  { prefix: 'CMAU', name: 'CMA CGM', fullName: 'CMA CGM' },
-  { prefix: 'HLCU', name: 'Hapag-Lloyd', fullName: 'Hapag-Lloyd' },
-  { prefix: 'COSU', name: 'COSCO', fullName: 'COSCO Shipping' },
-  { prefix: 'EGLV', name: 'Evergreen', fullName: 'Evergreen Line' },
-  { prefix: 'OOLU', name: 'OOCL', fullName: 'Orient Overseas Container Line' },
-  { prefix: 'YMLU', name: 'Yang Ming', fullName: 'Yang Ming Marine' },
-  { prefix: 'ONEY', name: 'ONE', fullName: 'Ocean Network Express' },
-  { prefix: 'HDMU', name: 'Hyundai', fullName: 'Hyundai Merchant Marine' },
-];
+const API_BASE = 'https://tracking.timetocargo.com/v1';
 
-const currentLocations = ['Singapore Port', 'Rotterdam, Netherlands', 'Shanghai, China', 'Jebel Ali, UAE', 'Hamburg, Germany', 'Busan, South Korea', 'Hong Kong, China', 'Colombo, Sri Lanka', 'Mundra, India'];
-const vessels = ['MSC OSCAR', 'MAERSK ELBA', 'CMA CGM MARCO POLO', 'EVER GIVEN', 'COSCO UNIVERSE', 'OOCL HONG KONG', 'HMM ALGECIRAS'];
-const statuses = ['In Transit', 'Arrived', 'Discharged', 'Loading', 'Pending'];
-const DESTINATION_PORT = 'Mohammad Bin Qasim, Pakistan';
+interface TimeToCargoEvent {
+  date?: string;
+  location?: string;
+  description?: string;
+  vessel?: string;
+  voyage?: string;
+}
 
-function generateMockTrackingData(containerNumber: string) {
-  const prefix = containerNumber.substring(0, 4).toUpperCase();
-  const shippingLine = shippingLines.find(sl => sl.prefix === prefix) || shippingLines[Math.floor(Math.random() * shippingLines.length)];
-  const now = new Date();
-  const eta = new Date(now.getTime() + (Math.floor(Math.random() * 14) + 1) * 24 * 60 * 60 * 1000);
-  const lastUpdate = new Date(now.getTime() - Math.floor(Math.random() * 24) * 60 * 60 * 1000);
+interface TimeToCargoResponse {
+  data?: {
+    summary?: {
+      company?: {
+        full_name?: string;
+        code?: string;
+      };
+    };
+    container?: {
+      number?: string;
+      events?: TimeToCargoEvent[];
+    };
+    route?: {
+      pod?: {
+        name?: string;
+        date?: string;
+      };
+      pol?: {
+        name?: string;
+      };
+    };
+  };
+  error?: string;
+  message?: string;
+}
+
+function parseTrackingData(containerNumber: string, apiResponse: TimeToCargoResponse) {
+  const data = apiResponse.data;
+  
+  if (!data) {
+    return {
+      containerNumber,
+      shippingLine: '',
+      currentLocation: '',
+      vesselName: '',
+      voyageNumber: '',
+      eta: '',
+      lastUpdate: '',
+      status: 'Not Available' as const,
+      destinationPort: '',
+      error: apiResponse.message || apiResponse.error || 'No data available'
+    };
+  }
+
+  const events = data.container?.events || [];
+  const latestEvent = events[0];
+  const route = data.route;
+  
+  // Determine status from latest event description
+  let status = 'In Transit';
+  if (latestEvent?.description) {
+    const desc = latestEvent.description.toLowerCase();
+    if (desc.includes('discharged') || desc.includes('unloaded')) {
+      status = 'Discharged';
+    } else if (desc.includes('arrived') || desc.includes('arrival')) {
+      status = 'Arrived';
+    } else if (desc.includes('loaded') || desc.includes('loading')) {
+      status = 'Loading';
+    } else if (desc.includes('gate out') || desc.includes('delivered')) {
+      status = 'Delivered';
+    } else if (desc.includes('pending') || desc.includes('booked')) {
+      status = 'Pending';
+    }
+  }
 
   return {
-    containerNumber,
-    shippingLine: shippingLine.fullName,
-    currentLocation: currentLocations[Math.floor(Math.random() * currentLocations.length)],
-    vesselName: vessels[Math.floor(Math.random() * vessels.length)],
-    voyageNumber: `${shippingLine.prefix.substring(0, 2)}${Math.floor(Math.random() * 9000) + 1000}E`,
-    eta: eta.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-    lastUpdate: lastUpdate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-    status: statuses[Math.floor(Math.random() * statuses.length)],
-    destinationPort: DESTINATION_PORT,
+    containerNumber: data.container?.number || containerNumber,
+    shippingLine: data.summary?.company?.full_name || '',
+    currentLocation: latestEvent?.location || '',
+    vesselName: latestEvent?.vessel || '',
+    voyageNumber: latestEvent?.voyage || '',
+    eta: route?.pod?.date || '',
+    lastUpdate: latestEvent?.date || '',
+    status,
+    destinationPort: route?.pod?.name || '',
     error: null
   };
 }
@@ -50,22 +99,119 @@ Deno.serve(async (req) => {
 
   try {
     const { containerNumber } = await req.json();
+    
     if (!containerNumber) {
-      return new Response(JSON.stringify({ success: false, error: 'Container number required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(
+        JSON.stringify({ success: false, error: 'Container number required' }), 
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const containerPattern = /^[A-Z]{3,4}\d{6,7}$/;
     if (!containerPattern.test(containerNumber.toUpperCase())) {
-      return new Response(JSON.stringify({ success: false, error: 'Invalid format', data: { containerNumber, shippingLine: '', currentLocation: '', vesselName: '', voyageNumber: '', eta: '', lastUpdate: '', status: 'Not Available', error: 'Invalid format' } }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Invalid format', 
+          data: { 
+            containerNumber, 
+            shippingLine: '', 
+            currentLocation: '', 
+            vesselName: '', 
+            voyageNumber: '', 
+            eta: '', 
+            lastUpdate: '', 
+            status: 'Not Available', 
+            destinationPort: '',
+            error: 'Invalid container number format' 
+          } 
+        }), 
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
-    const trackingData = generateMockTrackingData(containerNumber.toUpperCase());
-    console.log(`Tracked container: ${containerNumber}`);
+    const apiKey = Deno.env.get('TIMETOCARGO_API_KEY');
+    
+    if (!apiKey) {
+      console.error('TIMETOCARGO_API_KEY not configured');
+      return new Response(
+        JSON.stringify({ success: false, error: 'API key not configured' }), 
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-    return new Response(JSON.stringify({ success: true, data: trackingData }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const url = `${API_BASE}/container?api_key=${encodeURIComponent(apiKey)}&company=AUTO&container_number=${encodeURIComponent(containerNumber.toUpperCase())}`;
+    
+    console.log(`Tracking container: ${containerNumber}`);
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`TimeToCargo API error: ${response.status} - ${errorText}`);
+      
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Rate limit exceeded. Please try again later.',
+            data: {
+              containerNumber,
+              shippingLine: '',
+              currentLocation: '',
+              vesselName: '',
+              voyageNumber: '',
+              eta: '',
+              lastUpdate: '',
+              status: 'Not Available',
+              destinationPort: '',
+              error: 'Rate limit exceeded'
+            }
+          }), 
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `API error: ${response.status}`,
+          data: {
+            containerNumber,
+            shippingLine: '',
+            currentLocation: '',
+            vesselName: '',
+            voyageNumber: '',
+            eta: '',
+            lastUpdate: '',
+            status: 'Not Available',
+            destinationPort: '',
+            error: `API error: ${response.status}`
+          }
+        }), 
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const apiData: TimeToCargoResponse = await response.json();
+    console.log(`TimeToCargo response for ${containerNumber}:`, JSON.stringify(apiData).substring(0, 500));
+    
+    const trackingData = parseTrackingData(containerNumber.toUpperCase(), apiData);
+    
+    return new Response(
+      JSON.stringify({ success: true, data: trackingData }), 
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   } catch (error) {
     console.error('Tracking error:', error);
-    return new Response(JSON.stringify({ success: false, error: 'Internal server error' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return new Response(
+      JSON.stringify({ success: false, error: 'Internal server error' }), 
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 });
