@@ -10,7 +10,6 @@ import {
 import { 
   Ship, 
   MapPin, 
-  Calendar, 
   Clock, 
   AlertCircle,
   Loader2,
@@ -20,6 +19,7 @@ import {
   Timer
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { RealTimeETA } from '@/components/RealTimeETA';
 
 interface TrackingTableProps {
   data: ContainerData[];
@@ -154,10 +154,7 @@ export function TrackingTable({ data }: TrackingTableProps) {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-muted-foreground" />
-                    {container.eta || '-'}
-                  </div>
+                  <RealTimeETA eta={container.eta} />
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
