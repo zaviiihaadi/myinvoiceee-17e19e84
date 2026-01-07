@@ -6,10 +6,12 @@ import { TrackingTable } from '@/components/TrackingTable';
 import { StatsCards } from '@/components/StatsCards';
 import { ExportButtons } from '@/components/ExportButtons';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
+import { EmailNotificationForm } from '@/components/EmailNotificationForm';
 import { ContainerData } from '@/types/container';
 import { trackContainer, trackContainers } from '@/services/trackingService';
+import { sendStatusNotification, detectStatusChanges } from '@/services/notificationService';
 import { Button } from '@/components/ui/button';
-import { RefreshCcw, FileSpreadsheet, Sparkles, Search, Clock } from 'lucide-react';
+import { RefreshCcw, FileSpreadsheet, Sparkles, Search, Clock, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 
 const AUTO_REFRESH_INTERVAL = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
@@ -21,7 +23,11 @@ const Index = () => {
   const [trackingProgress, setTrackingProgress] = useState(0);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [nextRefresh, setNextRefresh] = useState<Date | null>(null);
+  const [notificationEmail, setNotificationEmail] = useState<string | null>(() => {
+    return localStorage.getItem('cargotrack_notification_email');
+  });
   const autoRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const previousDataRef = useRef<ContainerData[]>([]);
 
   // Auto-refresh effect
   useEffect(() => {
@@ -49,8 +55,35 @@ const Index = () => {
     };
   }, [containerNumbers.length, isTracking, lastRefresh]);
 
+  // Check for status changes and send notifications
+  const checkAndSendNotifications = useCallback(async (newData: ContainerData[]) => {
+    if (!notificationEmail || previousDataRef.current.length === 0) return;
+    
+    const changes = detectStatusChanges(previousDataRef.current, newData);
+    
+    for (const { container, oldStatus } of changes) {
+      console.log(`Status change detected: ${container.containerNumber} ${oldStatus} -> ${container.status}`);
+      const result = await sendStatusNotification(
+        notificationEmail,
+        container.containerNumber,
+        oldStatus,
+        container.status,
+        container.vesselName,
+        container.eta,
+        container.destinationPort
+      );
+      
+      if (result.success) {
+        toast.success(`Notification sent for ${container.containerNumber}`);
+      }
+    }
+  }, [notificationEmail]);
+
   const handleRefreshAll = useCallback(async () => {
     if (containerNumbers.length === 0 || isTracking) return;
+    
+    // Store previous data for comparison
+    previousDataRef.current = [...trackingData];
     
     setIsTracking(true);
     setTrackingProgress(0);
@@ -58,9 +91,12 @@ const Index = () => {
     // Mark all as tracking
     setTrackingData(prev => prev.map(item => ({ ...item, isTracking: true })));
     
+    const newResults: ContainerData[] = [];
+    
     try {
       await trackContainers(containerNumbers, (completed, data) => {
         setTrackingProgress(completed);
+        newResults.push(data);
         setTrackingData(prev => 
           prev.map(item => 
             item.containerNumber === data.containerNumber 
@@ -70,6 +106,9 @@ const Index = () => {
         );
       });
       
+      // Check for status changes and send notifications
+      await checkAndSendNotifications(newResults);
+      
       setLastRefresh(new Date());
       toast.success('All containers refreshed!');
     } catch (error) {
@@ -78,7 +117,18 @@ const Index = () => {
     } finally {
       setIsTracking(false);
     }
-  }, [containerNumbers, isTracking]);
+  }, [containerNumbers, isTracking, trackingData, checkAndSendNotifications]);
+
+  const handleSubscribe = useCallback((email: string) => {
+    setNotificationEmail(email);
+    localStorage.setItem('cargotrack_notification_email', email);
+  }, []);
+
+  const handleUnsubscribe = useCallback(() => {
+    setNotificationEmail(null);
+    localStorage.removeItem('cargotrack_notification_email');
+    toast.info('Email notifications disabled');
+  }, []);
 
   const handleFileProcessed = useCallback(async (numbers: string[]) => {
     setContainerNumbers(numbers);
@@ -265,6 +315,19 @@ const Index = () => {
           <section className="space-y-6 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
             {/* Stats */}
             <StatsCards data={trackingData} isTracking={isTracking} />
+            
+            {/* Email Notifications */}
+            <div className="bg-card rounded-xl border border-border p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Bell className="w-4 h-4 text-primary" />
+                <span className="text-sm font-medium">Email Notifications</span>
+              </div>
+              <EmailNotificationForm
+                subscribedEmail={notificationEmail}
+                onSubscribe={handleSubscribe}
+                onUnsubscribe={handleUnsubscribe}
+              />
+            </div>
             
             {/* Actions */}
             <div className="flex flex-wrap items-center justify-between gap-4">
