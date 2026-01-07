@@ -13,26 +13,32 @@ interface TimeToCargoEvent {
   voyage?: string;
 }
 
+interface TimeToCargoLocation {
+  id?: number;
+  name?: string;
+  country?: string;
+}
+
 interface TimeToCargoResponse {
+  success?: boolean;
   data?: {
     summary?: {
       company?: {
         full_name?: string;
-        code?: string;
       };
-    };
-    container?: {
-      number?: string;
-      events?: TimeToCargoEvent[];
-    };
-    route?: {
       pod?: {
-        name?: string;
+        location?: number;
         date?: string;
       };
       pol?: {
-        name?: string;
+        location?: number;
+        date?: string;
       };
+    };
+    locations?: TimeToCargoLocation[];
+    container?: {
+      number?: string;
+      events?: TimeToCargoEvent[];
     };
   };
   error?: string;
@@ -59,7 +65,17 @@ function parseTrackingData(containerNumber: string, apiResponse: TimeToCargoResp
 
   const events = data.container?.events || [];
   const latestEvent = events[0];
-  const route = data.route;
+  const summary = data.summary;
+  const locations = data.locations || [];
+  
+  // Get ETA from summary.pod.date
+  const eta = summary?.pod?.date || '';
+  
+  // Get destination port name from locations array using pod.location index
+  const podLocationIndex = summary?.pod?.location;
+  const destinationPort = podLocationIndex !== undefined && locations[podLocationIndex] 
+    ? locations[podLocationIndex].name || ''
+    : '';
   
   // Determine status from latest event description
   let status = 'In Transit';
@@ -78,16 +94,18 @@ function parseTrackingData(containerNumber: string, apiResponse: TimeToCargoResp
     }
   }
 
+  console.log(`Parsed ETA for ${containerNumber}: ${eta}`);
+
   return {
     containerNumber: data.container?.number || containerNumber,
-    shippingLine: data.summary?.company?.full_name || '',
+    shippingLine: summary?.company?.full_name || '',
     currentLocation: latestEvent?.location || '',
     vesselName: latestEvent?.vessel || '',
     voyageNumber: latestEvent?.voyage || '',
-    eta: route?.pod?.date || '',
+    eta,
     lastUpdate: latestEvent?.date || '',
     status,
-    destinationPort: route?.pod?.name || '',
+    destinationPort,
     error: null
   };
 }
