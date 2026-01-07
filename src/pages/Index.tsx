@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Header } from '@/components/Header';
 import { FileUpload } from '@/components/FileUpload';
 import { ManualEntryForm } from '@/components/ManualEntryForm';
@@ -9,14 +9,76 @@ import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { ContainerData } from '@/types/container';
 import { trackContainer, trackContainers } from '@/services/trackingService';
 import { Button } from '@/components/ui/button';
-import { RefreshCcw, FileSpreadsheet, Sparkles, Search } from 'lucide-react';
+import { RefreshCcw, FileSpreadsheet, Sparkles, Search, Clock } from 'lucide-react';
 import { toast } from 'sonner';
+
+const AUTO_REFRESH_INTERVAL = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
 
 const Index = () => {
   const [containerNumbers, setContainerNumbers] = useState<string[]>([]);
   const [trackingData, setTrackingData] = useState<ContainerData[]>([]);
   const [isTracking, setIsTracking] = useState(false);
   const [trackingProgress, setTrackingProgress] = useState(0);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [nextRefresh, setNextRefresh] = useState<Date | null>(null);
+  const autoRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Auto-refresh effect
+  useEffect(() => {
+    if (containerNumbers.length > 0 && !isTracking) {
+      // Clear existing timer
+      if (autoRefreshTimerRef.current) {
+        clearTimeout(autoRefreshTimerRef.current);
+      }
+      
+      // Set next refresh time
+      const nextTime = new Date(Date.now() + AUTO_REFRESH_INTERVAL);
+      setNextRefresh(nextTime);
+      
+      // Schedule auto-refresh
+      autoRefreshTimerRef.current = setTimeout(() => {
+        toast.info('Auto-refreshing tracking data...');
+        handleRefreshAll();
+      }, AUTO_REFRESH_INTERVAL);
+    }
+
+    return () => {
+      if (autoRefreshTimerRef.current) {
+        clearTimeout(autoRefreshTimerRef.current);
+      }
+    };
+  }, [containerNumbers.length, isTracking, lastRefresh]);
+
+  const handleRefreshAll = useCallback(async () => {
+    if (containerNumbers.length === 0 || isTracking) return;
+    
+    setIsTracking(true);
+    setTrackingProgress(0);
+    
+    // Mark all as tracking
+    setTrackingData(prev => prev.map(item => ({ ...item, isTracking: true })));
+    
+    try {
+      await trackContainers(containerNumbers, (completed, data) => {
+        setTrackingProgress(completed);
+        setTrackingData(prev => 
+          prev.map(item => 
+            item.containerNumber === data.containerNumber 
+              ? { ...data, isTracking: false }
+              : item
+          )
+        );
+      });
+      
+      setLastRefresh(new Date());
+      toast.success('All containers refreshed!');
+    } catch (error) {
+      console.error('Refresh error:', error);
+      toast.error('Some containers failed to refresh');
+    } finally {
+      setIsTracking(false);
+    }
+  }, [containerNumbers, isTracking]);
 
   const handleFileProcessed = useCallback(async (numbers: string[]) => {
     setContainerNumbers(numbers);
@@ -127,16 +189,15 @@ const Index = () => {
     }
   }, [trackingData]);
 
-  const handleRefresh = useCallback(() => {
-    if (containerNumbers.length > 0) {
-      handleFileProcessed(containerNumbers);
-    }
-  }, [containerNumbers, handleFileProcessed]);
-
   const handleClear = useCallback(() => {
     setContainerNumbers([]);
     setTrackingData([]);
     setTrackingProgress(0);
+    setLastRefresh(null);
+    setNextRefresh(null);
+    if (autoRefreshTimerRef.current) {
+      clearTimeout(autoRefreshTimerRef.current);
+    }
   }, []);
 
   return (
@@ -207,9 +268,15 @@ const Index = () => {
             
             {/* Actions */}
             <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                {nextRefresh && !isTracking && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
+                    <Clock className="w-3 h-3" />
+                    <span>Auto-refresh in 3h</span>
+                  </div>
+                )}
                 <Button
-                  onClick={handleRefresh}
+                  onClick={handleRefreshAll}
                   disabled={isTracking}
                   variant="outline"
                   className="gap-2"
