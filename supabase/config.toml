@@ -1,1 +1,7 @@
 project_id = "wluuhqizeqauoloppqix"
+
+[functions.track-container]
+verify_jwt = false
+
+[functions.send-status-notification]
+verify_jwt = false
