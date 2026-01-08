@@ -259,13 +259,16 @@ const Index = () => {
         error: result.error
       };
       
-      setTrackingData(prev => 
-        prev.map(item => 
+      setTrackingData(prev => {
+        const updated = prev.map(item => 
           item.containerNumber === containerNumber 
             ? { ...data, isTracking: false }
             : item
-        )
-      );
+        );
+        // Save to localStorage for dashboard
+        saveTrackingData(updated);
+        return updated;
+      });
       
       if (result.success) {
         toast.success(`${containerNumber} tracked successfully!`);
@@ -283,7 +286,7 @@ const Index = () => {
       );
       toast.error(`Failed to track ${containerNumber}`);
     }
-  }, [trackingData]);
+  }, [trackingData, saveTrackingData]);
 
   const handleClear = useCallback(() => {
     setContainerNumbers([]);
