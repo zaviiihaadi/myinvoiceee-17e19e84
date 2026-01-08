@@ -79,6 +79,43 @@ const Index = () => {
     }
   }, [notificationEmail]);
 
+  // Save tracking data to localStorage for dashboard
+  const saveTrackingData = useCallback((data: ContainerData[]) => {
+    localStorage.setItem('cargotrack_tracking_data', JSON.stringify(data));
+    
+    // Also save a history entry
+    const now = new Date();
+    const counts: Record<string, number> = {
+      'In Transit': 0,
+      'Arrived': 0,
+      'Discharged': 0,
+      'Loading': 0,
+      'Pending': 0,
+      'Not Available': 0,
+    };
+    
+    data.forEach(container => {
+      if (counts[container.status] !== undefined) {
+        counts[container.status]++;
+      }
+    });
+    
+    const historyEntry = {
+      timestamp: now.toISOString(),
+      date: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      counts,
+    };
+    
+    const existingHistory = localStorage.getItem('cargotrack_status_history');
+    let history = existingHistory ? JSON.parse(existingHistory) : [];
+    history.push(historyEntry);
+    // Keep only last 50 entries
+    if (history.length > 50) {
+      history = history.slice(-50);
+    }
+    localStorage.setItem('cargotrack_status_history', JSON.stringify(history));
+  }, []);
+
   const handleRefreshAll = useCallback(async () => {
     if (containerNumbers.length === 0 || isTracking) return;
     
@@ -109,6 +146,9 @@ const Index = () => {
       // Check for status changes and send notifications
       await checkAndSendNotifications(newResults);
       
+      // Save to localStorage for dashboard
+      saveTrackingData(newResults);
+      
       setLastRefresh(new Date());
       toast.success('All containers refreshed!');
     } catch (error) {
@@ -117,7 +157,7 @@ const Index = () => {
     } finally {
       setIsTracking(false);
     }
-  }, [containerNumbers, isTracking, trackingData, checkAndSendNotifications]);
+  }, [containerNumbers, isTracking, trackingData, checkAndSendNotifications, saveTrackingData]);
 
   const handleSubscribe = useCallback((email: string) => {
     setNotificationEmail(email);
@@ -152,9 +192,12 @@ const Index = () => {
     setIsTracking(true);
     setTrackingProgress(0);
     
+    const results: ContainerData[] = [];
+    
     try {
       await trackContainers(numbers, (completed, data) => {
         setTrackingProgress(completed);
+        results.push(data);
         setTrackingData(prev => 
           prev.map(item => 
             item.containerNumber === data.containerNumber 
@@ -164,6 +207,9 @@ const Index = () => {
         );
       });
       
+      // Save to localStorage for dashboard
+      saveTrackingData(results);
+      
       toast.success('All containers tracked successfully!');
     } catch (error) {
       console.error('Tracking error:', error);
@@ -171,7 +217,7 @@ const Index = () => {
     } finally {
       setIsTracking(false);
     }
-  }, []);
+  }, [saveTrackingData]);
 
   const handleManualTrack = useCallback(async (containerNumber: string) => {
     // Check if already tracking this container

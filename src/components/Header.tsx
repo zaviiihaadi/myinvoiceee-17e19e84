@@ -1,6 +1,9 @@
-import { Ship, Anchor, Waves } from 'lucide-react';
+import { Ship, Anchor, Waves, BarChart3 } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 
 export function Header() {
+  const location = useLocation();
+  
   return (
     <header className="relative overflow-hidden bg-ocean-gradient py-8 px-6">
       {/* Decorative waves */}
@@ -14,7 +17,7 @@ export function Header() {
       
       <div className="container mx-auto relative z-10">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+          <Link to="/" className="flex items-center gap-4 hover:opacity-90 transition-opacity">
             <div className="relative">
               <div className="w-14 h-14 rounded-xl bg-primary-foreground/20 backdrop-blur-sm flex items-center justify-center animate-float">
                 <Ship className="w-8 h-8 text-primary-foreground" />
@@ -32,15 +35,41 @@ export function Header() {
                 Real-time Container Tracking
               </p>
             </div>
-          </div>
+          </Link>
           
-          <div className="hidden md:flex items-center gap-6 text-primary-foreground/90 text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-status-arrived animate-pulse" />
-              <span>Live Tracking</span>
-            </div>
-            <div className="px-4 py-2 rounded-lg bg-primary-foreground/10 backdrop-blur-sm">
-              <span className="font-medium">5+ Shipping Lines</span>
+          <div className="flex items-center gap-4">
+            <nav className="hidden md:flex items-center gap-2">
+              <Link 
+                to="/" 
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  location.pathname === '/' 
+                    ? 'bg-primary-foreground/20 text-primary-foreground' 
+                    : 'text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/10'
+                }`}
+              >
+                Tracking
+              </Link>
+              <Link 
+                to="/dashboard" 
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                  location.pathname === '/dashboard' 
+                    ? 'bg-primary-foreground/20 text-primary-foreground' 
+                    : 'text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/10'
+                }`}
+              >
+                <BarChart3 className="w-4 h-4" />
+                Dashboard
+              </Link>
+            </nav>
+            
+            <div className="hidden lg:flex items-center gap-6 text-primary-foreground/90 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-status-arrived animate-pulse" />
+                <span>Live Tracking</span>
+              </div>
+              <div className="px-4 py-2 rounded-lg bg-primary-foreground/10 backdrop-blur-sm">
+                <span className="font-medium">5+ Shipping Lines</span>
+              </div>
             </div>
           </div>
         </div>
