@@ -1,8 +1,23 @@
-import { Ship, Anchor, Waves, BarChart3 } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Ship, Anchor, Waves, BarChart3, LogOut, User } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export function Header() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
   
   return (
     <header className="relative overflow-hidden bg-ocean-gradient py-8 px-6">
@@ -71,6 +86,40 @@ export function Header() {
                 <span className="font-medium">5+ Shipping Lines</span>
               </div>
             </div>
+
+            {/* Auth controls */}
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="text-primary-foreground hover:bg-primary-foreground/10 gap-2"
+                  >
+                    <User className="w-4 h-4" />
+                    <span className="hidden sm:inline max-w-[120px] truncate">
+                      {user.email}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleSignOut} className="gap-2 cursor-pointer">
+                    <LogOut className="w-4 h-4" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Link to="/auth">
+                <Button 
+                  variant="secondary" 
+                  size="sm"
+                  className="bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30"
+                >
+                  Sign In
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </div>

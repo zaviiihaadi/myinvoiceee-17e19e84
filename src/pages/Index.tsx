@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { FileUpload } from '@/components/FileUpload';
 import { ManualEntryForm } from '@/components/ManualEntryForm';
@@ -10,16 +11,21 @@ import { EmailNotificationForm } from '@/components/EmailNotificationForm';
 import { ContainerData } from '@/types/container';
 import { trackContainer, trackContainers } from '@/services/trackingService';
 import { sendStatusNotification, detectStatusChanges } from '@/services/notificationService';
+import { fetchUserContainers, upsertContainer, upsertContainers, deleteAllContainers } from '@/services/containerDbService';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { RefreshCcw, FileSpreadsheet, Sparkles, Search, Clock, Bell } from 'lucide-react';
+import { RefreshCcw, FileSpreadsheet, Sparkles, Search, Clock, Bell, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const AUTO_REFRESH_INTERVAL = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
 
 const Index = () => {
+  const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const [containerNumbers, setContainerNumbers] = useState<string[]>([]);
   const [trackingData, setTrackingData] = useState<ContainerData[]>([]);
   const [isTracking, setIsTracking] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(true);
   const [trackingProgress, setTrackingProgress] = useState(0);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [nextRefresh, setNextRefresh] = useState<Date | null>(null);
@@ -29,19 +35,45 @@ const Index = () => {
   const autoRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const previousDataRef = useRef<ContainerData[]>([]);
 
+  // Redirect to auth if not logged in
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/auth');
+    }
+  }, [user, authLoading, navigate]);
+
+  // Load containers from database on mount
+  useEffect(() => {
+    const loadContainers = async () => {
+      if (!user) return;
+      
+      try {
+        const containers = await fetchUserContainers();
+        setTrackingData(containers);
+        setContainerNumbers(containers.map(c => c.containerNumber));
+      } catch (error) {
+        console.error('Error loading containers:', error);
+        toast.error('Failed to load your containers');
+      } finally {
+        setIsLoadingData(false);
+      }
+    };
+
+    if (user) {
+      loadContainers();
+    }
+  }, [user]);
+
   // Auto-refresh effect
   useEffect(() => {
     if (containerNumbers.length > 0 && !isTracking) {
-      // Clear existing timer
       if (autoRefreshTimerRef.current) {
         clearTimeout(autoRefreshTimerRef.current);
       }
       
-      // Set next refresh time
       const nextTime = new Date(Date.now() + AUTO_REFRESH_INTERVAL);
       setNextRefresh(nextTime);
       
-      // Schedule auto-refresh
       autoRefreshTimerRef.current = setTimeout(() => {
         toast.info('Auto-refreshing tracking data...');
         handleRefreshAll();
@@ -83,7 +115,6 @@ const Index = () => {
   const saveTrackingData = useCallback((data: ContainerData[]) => {
     localStorage.setItem('cargotrack_tracking_data', JSON.stringify(data));
     
-    // Also save a history entry
     const now = new Date();
     const counts: Record<string, number> = {
       'In Transit': 0,
@@ -109,7 +140,6 @@ const Index = () => {
     const existingHistory = localStorage.getItem('cargotrack_status_history');
     let history = existingHistory ? JSON.parse(existingHistory) : [];
     history.push(historyEntry);
-    // Keep only last 50 entries
     if (history.length > 50) {
       history = history.slice(-50);
     }
@@ -117,15 +147,13 @@ const Index = () => {
   }, []);
 
   const handleRefreshAll = useCallback(async () => {
-    if (containerNumbers.length === 0 || isTracking) return;
+    if (containerNumbers.length === 0 || isTracking || !user) return;
     
-    // Store previous data for comparison
     previousDataRef.current = [...trackingData];
     
     setIsTracking(true);
     setTrackingProgress(0);
     
-    // Mark all as tracking
     setTrackingData(prev => prev.map(item => ({ ...item, isTracking: true })));
     
     const newResults: ContainerData[] = [];
@@ -143,10 +171,10 @@ const Index = () => {
         );
       });
       
-      // Check for status changes and send notifications
-      await checkAndSendNotifications(newResults);
+      // Save to database
+      await upsertContainers(newResults, user.id);
       
-      // Save to localStorage for dashboard
+      await checkAndSendNotifications(newResults);
       saveTrackingData(newResults);
       
       setLastRefresh(new Date());
@@ -157,7 +185,7 @@ const Index = () => {
     } finally {
       setIsTracking(false);
     }
-  }, [containerNumbers, isTracking, trackingData, checkAndSendNotifications, saveTrackingData]);
+  }, [containerNumbers, isTracking, trackingData, user, checkAndSendNotifications, saveTrackingData]);
 
   const handleSubscribe = useCallback((email: string) => {
     setNotificationEmail(email);
@@ -171,10 +199,11 @@ const Index = () => {
   }, []);
 
   const handleFileProcessed = useCallback(async (numbers: string[]) => {
+    if (!user) return;
+    
     setContainerNumbers(numbers);
     toast.success(`Found ${numbers.length} container numbers!`);
     
-    // Initialize tracking data with "tracking" state
     const initialData: ContainerData[] = numbers.map(num => ({
       containerNumber: num,
       shippingLine: '',
@@ -188,14 +217,13 @@ const Index = () => {
     }));
     setTrackingData(initialData);
     
-    // Start tracking
     setIsTracking(true);
     setTrackingProgress(0);
     
     const results: ContainerData[] = [];
     
     try {
-      await trackContainers(numbers, (completed, data) => {
+      await trackContainers(numbers, async (completed, data) => {
         setTrackingProgress(completed);
         results.push(data);
         setTrackingData(prev => 
@@ -205,11 +233,12 @@ const Index = () => {
               : item
           )
         );
+        
+        // Save each container to database as it completes
+        await upsertContainer(data, user.id);
       });
       
-      // Save to localStorage for dashboard
       saveTrackingData(results);
-      
       toast.success('All containers tracked successfully!');
     } catch (error) {
       console.error('Tracking error:', error);
@@ -217,19 +246,18 @@ const Index = () => {
     } finally {
       setIsTracking(false);
     }
-  }, [saveTrackingData]);
+  }, [user, saveTrackingData]);
 
   const handleManualTrack = useCallback(async (containerNumber: string) => {
-    // Check if already tracking this container
+    if (!user) return;
+    
     if (trackingData.some(c => c.containerNumber === containerNumber)) {
       toast.info('Container is already in the tracking list');
       return;
     }
 
-    // Add to lists
     setContainerNumbers(prev => [...prev, containerNumber]);
     
-    // Add with tracking state
     const newContainer: ContainerData = {
       containerNumber,
       shippingLine: '',
@@ -259,13 +287,15 @@ const Index = () => {
         error: result.error
       };
       
+      // Save to database
+      await upsertContainer(data, user.id);
+      
       setTrackingData(prev => {
         const updated = prev.map(item => 
           item.containerNumber === containerNumber 
             ? { ...data, isTracking: false }
             : item
         );
-        // Save to localStorage for dashboard
         saveTrackingData(updated);
         return updated;
       });
@@ -286,18 +316,42 @@ const Index = () => {
       );
       toast.error(`Failed to track ${containerNumber}`);
     }
-  }, [trackingData, saveTrackingData]);
+  }, [trackingData, user, saveTrackingData]);
 
-  const handleClear = useCallback(() => {
-    setContainerNumbers([]);
-    setTrackingData([]);
-    setTrackingProgress(0);
-    setLastRefresh(null);
-    setNextRefresh(null);
-    if (autoRefreshTimerRef.current) {
-      clearTimeout(autoRefreshTimerRef.current);
+  const handleClear = useCallback(async () => {
+    try {
+      await deleteAllContainers();
+      setContainerNumbers([]);
+      setTrackingData([]);
+      setTrackingProgress(0);
+      setLastRefresh(null);
+      setNextRefresh(null);
+      localStorage.removeItem('cargotrack_tracking_data');
+      localStorage.removeItem('cargotrack_status_history');
+      if (autoRefreshTimerRef.current) {
+        clearTimeout(autoRefreshTimerRef.current);
+      }
+      toast.success('All containers cleared');
+    } catch (error) {
+      console.error('Error clearing containers:', error);
+      toast.error('Failed to clear containers');
     }
   }, []);
+
+  // Show loading while checking auth
+  if (authLoading || (user && isLoadingData)) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
+            <p className="text-muted-foreground">Loading your containers...</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
