@@ -14,7 +14,84 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      tracked_containers: {
+        Row: {
+          container_number: string
+          created_at: string
+          current_location: string | null
+          destination_port: string | null
+          error: string | null
+          eta: string | null
+          id: string
+          last_update: string | null
+          origin_port: string | null
+          shipping_line: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          vessel_name: string | null
+          voyage_number: string | null
+        }
+        Insert: {
+          container_number: string
+          created_at?: string
+          current_location?: string | null
+          destination_port?: string | null
+          error?: string | null
+          eta?: string | null
+          id?: string
+          last_update?: string | null
+          origin_port?: string | null
+          shipping_line?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          vessel_name?: string | null
+          voyage_number?: string | null
+        }
+        Update: {
+          container_number?: string
+          created_at?: string
+          current_location?: string | null
+          destination_port?: string | null
+          error?: string | null
+          eta?: string | null
+          id?: string
+          last_update?: string | null
+          origin_port?: string | null
+          shipping_line?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          vessel_name?: string | null
+          voyage_number?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
