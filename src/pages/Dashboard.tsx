@@ -1,12 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { ContainerData, ContainerStatus } from '@/types/container';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, LineChart, Line, Area, AreaChart } from 'recharts';
-import { Package, TrendingUp, Activity, Ship } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Area, AreaChart } from 'recharts';
+import { Package, TrendingUp, Activity, Ship, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/useAuth';
+import { fetchUserContainers } from '@/services/containerDbService';
 
 const STATUS_COLORS: Record<ContainerStatus, string> = {
   'In Transit': 'hsl(var(--status-transit))',
@@ -33,21 +35,54 @@ interface StatusHistoryEntry {
 }
 
 const Dashboard = () => {
+  const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const [trackingData, setTrackingData] = useState<ContainerData[]>([]);
   const [statusHistory, setStatusHistory] = useState<StatusHistoryEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Load tracking data from localStorage (sync with Index page)
+  // Redirect to auth if not logged in
   useEffect(() => {
-    const loadData = () => {
-      const storedData = localStorage.getItem('cargotrack_tracking_data');
-      if (storedData) {
-        try {
-          setTrackingData(JSON.parse(storedData));
-        } catch (e) {
-          console.error('Failed to parse tracking data:', e);
-        }
+    if (!authLoading && !user) {
+      navigate('/auth');
+    }
+  }, [user, authLoading, navigate]);
+
+  // Load tracking data from database and localStorage for history
+  useEffect(() => {
+    const loadData = async () => {
+      if (!user) return;
+      
+      try {
+        // Load containers from database
+        const containers = await fetchUserContainers();
+        setTrackingData(containers);
+        
+        // Also save to localStorage for dashboard sync
+        localStorage.setItem('cargotrack_tracking_data', JSON.stringify(containers));
+      } catch (error) {
+        console.error('Failed to load containers:', error);
       }
 
+      // Load history from localStorage
+      const storedHistory = localStorage.getItem('cargotrack_status_history');
+      if (storedHistory) {
+        try {
+          setStatusHistory(JSON.parse(storedHistory));
+        } catch (e) {
+          console.error('Failed to parse status history:', e);
+        }
+      }
+      
+      setIsLoading(false);
+    };
+
+    if (user) {
+      loadData();
+    }
+    
+    // Listen for storage changes from other tabs/components
+    const handleStorageChange = () => {
       const storedHistory = localStorage.getItem('cargotrack_status_history');
       if (storedHistory) {
         try {
@@ -57,20 +92,13 @@ const Dashboard = () => {
         }
       }
     };
-
-    loadData();
     
-    // Listen for storage changes from other tabs/components
-    window.addEventListener('storage', loadData);
-    
-    // Also poll for changes within the same tab
-    const interval = setInterval(loadData, 2000);
+    window.addEventListener('storage', handleStorageChange);
     
     return () => {
-      window.removeEventListener('storage', loadData);
-      clearInterval(interval);
+      window.removeEventListener('storage', handleStorageChange);
     };
-  }, []);
+  }, [user]);
 
   // Calculate status distribution
   const statusDistribution = useMemo(() => {
@@ -124,6 +152,17 @@ const Dashboard = () => {
       ...entry.counts,
     }));
   }, [statusHistory]);
+
+  if (authLoading || isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <main className="flex-1 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </main>
+      </div>
+    );
+  }
 
   if (trackingData.length === 0) {
     return (
