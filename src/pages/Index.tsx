@@ -36,29 +36,11 @@ const Index = () => {
   const autoRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const previousDataRef = useRef<ContainerData[]>([]);
 
-  // Redirect to auth if not logged in or not verified
+  // Redirect to auth if not logged in
   useEffect(() => {
-    const checkAuth = async () => {
-      if (!authLoading && !user) {
-        navigate('/auth');
-        return;
-      }
-      
-      if (user) {
-        // Check if email is verified
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('email_verified')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (!profile?.email_verified) {
-          navigate('/auth');
-        }
-      }
-    };
-    
-    checkAuth();
+    if (!authLoading && !user) {
+      navigate('/auth');
+    }
   }, [user, authLoading, navigate]);
 
   // Load containers from database on mount
