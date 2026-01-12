@@ -1,5 +1,6 @@
-import { Ship, Anchor, Waves, BarChart3, LogOut, User } from 'lucide-react';
+import { Ship, Anchor, Waves, BarChart3, LogOut, User, Sparkles, Menu, X } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +14,7 @@ export function Header() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -20,107 +22,156 @@ export function Header() {
   };
   
   return (
-    <header className="relative overflow-hidden bg-ocean-gradient py-8 px-6">
-      {/* Decorative waves */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -bottom-2 left-0 right-0 h-16 opacity-20">
-          <svg viewBox="0 0 1200 120" preserveAspectRatio="none" className="w-full h-full">
-            <path d="M0,60 C300,100 600,20 900,60 C1050,80 1150,40 1200,60 L1200,120 L0,120 Z" fill="currentColor" className="text-background" />
-          </svg>
-        </div>
-      </div>
-      
-      <div className="container mx-auto relative z-10">
-        <div className="flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-4 hover:opacity-90 transition-opacity">
-            <div className="relative">
-              <div className="w-14 h-14 rounded-xl bg-primary-foreground/20 backdrop-blur-sm flex items-center justify-center animate-float">
-                <Ship className="w-8 h-8 text-primary-foreground" />
+    <header className="sticky top-0 z-50 w-full">
+      {/* Glassmorphism navbar */}
+      <div className="bg-glass border-b border-border/50">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            {/* Logo */}
+            <Link to="/" className="flex items-center gap-3 group">
+              <div className="relative">
+                <div className="w-12 h-12 rounded-2xl bg-ocean-gradient flex items-center justify-center shadow-lg group-hover:shadow-glow transition-all duration-500 animate-float">
+                  <Ship className="w-6 h-6 text-primary-foreground" />
+                </div>
+                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-accent flex items-center justify-center shadow-md animate-bounce-soft">
+                  <Anchor className="w-3 h-3 text-accent-foreground" />
+                </div>
               </div>
-              <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-accent flex items-center justify-center">
-                <Anchor className="w-3 h-3 text-accent-foreground" />
+              <div>
+                <h1 className="text-xl md:text-2xl font-bold font-display text-foreground group-hover:text-gradient transition-all duration-300">
+                  CargoTrack Pro
+                </h1>
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Waves className="w-3 h-3 text-primary" />
+                  Real-time Tracking
+                </p>
               </div>
-            </div>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-primary-foreground tracking-tight">
-                CargoTrack Pro
-              </h1>
-              <p className="text-sm text-primary-foreground/80 flex items-center gap-2">
-                <Waves className="w-4 h-4" />
-                Real-time Container Tracking
-              </p>
-            </div>
-          </Link>
-          
-          <div className="flex items-center gap-4">
-            <nav className="hidden md:flex items-center gap-2">
+            </Link>
+            
+            {/* Desktop Navigation */}
+            <nav className="hidden md:flex items-center gap-2 bg-muted/50 rounded-2xl p-1.5">
               <Link 
                 to="/" 
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${
                   location.pathname === '/' 
-                    ? 'bg-primary-foreground/20 text-primary-foreground' 
-                    : 'text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/10'
+                    ? 'bg-card text-foreground shadow-md' 
+                    : 'text-muted-foreground hover:text-foreground hover:bg-card/50'
                 }`}
               >
-                Tracking
+                <span className="flex items-center gap-2">
+                  <Ship className="w-4 h-4" />
+                  Tracking
+                </span>
               </Link>
               <Link 
                 to="/dashboard" 
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 flex items-center gap-2 ${
                   location.pathname === '/dashboard' 
-                    ? 'bg-primary-foreground/20 text-primary-foreground' 
-                    : 'text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/10'
+                    ? 'bg-card text-foreground shadow-md' 
+                    : 'text-muted-foreground hover:text-foreground hover:bg-card/50'
                 }`}
               >
                 <BarChart3 className="w-4 h-4" />
                 Dashboard
               </Link>
             </nav>
-            
-            <div className="hidden lg:flex items-center gap-6 text-primary-foreground/90 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-status-arrived animate-pulse" />
-                <span>Live Tracking</span>
-              </div>
-              <div className="px-4 py-2 rounded-lg bg-primary-foreground/10 backdrop-blur-sm">
-                <span className="font-medium">5+ Shipping Lines</span>
-              </div>
-            </div>
 
-            {/* Auth controls */}
-            {user ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+            {/* Right side - Status & Auth */}
+            <div className="flex items-center gap-3">
+              {/* Live Status Badge */}
+              <div className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-2xl bg-status-arrived/10 border border-status-arrived/20">
+                <div className="relative">
+                  <div className="w-2.5 h-2.5 rounded-full bg-status-arrived" />
+                  <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-status-arrived animate-ping opacity-75" />
+                </div>
+                <span className="text-sm font-medium text-status-arrived">Live</span>
+              </div>
+
+              {/* Feature Badge */}
+              <div className="hidden xl:flex items-center gap-2 px-4 py-2 rounded-2xl bg-secondary">
+                <Sparkles className="w-4 h-4 text-primary" />
+                <span className="text-sm font-medium text-secondary-foreground">5+ Shipping Lines</span>
+              </div>
+
+              {/* Auth controls */}
+              {user ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="gap-2 rounded-xl border-border hover:border-primary/50 hover:bg-primary/5 transition-all duration-300"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-ocean-gradient flex items-center justify-center">
+                        <User className="w-4 h-4 text-primary-foreground" />
+                      </div>
+                      <span className="hidden sm:inline max-w-[100px] truncate text-foreground">
+                        {user.email?.split('@')[0]}
+                      </span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48 rounded-xl p-2">
+                    <DropdownMenuItem onClick={handleSignOut} className="gap-2 cursor-pointer rounded-lg">
+                      <LogOut className="w-4 h-4" />
+                      Sign Out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Link to="/auth">
                   <Button 
-                    variant="ghost" 
                     size="sm"
-                    className="text-primary-foreground hover:bg-primary-foreground/10 gap-2"
+                    className="rounded-xl bg-ocean-gradient hover:opacity-90 shadow-md hover:shadow-lg transition-all duration-300 gap-2"
                   >
-                    <User className="w-4 h-4" />
-                    <span className="hidden sm:inline max-w-[120px] truncate">
-                      {user.email}
-                    </span>
+                    <Sparkles className="w-4 h-4" />
+                    Get Started
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleSignOut} className="gap-2 cursor-pointer">
-                    <LogOut className="w-4 h-4" />
-                    Sign Out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <Link to="/auth">
-                <Button 
-                  variant="secondary" 
-                  size="sm"
-                  className="bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30"
-                >
-                  Sign In
-                </Button>
-              </Link>
-            )}
+                </Link>
+              )}
+
+              {/* Mobile menu button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden rounded-xl"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              >
+                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </Button>
+            </div>
           </div>
+
+          {/* Mobile Navigation */}
+          {mobileMenuOpen && (
+            <nav className="md:hidden mt-4 pt-4 border-t border-border/50 animate-fade-in">
+              <div className="flex flex-col gap-2">
+                <Link 
+                  to="/" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 flex items-center gap-3 ${
+                    location.pathname === '/' 
+                      ? 'bg-primary/10 text-primary' 
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  }`}
+                >
+                  <Ship className="w-5 h-5" />
+                  Tracking
+                </Link>
+                <Link 
+                  to="/dashboard" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 flex items-center gap-3 ${
+                    location.pathname === '/dashboard' 
+                      ? 'bg-primary/10 text-primary' 
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  }`}
+                >
+                  <BarChart3 className="w-5 h-5" />
+                  Dashboard
+                </Link>
+              </div>
+            </nav>
+          )}
         </div>
       </div>
     </header>
