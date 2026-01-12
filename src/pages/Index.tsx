@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { Header } from '@/components/Header';
 import { FileUpload } from '@/components/FileUpload';
 import { ManualEntryForm } from '@/components/ManualEntryForm';
@@ -15,7 +14,7 @@ import { sendStatusNotification, detectStatusChanges } from '@/services/notifica
 import { fetchUserContainers, upsertContainer, upsertContainers, deleteAllContainers } from '@/services/containerDbService';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { RefreshCcw, FileSpreadsheet, Sparkles, Search, Clock, Bell, Loader2 } from 'lucide-react';
+import { RefreshCcw, FileSpreadsheet, Sparkles, Search, Clock, Bell, Loader2, Ship, Globe, Zap, Shield, ChevronRight, Container } from 'lucide-react';
 import { toast } from 'sonner';
 
 const AUTO_REFRESH_INTERVAL = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
@@ -355,124 +354,191 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col overflow-hidden">
       <Header />
       
-      <main className="flex-1 container mx-auto px-4 py-8 space-y-8">
-        {/* Hero Section */}
+      <main className="flex-1">
+        {/* Beautiful Hero Section */}
         {trackingData.length === 0 && (
-          <section className="text-center space-y-6 py-8 animate-fade-in">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium">
-              <Sparkles className="w-4 h-4" />
-              Real-time Container Tracking
+          <section className="relative py-16 md:py-24 overflow-hidden">
+            {/* Animated background blobs */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              <div className="absolute top-20 left-10 w-72 h-72 bg-primary/20 rounded-full blur-3xl animate-blob" />
+              <div className="absolute top-40 right-10 w-96 h-96 bg-accent/15 rounded-full blur-3xl animate-blob" style={{ animationDelay: '2s' }} />
+              <div className="absolute bottom-20 left-1/3 w-80 h-80 bg-secondary/30 rounded-full blur-3xl animate-blob" style={{ animationDelay: '4s' }} />
             </div>
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground max-w-2xl mx-auto">
-              Track your containers across{' '}
-              <span className="text-gradient">multiple shipping lines</span>
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-              Upload your Excel file with container numbers and get instant tracking updates from MSC, Maersk, CMA CGM, and more.
-            </p>
+            
+            <div className="container mx-auto px-4 relative z-10">
+              <div className="text-center space-y-8 max-w-4xl mx-auto">
+                {/* Badge */}
+                <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-card border border-border shadow-md animate-fade-in-down">
+                  <div className="w-2 h-2 rounded-full bg-status-arrived animate-pulse" />
+                  <span className="text-sm font-medium text-foreground">Live Container Tracking</span>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                </div>
+                
+                {/* Main heading */}
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold font-display leading-tight animate-fade-in-up">
+                  Track Your Cargo{' '}
+                  <span className="text-gradient">Across the Globe</span>
+                </h1>
+                
+                {/* Subheading */}
+                <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+                  Real-time visibility for your shipments. Connect with MSC, Maersk, CMA CGM, and 5+ major shipping lines instantly.
+                </p>
+                
+                {/* Feature pills */}
+                <div className="flex flex-wrap justify-center gap-3 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-card border border-border shadow-sm">
+                    <Globe className="w-4 h-4 text-primary" />
+                    <span className="text-sm font-medium">Global Coverage</span>
+                  </div>
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-card border border-border shadow-sm">
+                    <Zap className="w-4 h-4 text-status-transit" />
+                    <span className="text-sm font-medium">Instant Updates</span>
+                  </div>
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-card border border-border shadow-sm">
+                    <Shield className="w-4 h-4 text-status-arrived" />
+                    <span className="text-sm font-medium">Secure & Reliable</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Floating container icons */}
+              <div className="hidden lg:block absolute top-1/4 left-8 animate-float">
+                <div className="w-16 h-16 rounded-2xl bg-card border border-border shadow-lg flex items-center justify-center">
+                  <Container className="w-8 h-8 text-primary" />
+                </div>
+              </div>
+              <div className="hidden lg:block absolute top-1/3 right-12 animate-float-delayed">
+                <div className="w-14 h-14 rounded-2xl bg-card border border-border shadow-lg flex items-center justify-center">
+                  <Ship className="w-7 h-7 text-accent" />
+                </div>
+              </div>
+            </div>
           </section>
         )}
 
-        {/* Manual Entry Section */}
-        <section className="max-w-2xl mx-auto animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-          <div className="bg-card rounded-2xl border border-border shadow-lg p-6 md:p-8">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Search className="w-5 h-5 text-primary" />
+        {/* Main Content Container */}
+        <div className="container mx-auto px-4 pb-12 space-y-8">
+          {/* Manual Entry Section */}
+          <section className="max-w-2xl mx-auto animate-fade-in-up" style={{ animationDelay: '300ms' }}>
+            <div className="bg-card rounded-3xl border border-border shadow-xl p-6 md:p-8 hover-lift card-shine">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 rounded-2xl bg-ocean-gradient flex items-center justify-center shadow-md">
+                  <Search className="w-6 h-6 text-primary-foreground" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold font-display text-foreground">Track a Container</h3>
+                  <p className="text-sm text-muted-foreground">Enter your container number to get instant updates</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-semibold text-foreground">Track a Container</h3>
-                <p className="text-sm text-muted-foreground">Enter container number to track instantly</p>
-              </div>
-            </div>
-            <ManualEntryForm 
-              onTrack={handleManualTrack}
-              isTracking={isTracking}
-            />
-          </div>
-        </section>
-
-        {/* Upload Section */}
-        <section className="max-w-2xl mx-auto animate-fade-in-up" style={{ animationDelay: '150ms' }}>
-          <div className="bg-card rounded-2xl border border-border shadow-lg p-6 md:p-8">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-                <FileSpreadsheet className="w-5 h-5 text-accent" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground">Bulk Upload</h3>
-                <p className="text-sm text-muted-foreground">Upload Excel file with multiple containers</p>
-              </div>
-            </div>
-            <FileUpload 
-              onFileProcessed={handleFileProcessed} 
-              isProcessing={isTracking}
-            />
-          </div>
-        </section>
-
-        {/* Results Section */}
-        {trackingData.length > 0 && (
-          <section className="space-y-6 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
-            {/* Stats */}
-            <StatsCards data={trackingData} isTracking={isTracking} />
-            
-            {/* Email Notifications */}
-            <div className="bg-card rounded-xl border border-border p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Bell className="w-4 h-4 text-primary" />
-                <span className="text-sm font-medium">Email Notifications</span>
-              </div>
-              <EmailNotificationForm
-                subscribedEmail={notificationEmail}
-                onSubscribe={handleSubscribe}
-                onUnsubscribe={handleUnsubscribe}
+              <ManualEntryForm 
+                onTrack={handleManualTrack}
+                isTracking={isTracking}
               />
             </div>
-            
-            {/* Actions */}
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex flex-wrap items-center gap-3">
-                {nextRefresh && !isTracking && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
-                    <Clock className="w-3 h-3" />
-                    <span>Auto-refresh in 3h</span>
-                  </div>
-                )}
-                <Button
-                  onClick={handleRefreshAll}
-                  disabled={isTracking}
-                  variant="outline"
-                  className="gap-2"
-                >
-                  <RefreshCcw className="w-4 h-4" />
-                  Refresh All
-                </Button>
-                <Button
-                  onClick={handleClear}
-                  disabled={isTracking}
-                  variant="ghost"
-                  className="text-muted-foreground"
-                >
-                  Clear Results
-                </Button>
-              </div>
-              <ExportButtons data={trackingData} disabled={isTracking} />
-            </div>
-            
-            {/* Table */}
-            <TrackingTable data={trackingData} />
           </section>
-        )}
+
+          {/* Upload Section */}
+          <section className="max-w-2xl mx-auto animate-fade-in-up" style={{ animationDelay: '400ms' }}>
+            <div className="bg-card rounded-3xl border border-border shadow-xl p-6 md:p-8 hover-lift card-shine">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 rounded-2xl bg-sunset-gradient flex items-center justify-center shadow-md">
+                  <FileSpreadsheet className="w-6 h-6 text-accent-foreground" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold font-display text-foreground">Bulk Upload</h3>
+                  <p className="text-sm text-muted-foreground">Upload Excel file with multiple containers</p>
+                </div>
+              </div>
+              <FileUpload 
+                onFileProcessed={handleFileProcessed} 
+                isProcessing={isTracking}
+              />
+            </div>
+          </section>
+
+          {/* Results Section */}
+          {trackingData.length > 0 && (
+            <section className="space-y-8 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
+              {/* Stats */}
+              <StatsCards data={trackingData} isTracking={isTracking} />
+              
+              {/* Email Notifications */}
+              <div className="bg-card rounded-2xl border border-border shadow-lg p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-aurora-gradient flex items-center justify-center">
+                    <Bell className="w-5 h-5 text-primary-foreground" />
+                  </div>
+                  <div>
+                    <span className="font-semibold text-foreground">Email Notifications</span>
+                    <p className="text-sm text-muted-foreground">Get alerts when status changes</p>
+                  </div>
+                </div>
+                <EmailNotificationForm
+                  subscribedEmail={notificationEmail}
+                  onSubscribe={handleSubscribe}
+                  onUnsubscribe={handleUnsubscribe}
+                />
+              </div>
+              
+              {/* Actions */}
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  {nextRefresh && !isTracking && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground bg-card border border-border px-4 py-2 rounded-full shadow-sm">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Auto-refresh in 3h</span>
+                    </div>
+                  )}
+                  <Button
+                    onClick={handleRefreshAll}
+                    disabled={isTracking}
+                    variant="outline"
+                    className="gap-2 rounded-xl"
+                  >
+                    <RefreshCcw className="w-4 h-4" />
+                    Refresh All
+                  </Button>
+                  <Button
+                    onClick={handleClear}
+                    disabled={isTracking}
+                    variant="ghost"
+                    className="text-muted-foreground rounded-xl"
+                  >
+                    Clear Results
+                  </Button>
+                </div>
+                <ExportButtons data={trackingData} disabled={isTracking} />
+              </div>
+              
+              {/* Table */}
+              <TrackingTable data={trackingData} />
+            </section>
+          )}
+        </div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-border py-6 mt-auto">
-        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>CargoTrack Pro — Real-time container tracking across major shipping lines</p>
+      {/* Beautiful Footer */}
+      <footer className="relative border-t border-border py-12 mt-auto overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-t from-muted/30 to-transparent pointer-events-none" />
+        <div className="container mx-auto px-4 relative z-10">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-ocean-gradient flex items-center justify-center shadow-md">
+                <Ship className="w-5 h-5 text-primary-foreground" />
+              </div>
+              <div>
+                <p className="font-semibold font-display text-foreground">CargoTrack Pro</p>
+                <p className="text-sm text-muted-foreground">Real-time container tracking</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              © {new Date().getFullYear()} CargoTrack Pro. All rights reserved.
+            </p>
+          </div>
         </div>
       </footer>
 
