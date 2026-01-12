@@ -5,6 +5,3 @@ verify_jwt = false
 
 [functions.send-status-notification]
 verify_jwt = false
-
-[functions.verify-email]
-verify_jwt = false
