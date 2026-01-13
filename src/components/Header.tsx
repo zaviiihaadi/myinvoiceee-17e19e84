@@ -1,4 +1,4 @@
-import { Ship, Anchor, Waves, BarChart3, LogOut, User, Sparkles, Menu, X } from 'lucide-react';
+import { Ship, Anchor, Waves, BarChart3, LogOut, User, Sparkles, Menu, X, Globe } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -60,8 +60,19 @@ export function Header() {
               >
                 <span className="flex items-center gap-2">
                   <Ship className="w-4 h-4" />
-                  Tracking
+                  Home
                 </span>
+              </Link>
+              <Link 
+                to="/tracking" 
+                className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 flex items-center gap-2 ${
+                  location.pathname === '/tracking' 
+                    ? 'bg-card text-foreground shadow-md' 
+                    : 'text-muted-foreground hover:text-foreground hover:bg-card/50'
+                }`}
+              >
+                <Globe className="w-4 h-4" />
+                Tracking
               </Link>
               <Link 
                 to="/dashboard" 
@@ -155,6 +166,18 @@ export function Header() {
                   }`}
                 >
                   <Ship className="w-5 h-5" />
+                  Home
+                </Link>
+                <Link 
+                  to="/tracking" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 flex items-center gap-3 ${
+                    location.pathname === '/tracking' 
+                      ? 'bg-primary/10 text-primary' 
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  }`}
+                >
+                  <Globe className="w-5 h-5" />
                   Tracking
                 </Link>
                 <Link 
