@@ -1,17 +1,39 @@
 import { useState, useEffect } from 'react';
-import { Clock } from 'lucide-react';
+import { Clock, Calendar, AlertCircle } from 'lucide-react';
 
 interface RealTimeETAProps {
   eta: string;
 }
 
 function parseETA(eta: string): Date | null {
-  if (!eta) return null;
+  if (!eta || eta === '-' || eta === 'N/A' || eta === 'TBD') return null;
   
   // Try parsing various date formats
   const date = new Date(eta);
   if (!isNaN(date.getTime())) {
     return date;
+  }
+  
+  // Try parsing "DD MMM YYYY" format (e.g., "16 Jan 2026")
+  const dateMatch = eta.match(/(\d{1,2})\s+(\w{3})\s+(\d{4})/);
+  if (dateMatch) {
+    const [, day, month, year] = dateMatch;
+    const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    const monthIndex = monthNames.indexOf(month.toLowerCase());
+    if (monthIndex !== -1) {
+      return new Date(parseInt(year), monthIndex, parseInt(day));
+    }
+  }
+  
+  // Try parsing "MMM DD, YYYY" format (e.g., "Jan 16, 2026")
+  const dateMatch2 = eta.match(/(\w{3})\s+(\d{1,2}),?\s+(\d{4})/);
+  if (dateMatch2) {
+    const [, month, day, year] = dateMatch2;
+    const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    const monthIndex = monthNames.indexOf(month.toLowerCase());
+    if (monthIndex !== -1) {
+      return new Date(parseInt(year), monthIndex, parseInt(day));
+    }
   }
   
   return null;
@@ -51,7 +73,8 @@ export function RealTimeETA({ eta }: RealTimeETAProps) {
     const etaDate = parseETA(eta);
     
     if (!etaDate) {
-      setCountdown(eta || '-');
+      // Show the raw string if we can't parse it, or a placeholder
+      setCountdown(eta && eta.trim() !== '' ? eta : 'Pending');
       setIsLive(false);
       return;
     }
@@ -69,24 +92,40 @@ export function RealTimeETA({ eta }: RealTimeETAProps) {
     return () => clearInterval(interval);
   }, [eta]);
 
-  if (!eta) {
-    return <span className="text-muted-foreground">-</span>;
+  // Handle null, undefined, or empty eta
+  if (!eta || eta.trim() === '') {
+    return (
+      <div className="flex items-center gap-2 text-muted-foreground">
+        <Clock className="w-4 h-4" />
+        <span className="text-sm font-medium">Pending</span>
+      </div>
+    );
   }
 
   const etaDate = parseETA(eta);
 
+  // If we couldn't parse the date, show the raw ETA string nicely
+  if (!etaDate) {
+    return (
+      <div className="flex items-center gap-2">
+        <Calendar className="w-4 h-4 text-primary" />
+        <span className="text-sm font-medium text-foreground">{eta}</span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-0.5">
-      {etaDate && (
-        <span className="text-xs text-muted-foreground">
-          {etaDate.toLocaleDateString('en-US', { 
-            month: 'short', 
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          })}
-        </span>
-      )}
+      <span className="text-xs text-muted-foreground flex items-center gap-1">
+        <Calendar className="w-3 h-3" />
+        {etaDate.toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })}
+      </span>
       <div className="flex items-center gap-1.5">
         {isLive && (
           <span className="relative flex h-2 w-2">
@@ -94,7 +133,7 @@ export function RealTimeETA({ eta }: RealTimeETAProps) {
             <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
           </span>
         )}
-        <span className={`font-mono text-sm ${isLive ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+        <span className={`font-mono text-sm ${isLive ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
           {countdown}
         </span>
       </div>
