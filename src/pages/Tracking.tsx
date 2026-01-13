@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Header } from '@/components/Header';
 import { ContainerData, ContainerStatus } from '@/types/container';
-import { fetchUserContainers } from '@/services/containerDbService';
+import { fetchUserContainers, deleteContainer } from '@/services/containerDbService';
 import { 
   Select,
   SelectContent,
@@ -36,8 +36,23 @@ import {
   Search,
   ArrowRight,
   Sparkles,
-  Container
+  Container,
+  Trash2,
+  Loader2
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { RealTimeETA } from '@/components/RealTimeETA';
 import { Input } from '@/components/ui/input';
@@ -105,7 +120,13 @@ function StatusBadge({ status }: { status: ContainerStatus }) {
   );
 }
 
-function LocationCard({ container }: { container: ContainerData }) {
+interface LocationCardProps {
+  container: ContainerData;
+  onDelete: (containerNumber: string) => void;
+  isDeleting: boolean;
+}
+
+function LocationCard({ container, onDelete, isDeleting }: LocationCardProps) {
   return (
     <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-card via-card to-muted/30 border border-border/50 shadow-xl hover:shadow-2xl transition-all duration-500 group">
       {/* Decorative Elements */}
@@ -129,7 +150,45 @@ function LocationCard({ container }: { container: ContainerData }) {
               </p>
             </div>
           </div>
-          <StatusBadge status={container.status} />
+          <div className="flex items-center gap-2">
+            <StatusBadge status={container.status} />
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-10 w-10 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-5 h-5" />
+                  )}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="bg-card border-border">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2">
+                    <Trash2 className="w-5 h-5 text-destructive" />
+                    Delete Container
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to delete container <span className="font-mono font-semibold text-foreground">{container.containerNumber}</span>? This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => onDelete(container.containerNumber)}
+                    className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
 
         {/* Journey Map */}
@@ -213,6 +272,25 @@ export default function Tracking() {
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedDestination, setSelectedDestination] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [deletingContainer, setDeletingContainer] = useState<string | null>(null);
+
+  const handleDeleteContainer = async (containerNumber: string) => {
+    setDeletingContainer(containerNumber);
+    try {
+      await deleteContainer(containerNumber);
+      setContainers(prev => prev.filter(c => c.containerNumber !== containerNumber));
+      toast.success('Container deleted successfully', {
+        description: `Container ${containerNumber} has been removed from tracking.`,
+      });
+    } catch (error) {
+      console.error('Error deleting container:', error);
+      toast.error('Failed to delete container', {
+        description: 'Please try again later.',
+      });
+    } finally {
+      setDeletingContainer(null);
+    }
+  };
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -459,7 +537,11 @@ export default function Tracking() {
                 className="animate-fade-in"
                 style={{ animationDelay: `${index * 100}ms` }}
               >
-                <LocationCard container={container} />
+                <LocationCard 
+                  container={container} 
+                  onDelete={handleDeleteContainer}
+                  isDeleting={deletingContainer === container.containerNumber}
+                />
               </div>
             ))}
           </div>
