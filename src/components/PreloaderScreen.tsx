@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface PreloaderScreenProps {
   onComplete: () => void;
@@ -13,72 +13,69 @@ const lines = [
 
 export function PreloaderScreen({ onComplete }: PreloaderScreenProps) {
   const [currentLine, setCurrentLine] = useState(0);
-  const [animationPhase, setAnimationPhase] = useState<'reveal' | 'hold' | 'hide'>('reveal');
+  const [isAnimating, setIsAnimating] = useState(true);
   const [fadeOut, setFadeOut] = useState(false);
 
+  const LINE_DURATION = 2000; // Time each line stays visible
+  const FADE_OUT_DURATION = 600;
+
+  const handleComplete = useCallback(() => {
+    setFadeOut(true);
+    setTimeout(() => {
+      onComplete();
+    }, FADE_OUT_DURATION);
+  }, [onComplete]);
+
   useEffect(() => {
-    const revealDuration = 800;  // Time for text to reveal
-    const holdDuration = 1200;   // Time to hold visible
-    const hideDuration = 400;    // Time to fade out
-
-    let timer: NodeJS.Timeout;
-
-    if (animationPhase === 'reveal') {
-      timer = setTimeout(() => {
-        setAnimationPhase('hold');
-      }, revealDuration);
-    } else if (animationPhase === 'hold') {
-      timer = setTimeout(() => {
-        setAnimationPhase('hide');
-      }, holdDuration);
-    } else if (animationPhase === 'hide') {
-      timer = setTimeout(() => {
-        if (currentLine < lines.length - 1) {
+    const timer = setTimeout(() => {
+      if (currentLine < lines.length - 1) {
+        setIsAnimating(false);
+        
+        // Brief pause before showing next line
+        setTimeout(() => {
           setCurrentLine(prev => prev + 1);
-          setAnimationPhase('reveal');
-        } else {
-          setFadeOut(true);
-          setTimeout(() => onComplete(), 600);
-        }
-      }, hideDuration);
-    }
+          setIsAnimating(true);
+        }, 300);
+      } else {
+        // All lines shown, complete the preloader
+        handleComplete();
+      }
+    }, LINE_DURATION);
 
     return () => clearTimeout(timer);
-  }, [currentLine, animationPhase, onComplete]);
+  }, [currentLine, handleComplete]);
+
+  // Fallback timeout to ensure preloader never gets stuck
+  useEffect(() => {
+    const fallbackTimer = setTimeout(() => {
+      if (!fadeOut) {
+        handleComplete();
+      }
+    }, (lines.length * LINE_DURATION) + 2000); // Total time + buffer
+
+    return () => clearTimeout(fallbackTimer);
+  }, [fadeOut, handleComplete]);
 
   return (
     <div 
-      className={`fixed inset-0 z-[9999] flex items-center justify-center bg-white transition-opacity duration-600 ease-out ${
-        fadeOut ? 'opacity-0' : 'opacity-100'
+      className={`fixed inset-0 z-[9999] flex items-center justify-center bg-white transition-opacity ease-out ${
+        fadeOut ? 'opacity-0 duration-500' : 'opacity-100 duration-300'
       }`}
     >
       <div className="text-center px-6 max-w-3xl">
-        <div className="relative overflow-hidden">
+        <div className="relative overflow-hidden min-h-[80px] flex items-center justify-center">
           <p 
+            key={currentLine}
             className={`
               text-xl md:text-2xl lg:text-3xl font-light text-black leading-relaxed tracking-wide
-              transition-all duration-500 ease-out
-              ${animationPhase === 'reveal' ? 'animate-text-reveal' : ''}
-              ${animationPhase === 'hold' ? 'opacity-100' : ''}
-              ${animationPhase === 'hide' ? 'animate-text-hide' : ''}
+              ${isAnimating ? 'animate-text-slide-in' : 'animate-text-slide-out'}
             `}
             style={{ 
               fontFamily: "'Plus Jakarta Sans', sans-serif",
               fontWeight: 300,
-              minHeight: '2.5rem'
             }}
           >
-            <span className="inline-block overflow-hidden">
-              <span 
-                className={`
-                  inline-block
-                  ${animationPhase === 'reveal' ? 'animate-slide-reveal' : ''}
-                  ${animationPhase === 'hide' ? 'animate-slide-hide' : ''}
-                `}
-              >
-                {lines[currentLine]}
-              </span>
-            </span>
+            {lines[currentLine]}
           </p>
         </div>
 
@@ -91,8 +88,8 @@ export function PreloaderScreen({ onComplete }: PreloaderScreenProps) {
             >
               <div 
                 className={`
-                  absolute inset-y-0 left-0 bg-black rounded-full transition-all duration-500 ease-out
-                  ${index < currentLine ? 'w-full' : index === currentLine ? 'animate-progress-fill' : 'w-0'}
+                  absolute inset-y-0 left-0 bg-black rounded-full transition-all ease-out
+                  ${index < currentLine ? 'w-full duration-300' : index === currentLine ? 'w-full duration-[2000ms]' : 'w-0 duration-300'}
                 `}
               />
             </div>
@@ -101,81 +98,34 @@ export function PreloaderScreen({ onComplete }: PreloaderScreenProps) {
       </div>
 
       <style>{`
-        @keyframes slideReveal {
+        @keyframes textSlideIn {
           0% {
-            transform: translateX(-100%) scale(0.95);
             opacity: 0;
+            transform: translateX(-30px) scale(0.95);
           }
           100% {
+            opacity: 1;
             transform: translateX(0) scale(1);
-            opacity: 1;
           }
         }
 
-        @keyframes slideHide {
+        @keyframes textSlideOut {
           0% {
+            opacity: 1;
             transform: translateX(0) scale(1);
-            opacity: 1;
           }
           100% {
-            transform: translateX(100%) scale(0.95);
             opacity: 0;
+            transform: translateX(30px) scale(0.95);
           }
         }
 
-        @keyframes textReveal {
-          0% {
-            clip-path: inset(0 100% 0 0);
-            opacity: 0;
-          }
-          100% {
-            clip-path: inset(0 0 0 0);
-            opacity: 1;
-          }
+        .animate-text-slide-in {
+          animation: textSlideIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
         }
 
-        @keyframes textHide {
-          0% {
-            clip-path: inset(0 0 0 0);
-            opacity: 1;
-          }
-          100% {
-            clip-path: inset(0 0 0 100%);
-            opacity: 0;
-          }
-        }
-
-        @keyframes progressFill {
-          0% {
-            width: 0;
-          }
-          100% {
-            width: 100%;
-          }
-        }
-
-        .animate-slide-reveal {
-          animation: slideReveal 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-        }
-
-        .animate-slide-hide {
-          animation: slideHide 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-        }
-
-        .animate-text-reveal {
-          animation: textReveal 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-        }
-
-        .animate-text-hide {
-          animation: textHide 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-        }
-
-        .animate-progress-fill {
-          animation: progressFill 2.4s ease-out forwards;
-        }
-
-        .duration-600 {
-          transition-duration: 600ms;
+        .animate-text-slide-out {
+          animation: textSlideOut 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
         }
       `}</style>
     </div>
