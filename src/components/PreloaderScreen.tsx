@@ -13,76 +13,171 @@ const lines = [
 
 export function PreloaderScreen({ onComplete }: PreloaderScreenProps) {
   const [currentLine, setCurrentLine] = useState(0);
-  const [isVisible, setIsVisible] = useState(false);
+  const [animationPhase, setAnimationPhase] = useState<'reveal' | 'hold' | 'hide'>('reveal');
   const [fadeOut, setFadeOut] = useState(false);
 
   useEffect(() => {
-    // Show first line after a brief delay
-    const showTimer = setTimeout(() => setIsVisible(true), 100);
+    const revealDuration = 800;  // Time for text to reveal
+    const holdDuration = 1200;   // Time to hold visible
+    const hideDuration = 400;    // Time to fade out
 
-    return () => clearTimeout(showTimer);
-  }, []);
+    let timer: NodeJS.Timeout;
 
-  useEffect(() => {
-    if (!isVisible) return;
-
-    // Each line stays for 1.8 seconds
-    const lineTimer = setTimeout(() => {
-      setIsVisible(false);
-      
-      // Wait for fade out animation (500ms) before showing next line
-      setTimeout(() => {
+    if (animationPhase === 'reveal') {
+      timer = setTimeout(() => {
+        setAnimationPhase('hold');
+      }, revealDuration);
+    } else if (animationPhase === 'hold') {
+      timer = setTimeout(() => {
+        setAnimationPhase('hide');
+      }, holdDuration);
+    } else if (animationPhase === 'hide') {
+      timer = setTimeout(() => {
         if (currentLine < lines.length - 1) {
           setCurrentLine(prev => prev + 1);
-          setIsVisible(true);
+          setAnimationPhase('reveal');
         } else {
-          // All lines shown, fade out preloader
           setFadeOut(true);
           setTimeout(() => onComplete(), 600);
         }
-      }, 500);
-    }, 1800);
+      }, hideDuration);
+    }
 
-    return () => clearTimeout(lineTimer);
-  }, [currentLine, isVisible, onComplete]);
+    return () => clearTimeout(timer);
+  }, [currentLine, animationPhase, onComplete]);
 
   return (
     <div 
-      className={`fixed inset-0 z-[9999] flex items-center justify-center bg-white transition-opacity duration-500 ease-out ${
+      className={`fixed inset-0 z-[9999] flex items-center justify-center bg-white transition-opacity duration-600 ease-out ${
         fadeOut ? 'opacity-0' : 'opacity-100'
       }`}
     >
-      <div className="text-center px-6 max-w-2xl">
-        <p 
-          className={`text-xl md:text-3xl lg:text-4xl font-medium text-black leading-relaxed tracking-tight transition-all duration-500 ease-in-out ${
-            isVisible 
-              ? 'opacity-100 scale-100' 
-              : 'opacity-0 scale-[0.8]'
-          }`}
-          style={{ 
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-            minHeight: '3rem'
-          }}
-        >
-          {lines[currentLine]}
-        </p>
+      <div className="text-center px-6 max-w-3xl">
+        <div className="relative overflow-hidden">
+          <p 
+            className={`
+              text-xl md:text-2xl lg:text-3xl font-light text-black leading-relaxed tracking-wide
+              transition-all duration-500 ease-out
+              ${animationPhase === 'reveal' ? 'animate-text-reveal' : ''}
+              ${animationPhase === 'hold' ? 'opacity-100' : ''}
+              ${animationPhase === 'hide' ? 'animate-text-hide' : ''}
+            `}
+            style={{ 
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontWeight: 300,
+              minHeight: '2.5rem'
+            }}
+          >
+            <span className="inline-block overflow-hidden">
+              <span 
+                className={`
+                  inline-block
+                  ${animationPhase === 'reveal' ? 'animate-slide-reveal' : ''}
+                  ${animationPhase === 'hide' ? 'animate-slide-hide' : ''}
+                `}
+              >
+                {lines[currentLine]}
+              </span>
+            </span>
+          </p>
+        </div>
 
-        {/* Progress dots */}
-        <div className="mt-12 flex justify-center gap-2">
+        {/* Elegant progress indicator */}
+        <div className="mt-16 flex justify-center items-center gap-3">
           {lines.map((_, index) => (
-            <span 
+            <div 
               key={index}
-              className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                index === currentLine 
-                  ? 'bg-black scale-125' 
-                  : index < currentLine 
-                    ? 'bg-black/40' 
-                    : 'bg-black/20'
-              }`}
-            />
+              className="relative h-[2px] w-8 bg-black/10 overflow-hidden rounded-full"
+            >
+              <div 
+                className={`
+                  absolute inset-y-0 left-0 bg-black rounded-full transition-all duration-500 ease-out
+                  ${index < currentLine ? 'w-full' : index === currentLine ? 'animate-progress-fill' : 'w-0'}
+                `}
+              />
+            </div>
           ))}
         </div>
       </div>
+
+      <style>{`
+        @keyframes slideReveal {
+          0% {
+            transform: translateX(-100%) scale(0.95);
+            opacity: 0;
+          }
+          100% {
+            transform: translateX(0) scale(1);
+            opacity: 1;
+          }
+        }
+
+        @keyframes slideHide {
+          0% {
+            transform: translateX(0) scale(1);
+            opacity: 1;
+          }
+          100% {
+            transform: translateX(100%) scale(0.95);
+            opacity: 0;
+          }
+        }
+
+        @keyframes textReveal {
+          0% {
+            clip-path: inset(0 100% 0 0);
+            opacity: 0;
+          }
+          100% {
+            clip-path: inset(0 0 0 0);
+            opacity: 1;
+          }
+        }
+
+        @keyframes textHide {
+          0% {
+            clip-path: inset(0 0 0 0);
+            opacity: 1;
+          }
+          100% {
+            clip-path: inset(0 0 0 100%);
+            opacity: 0;
+          }
+        }
+
+        @keyframes progressFill {
+          0% {
+            width: 0;
+          }
+          100% {
+            width: 100%;
+          }
+        }
+
+        .animate-slide-reveal {
+          animation: slideReveal 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        .animate-slide-hide {
+          animation: slideHide 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        .animate-text-reveal {
+          animation: textReveal 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        .animate-text-hide {
+          animation: textHide 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        .animate-progress-fill {
+          animation: progressFill 2.4s ease-out forwards;
+        }
+
+        .duration-600 {
+          transition-duration: 600ms;
+        }
+      `}</style>
     </div>
   );
 }
