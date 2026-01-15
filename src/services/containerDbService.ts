@@ -111,6 +111,21 @@ export const deleteContainer = async (containerNumber: string): Promise<void> =>
   }
 };
 
+// Delete multiple containers by container numbers
+export const deleteContainers = async (containerNumbers: string[]): Promise<void> => {
+  if (containerNumbers.length === 0) return;
+
+  const { error } = await supabase
+    .from('tracked_containers')
+    .delete()
+    .in('container_number', containerNumbers);
+
+  if (error) {
+    console.error('Error deleting containers:', error);
+    throw error;
+  }
+};
+
 // Delete all containers for current user
 export const deleteAllContainers = async (): Promise<void> => {
   const { data: { user } } = await supabase.auth.getUser();
