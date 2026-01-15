@@ -11,7 +11,7 @@ import { EmailNotificationForm } from '@/components/EmailNotificationForm';
 import { ContainerData } from '@/types/container';
 import { trackContainer, trackContainers } from '@/services/trackingService';
 import { sendStatusNotification, detectStatusChanges } from '@/services/notificationService';
-import { fetchUserContainers, upsertContainer, upsertContainers, deleteAllContainers } from '@/services/containerDbService';
+import { fetchUserContainers, upsertContainer, upsertContainers, deleteAllContainers, deleteContainers } from '@/services/containerDbService';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { RefreshCcw, FileSpreadsheet, Sparkles, Search, Clock, Bell, Loader2, Ship, Globe, Zap, Shield, ChevronRight, Container } from 'lucide-react';
@@ -338,6 +338,18 @@ const Index = () => {
     }
   }, []);
 
+  const handleDeleteSelected = useCallback(async (containerNumbersToDelete: string[]) => {
+    try {
+      await deleteContainers(containerNumbersToDelete);
+      setContainerNumbers(prev => prev.filter(n => !containerNumbersToDelete.includes(n)));
+      setTrackingData(prev => prev.filter(c => !containerNumbersToDelete.includes(c.containerNumber)));
+      toast.success(`${containerNumbersToDelete.length} container${containerNumbersToDelete.length > 1 ? 's' : ''} deleted`);
+    } catch (error) {
+      console.error('Error deleting containers:', error);
+      toast.error('Failed to delete containers');
+    }
+  }, []);
+
   // Show loading while checking auth
   if (authLoading || (user && isLoadingData)) {
     return (
@@ -515,7 +527,11 @@ const Index = () => {
               </div>
               
               {/* Table */}
-              <TrackingTable data={trackingData} />
+              <TrackingTable 
+                data={trackingData} 
+                onDeleteSelected={handleDeleteSelected}
+                isDeleting={isTracking}
+              />
             </section>
           )}
         </div>
