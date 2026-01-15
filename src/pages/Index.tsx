@@ -390,8 +390,9 @@ const Index = () => {
                 </div>
                 
                 {/* Main heading */}
-                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold font-display leading-tight animate-fade-in-up">
-                  Track Your Cargo{' '}
+                <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold font-display leading-tight animate-fade-in-up tracking-tight">
+                  Track Your Cargo
+                  <br />
                   <span className="text-gradient">Across the Globe</span>
                 </h1>
                 
@@ -542,17 +543,14 @@ const Index = () => {
         <div className="absolute inset-0 bg-gradient-to-t from-muted/30 to-transparent pointer-events-none" />
         <div className="container mx-auto px-4 relative z-10">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-ocean-gradient flex items-center justify-center shadow-md">
-                <Ship className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <div>
-                <p className="font-semibold font-display text-foreground">CargoTrack Pro</p>
-                <p className="text-sm text-muted-foreground">Real-time container tracking</p>
-              </div>
+            <div className="flex items-center gap-2">
+              <p className="text-xl font-extrabold font-display tracking-tight">
+                <span className="text-foreground">Cargo</span>
+                <span className="text-gradient">Track</span>
+              </p>
             </div>
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} CargoTrack Pro. All rights reserved.
+              © {new Date().getFullYear()} CargoTrack. All rights reserved.
             </p>
           </div>
         </div>
