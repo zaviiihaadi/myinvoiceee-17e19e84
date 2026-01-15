@@ -53,32 +53,63 @@ export async function trackContainers(
 ): Promise<ContainerData[]> {
   const results: ContainerData[] = [];
   
-  // Process containers in batches to avoid overwhelming the API
-  const batchSize = 3;
+  // Process containers sequentially with delay to avoid API rate limits
+  // The TimeToCargo API has rate limiting, so we need to be careful
+  const batchSize = 2; // Reduced batch size for better reliability
+  const delayBetweenBatches = 1500; // 1.5 seconds between batches
+  const delayBetweenRequests = 500; // 0.5 seconds between individual requests
   
   for (let i = 0; i < containerNumbers.length; i += batchSize) {
     const batch = containerNumbers.slice(i, i + batchSize);
     
-    const batchPromises = batch.map(async (containerNumber, batchIndex) => {
-      const result = await trackContainer(containerNumber);
-      const containerData = result.data || {
-        containerNumber,
-        shippingLine: '',
-        currentLocation: '',
-        vesselName: '',
-        voyageNumber: '',
-        eta: '',
-        lastUpdate: '',
-        status: 'Not Available' as const,
-        error: result.error
-      };
+    // Process each container in the batch sequentially with small delays
+    for (let j = 0; j < batch.length; j++) {
+      const containerNumber = batch[j];
+      const overallIndex = i + j;
       
-      onProgress(i + batchIndex + 1, containerData);
-      return containerData;
-    });
+      try {
+        // Add delay between requests (except for the first one)
+        if (overallIndex > 0) {
+          await new Promise(resolve => setTimeout(resolve, delayBetweenRequests));
+        }
+        
+        const result = await trackContainer(containerNumber);
+        const containerData = result.data || {
+          containerNumber,
+          shippingLine: '',
+          currentLocation: '',
+          vesselName: '',
+          voyageNumber: '',
+          eta: '',
+          lastUpdate: '',
+          status: 'Not Available' as const,
+          error: result.error
+        };
+        
+        onProgress(overallIndex + 1, containerData);
+        results.push(containerData);
+      } catch (error) {
+        console.error(`Error tracking ${containerNumber}:`, error);
+        const errorData: ContainerData = {
+          containerNumber,
+          shippingLine: '',
+          currentLocation: '',
+          vesselName: '',
+          voyageNumber: '',
+          eta: '',
+          lastUpdate: '',
+          status: 'Not Available',
+          error: 'Tracking failed - please retry'
+        };
+        onProgress(overallIndex + 1, errorData);
+        results.push(errorData);
+      }
+    }
     
-    const batchResults = await Promise.all(batchPromises);
-    results.push(...batchResults);
+    // Add longer delay between batches to avoid rate limiting
+    if (i + batchSize < containerNumbers.length) {
+      await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
+    }
   }
   
   return results;
