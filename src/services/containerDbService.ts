@@ -115,9 +115,15 @@ export const deleteContainer = async (containerNumber: string): Promise<void> =>
 export const deleteContainers = async (containerNumbers: string[]): Promise<void> => {
   if (containerNumbers.length === 0) return;
 
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error('User not authenticated');
+  }
+
   const { error } = await supabase
     .from('tracked_containers')
     .delete()
+    .eq('user_id', user.id)
     .in('container_number', containerNumbers);
 
   if (error) {
