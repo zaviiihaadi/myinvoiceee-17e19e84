@@ -257,7 +257,11 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Tracking error:', error);
+    // Sanitize error to avoid exposing sensitive data like API keys
+    const sanitizedError = error instanceof Error 
+      ? { message: error.message, name: error.name } 
+      : 'Unknown error';
+    console.error('Tracking error:', sanitizedError);
     return new Response(
       JSON.stringify({ success: false, error: 'Internal server error' }), 
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
