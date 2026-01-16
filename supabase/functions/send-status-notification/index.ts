@@ -46,14 +46,33 @@ Deno.serve(async (req) => {
   try {
     const { email, containerNumber, oldStatus, newStatus, vesselName, eta, destinationPort }: NotificationRequest = await req.json();
 
-    console.log(`Sending notification to ${email} for container ${containerNumber}: ${oldStatus} -> ${newStatus}`);
-
+    // Validate required fields
     if (!email || !containerNumber || !newStatus) {
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Validate email format and sanitize
+    const sanitizedEmail = email.trim().toLowerCase().replace(/[\r\n]/g, '');
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(sanitizedEmail) || sanitizedEmail.length > 254) {
+      return new Response(
+        JSON.stringify({ error: "Invalid email address" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate other inputs length
+    if (containerNumber.length > 50 || newStatus.length > 50) {
+      return new Response(
+        JSON.stringify({ error: "Input values too long" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`Sending notification to ${sanitizedEmail} for container ${containerNumber}: ${oldStatus} -> ${newStatus}`);
 
     const statusEmoji: Record<string, string> = {
       'In Transit': '🚢',
