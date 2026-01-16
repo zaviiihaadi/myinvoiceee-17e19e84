@@ -201,10 +201,22 @@ const Index = () => {
   const handleFileProcessed = useCallback(async (numbers: string[]) => {
     if (!user) return;
     
-    setContainerNumbers(numbers);
-    toast.success(`Found ${numbers.length} container numbers!`);
+    // Filter out containers that already exist
+    const existingNumbers = new Set(trackingData.map(c => c.containerNumber));
+    const newNumbers = numbers.filter(num => !existingNumbers.has(num));
     
-    const initialData: ContainerData[] = numbers.map(num => ({
+    if (newNumbers.length === 0) {
+      toast.info(`All ${numbers.length} containers are already being tracked`);
+      return;
+    }
+    
+    // Merge with existing container numbers
+    const allNumbers = [...containerNumbers, ...newNumbers];
+    setContainerNumbers(allNumbers);
+    
+    toast.success(`Found ${numbers.length} containers, tracking ${newNumbers.length} new ones!`);
+    
+    const initialData: ContainerData[] = newNumbers.map(num => ({
       containerNumber: num,
       shippingLine: '',
       currentLocation: '',
@@ -215,7 +227,9 @@ const Index = () => {
       status: 'Pending',
       isTracking: true
     }));
-    setTrackingData(initialData);
+    
+    // Add new containers to existing tracking data
+    setTrackingData(prev => [...prev, ...initialData]);
     
     setIsTracking(true);
     setTrackingProgress(0);
@@ -223,7 +237,7 @@ const Index = () => {
     const results: ContainerData[] = [];
     
     try {
-      await trackContainers(numbers, async (completed, data) => {
+      await trackContainers(newNumbers, async (completed, data) => {
         setTrackingProgress(completed);
         results.push(data);
         setTrackingData(prev => 
@@ -238,15 +252,20 @@ const Index = () => {
         await upsertContainer(data, user.id);
       });
       
-      saveTrackingData(results);
-      toast.success('All containers tracked successfully!');
+      // Save all tracking data including previously existing ones
+      setTrackingData(prev => {
+        saveTrackingData(prev);
+        return prev;
+      });
+      
+      toast.success(`${newNumbers.length} containers tracked successfully!`);
     } catch (error) {
       console.error('Tracking error:', error);
       toast.error('Some containers failed to track');
     } finally {
       setIsTracking(false);
     }
-  }, [user, saveTrackingData]);
+  }, [user, saveTrackingData, trackingData, containerNumbers]);
 
   const handleManualTrack = useCallback(async (containerNumber: string) => {
     if (!user) return;
