@@ -15,9 +15,80 @@ export function FileUpload({ onFileProcessed, isProcessing }: FileUploadProps) {
   const [isReading, setIsReading] = useState(false);
 
   // File processing limits to prevent DoS
-  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-  const MAX_ROWS = 1000;
-  const MAX_CONTAINERS = 500;
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+  const MAX_ROWS = 5000;
+  const MAX_CONTAINERS = 2000;
+
+  // Helper function to extract string value from Excel cell
+  const getCellStringValue = (cellValue: unknown): string | null => {
+    if (cellValue === null || cellValue === undefined) return null;
+    
+    // Handle string values directly
+    if (typeof cellValue === 'string') {
+      return cellValue;
+    }
+    
+    // Handle number values (container numbers might be stored as numbers)
+    if (typeof cellValue === 'number') {
+      return String(cellValue);
+    }
+    
+    // Handle rich text objects (ExcelJS returns these for formatted cells)
+    if (typeof cellValue === 'object' && cellValue !== null) {
+      // Check for richText property
+      if ('richText' in cellValue && Array.isArray((cellValue as { richText: unknown[] }).richText)) {
+        const richText = (cellValue as { richText: { text: string }[] }).richText;
+        return richText.map(rt => rt.text).join('');
+      }
+      // Check for text property
+      if ('text' in cellValue && typeof (cellValue as { text: unknown }).text === 'string') {
+        return (cellValue as { text: string }).text;
+      }
+      // Check for result property (formulas)
+      if ('result' in cellValue) {
+        const result = (cellValue as { result: unknown }).result;
+        if (typeof result === 'string') return result;
+        if (typeof result === 'number') return String(result);
+      }
+      // Try toString as last resort
+      try {
+        const str = String(cellValue);
+        if (str !== '[object Object]') return str;
+      } catch {
+        // Ignore
+      }
+    }
+    
+    return null;
+  };
+
+  // Helper to clean and validate container number
+  const cleanContainerNumber = (value: string): string | null => {
+    // Remove common prefixes, spaces, special chars
+    const cleaned = value
+      .trim()
+      .toUpperCase()
+      .replace(/[\s\-_\.,:;#'"]/g, '') // Remove common separators
+      .replace(/^(CONT|CONTAINER|CNT|CTR|NO|NUM|#|:)+/i, ''); // Remove common prefixes
+    
+    // Standard ISO container format: 4 letters + 7 digits
+    if (/^[A-Z]{4}\d{7}$/.test(cleaned)) {
+      return cleaned;
+    }
+    
+    // Flexible format: 3-4 letters + 6-7 digits
+    if (/^[A-Z]{3,4}\d{6,7}$/.test(cleaned)) {
+      return cleaned;
+    }
+    
+    // Try to extract container number from longer string
+    const match = cleaned.match(/([A-Z]{3,4}\d{6,7})/);
+    if (match) {
+      return match[1];
+    }
+    
+    return null;
+  };
 
   const processExcelFile = useCallback(async (file: File) => {
     // Validate file size before processing
@@ -35,65 +106,33 @@ export function FileUpload({ onFileProcessed, isProcessing }: FileUploadProps) {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
       
-      const worksheet = workbook.worksheets[0];
-      if (!worksheet) {
-        setError('No worksheet found in the Excel file.');
-        return;
-      }
-
-      // Validate row count
-      if (worksheet.rowCount > MAX_ROWS) {
-        setError(`File has too many rows. Maximum is ${MAX_ROWS} rows.`);
-        return;
-      }
-      
-      // Extract container numbers (look for patterns like XXXX1234567)
-      const containerPattern = /^[A-Z]{4}\d{7}$/;
+      // Process all worksheets, not just the first one
       const containerNumbers: string[] = [];
-      let rowsProcessed = 0;
+      let totalRowsProcessed = 0;
       
-      worksheet.eachRow((row) => {
-        if (rowsProcessed >= MAX_ROWS || containerNumbers.length >= MAX_CONTAINERS) return;
-        rowsProcessed++;
+      for (const worksheet of workbook.worksheets) {
+        if (!worksheet || totalRowsProcessed >= MAX_ROWS) break;
         
-        row.eachCell((cell) => {
-          if (containerNumbers.length >= MAX_CONTAINERS) return;
-          
-          const value = cell.value;
-          if (typeof value === 'string') {
-            const cleaned = value.trim().toUpperCase();
-            if (containerPattern.test(cleaned)) {
-              containerNumbers.push(cleaned);
-            }
-          }
-        });
-      });
-      
-      if (containerNumbers.length === 0) {
-        // If no standard format found, try to find any cell that might be a container number
-        const flexiblePattern = /^[A-Z]{3,4}\d{6,7}$/;
-        rowsProcessed = 0;
-        
-        worksheet.eachRow((row) => {
-          if (rowsProcessed >= MAX_ROWS || containerNumbers.length >= MAX_CONTAINERS) return;
-          rowsProcessed++;
+        worksheet.eachRow((row, rowNumber) => {
+          if (totalRowsProcessed >= MAX_ROWS || containerNumbers.length >= MAX_CONTAINERS) return;
+          totalRowsProcessed++;
           
           row.eachCell((cell) => {
             if (containerNumbers.length >= MAX_CONTAINERS) return;
             
-            const value = cell.value;
-            if (typeof value === 'string') {
-              const cleaned = value.trim().toUpperCase();
-              if (flexiblePattern.test(cleaned)) {
-                containerNumbers.push(cleaned);
-              }
+            const stringValue = getCellStringValue(cell.value);
+            if (!stringValue) return;
+            
+            const containerNumber = cleanContainerNumber(stringValue);
+            if (containerNumber && !containerNumbers.includes(containerNumber)) {
+              containerNumbers.push(containerNumber);
             }
           });
         });
       }
       
       if (containerNumbers.length === 0) {
-        setError('No valid container numbers found in the file. Container numbers should follow the format: 4 letters + 7 digits (e.g., MSCU1234567)');
+        setError('No valid container numbers found in the file. Container numbers should follow the format: 3-4 letters + 6-7 digits (e.g., MSCU1234567, MSC1234567)');
         return;
       }
       
@@ -104,6 +143,7 @@ export function FileUpload({ onFileProcessed, isProcessing }: FileUploadProps) {
         return;
       }
       
+      console.log(`Found ${uniqueNumbers.length} container numbers in file`);
       onFileProcessed(uniqueNumbers);
     } catch (err) {
       setError('Failed to read the Excel file. Please ensure it\'s a valid .xlsx or .xls file.');
@@ -224,7 +264,7 @@ export function FileUpload({ onFileProcessed, isProcessing }: FileUploadProps) {
                   <FileSpreadsheet className="w-4 h-4" />
                   <span>File should contain container numbers (e.g., MSCU1234567)</span>
                 </div>
-                <span>Maximum file size: 5MB, up to 500 containers</span>
+                <span>Maximum file size: 10MB, up to 2,000 containers</span>
               </div>
             </>
           )}
