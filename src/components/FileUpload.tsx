@@ -19,46 +19,47 @@ export function FileUpload({ onFileProcessed, isProcessing }: FileUploadProps) {
     setError(null);
     
     try {
-      const XLSX = await import('xlsx');
+      const ExcelJS = await import('exceljs');
       const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: 'array' });
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer);
       
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-      const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { header: 1 });
+      const worksheet = workbook.worksheets[0];
+      if (!worksheet) {
+        setError('No worksheet found in the Excel file.');
+        return;
+      }
       
       // Extract container numbers (look for patterns like XXXX1234567)
       const containerPattern = /^[A-Z]{4}\d{7}$/;
       const containerNumbers: string[] = [];
       
-      for (const row of data) {
-        if (Array.isArray(row)) {
-          for (const cell of row) {
-            if (typeof cell === 'string') {
-              const cleaned = cell.trim().toUpperCase();
-              if (containerPattern.test(cleaned)) {
-                containerNumbers.push(cleaned);
-              }
+      worksheet.eachRow((row) => {
+        row.eachCell((cell) => {
+          const value = cell.value;
+          if (typeof value === 'string') {
+            const cleaned = value.trim().toUpperCase();
+            if (containerPattern.test(cleaned)) {
+              containerNumbers.push(cleaned);
             }
           }
-        }
-      }
+        });
+      });
       
       if (containerNumbers.length === 0) {
         // If no standard format found, try to find any cell that might be a container number
         const flexiblePattern = /^[A-Z]{3,4}\d{6,7}$/;
-        for (const row of data) {
-          if (Array.isArray(row)) {
-            for (const cell of row) {
-              if (typeof cell === 'string') {
-                const cleaned = cell.trim().toUpperCase();
-                if (flexiblePattern.test(cleaned)) {
-                  containerNumbers.push(cleaned);
-                }
+        worksheet.eachRow((row) => {
+          row.eachCell((cell) => {
+            const value = cell.value;
+            if (typeof value === 'string') {
+              const cleaned = value.trim().toUpperCase();
+              if (flexiblePattern.test(cleaned)) {
+                containerNumbers.push(cleaned);
               }
             }
-          }
-        }
+          });
+        });
       }
       
       if (containerNumbers.length === 0) {
