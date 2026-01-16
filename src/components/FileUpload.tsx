@@ -90,6 +90,19 @@ export function FileUpload({ onFileProcessed, isProcessing }: FileUploadProps) {
     return null;
   };
 
+  // Check if a header value matches container column names
+  const isContainerColumnHeader = (value: string): boolean => {
+    const normalized = value.toLowerCase().trim();
+    const containerColumnNames = [
+      'container', 'container no', 'container number', 'container_number',
+      'container#', 'containerno', 'containernumber', 'cont', 'cont no',
+      'cont number', 'cnt', 'cnt no', 'ctr', 'ctr no', 'container id',
+      'containerid', 'box', 'box no', 'box number', 'unit', 'unit no',
+      'unit number', 'equipment', 'equipment no', 'equipment number'
+    ];
+    return containerColumnNames.some(name => normalized === name || normalized.includes(name));
+  };
+
   const processExcelFile = useCallback(async (file: File) => {
     // Validate file size before processing
     if (file.size > MAX_FILE_SIZE) {
@@ -106,20 +119,41 @@ export function FileUpload({ onFileProcessed, isProcessing }: FileUploadProps) {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
       
-      // Process all worksheets, not just the first one
       const containerNumbers: string[] = [];
       let totalRowsProcessed = 0;
       
       for (const worksheet of workbook.worksheets) {
         if (!worksheet || totalRowsProcessed >= MAX_ROWS) break;
         
-        worksheet.eachRow((row, rowNumber) => {
-          if (totalRowsProcessed >= MAX_ROWS || containerNumbers.length >= MAX_CONTAINERS) return;
-          totalRowsProcessed++;
-          
-          row.eachCell((cell) => {
-            if (containerNumbers.length >= MAX_CONTAINERS) return;
+        // Find the container column by looking at header row(s)
+        let containerColumnIndex: number | null = null;
+        let headerRowIndex = 0;
+        
+        // Check first 5 rows for header
+        for (let rowNum = 1; rowNum <= Math.min(5, worksheet.rowCount); rowNum++) {
+          const row = worksheet.getRow(rowNum);
+          row.eachCell((cell, colNumber) => {
+            if (containerColumnIndex !== null) return;
             
+            const cellValue = getCellStringValue(cell.value);
+            if (cellValue && isContainerColumnHeader(cellValue)) {
+              containerColumnIndex = colNumber;
+              headerRowIndex = rowNum;
+              console.log(`Found container column "${cellValue}" at column ${colNumber}, row ${rowNum}`);
+            }
+          });
+          if (containerColumnIndex !== null) break;
+        }
+        
+        // If we found a container column, extract only from that column
+        if (containerColumnIndex !== null) {
+          worksheet.eachRow((row, rowNumber) => {
+            // Skip header row and rows before it
+            if (rowNumber <= headerRowIndex) return;
+            if (totalRowsProcessed >= MAX_ROWS || containerNumbers.length >= MAX_CONTAINERS) return;
+            totalRowsProcessed++;
+            
+            const cell = row.getCell(containerColumnIndex!);
             const stringValue = getCellStringValue(cell.value);
             if (!stringValue) return;
             
@@ -128,11 +162,30 @@ export function FileUpload({ onFileProcessed, isProcessing }: FileUploadProps) {
               containerNumbers.push(containerNumber);
             }
           });
-        });
+        } else {
+          // Fallback: scan all cells if no container column header found
+          console.log('No container column header found, scanning all cells...');
+          worksheet.eachRow((row, rowNumber) => {
+            if (totalRowsProcessed >= MAX_ROWS || containerNumbers.length >= MAX_CONTAINERS) return;
+            totalRowsProcessed++;
+            
+            row.eachCell((cell) => {
+              if (containerNumbers.length >= MAX_CONTAINERS) return;
+              
+              const stringValue = getCellStringValue(cell.value);
+              if (!stringValue) return;
+              
+              const containerNumber = cleanContainerNumber(stringValue);
+              if (containerNumber && !containerNumbers.includes(containerNumber)) {
+                containerNumbers.push(containerNumber);
+              }
+            });
+          });
+        }
       }
       
       if (containerNumbers.length === 0) {
-        setError('No valid container numbers found in the file. Container numbers should follow the format: 3-4 letters + 6-7 digits (e.g., MSCU1234567, MSC1234567)');
+        setError('No valid container numbers found. Make sure your Excel has a "Container" column with values like MSCU1234567.');
         return;
       }
       
