@@ -14,7 +14,18 @@ export function FileUpload({ onFileProcessed, isProcessing }: FileUploadProps) {
   const [error, setError] = useState<string | null>(null);
   const [isReading, setIsReading] = useState(false);
 
+  // File processing limits to prevent DoS
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+  const MAX_ROWS = 1000;
+  const MAX_CONTAINERS = 500;
+
   const processExcelFile = useCallback(async (file: File) => {
+    // Validate file size before processing
+    if (file.size > MAX_FILE_SIZE) {
+      setError(`File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB.`);
+      return;
+    }
+
     setIsReading(true);
     setError(null);
     
@@ -29,13 +40,25 @@ export function FileUpload({ onFileProcessed, isProcessing }: FileUploadProps) {
         setError('No worksheet found in the Excel file.');
         return;
       }
+
+      // Validate row count
+      if (worksheet.rowCount > MAX_ROWS) {
+        setError(`File has too many rows. Maximum is ${MAX_ROWS} rows.`);
+        return;
+      }
       
       // Extract container numbers (look for patterns like XXXX1234567)
       const containerPattern = /^[A-Z]{4}\d{7}$/;
       const containerNumbers: string[] = [];
+      let rowsProcessed = 0;
       
       worksheet.eachRow((row) => {
+        if (rowsProcessed >= MAX_ROWS || containerNumbers.length >= MAX_CONTAINERS) return;
+        rowsProcessed++;
+        
         row.eachCell((cell) => {
+          if (containerNumbers.length >= MAX_CONTAINERS) return;
+          
           const value = cell.value;
           if (typeof value === 'string') {
             const cleaned = value.trim().toUpperCase();
@@ -49,8 +72,15 @@ export function FileUpload({ onFileProcessed, isProcessing }: FileUploadProps) {
       if (containerNumbers.length === 0) {
         // If no standard format found, try to find any cell that might be a container number
         const flexiblePattern = /^[A-Z]{3,4}\d{6,7}$/;
+        rowsProcessed = 0;
+        
         worksheet.eachRow((row) => {
+          if (rowsProcessed >= MAX_ROWS || containerNumbers.length >= MAX_CONTAINERS) return;
+          rowsProcessed++;
+          
           row.eachCell((cell) => {
+            if (containerNumbers.length >= MAX_CONTAINERS) return;
+            
             const value = cell.value;
             if (typeof value === 'string') {
               const cleaned = value.trim().toUpperCase();
@@ -68,10 +98,16 @@ export function FileUpload({ onFileProcessed, isProcessing }: FileUploadProps) {
       }
       
       const uniqueNumbers = [...new Set(containerNumbers)];
+      
+      if (uniqueNumbers.length > MAX_CONTAINERS) {
+        setError(`Too many containers found (${uniqueNumbers.length}). Maximum is ${MAX_CONTAINERS} containers per file.`);
+        return;
+      }
+      
       onFileProcessed(uniqueNumbers);
     } catch (err) {
       setError('Failed to read the Excel file. Please ensure it\'s a valid .xlsx or .xls file.');
-      console.error('File processing error:', err);
+      console.error('File processing error');
     } finally {
       setIsReading(false);
     }
@@ -183,9 +219,12 @@ export function FileUpload({ onFileProcessed, isProcessing }: FileUploadProps) {
                   or click to browse (.xlsx, .xls)
                 </p>
               </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>File should contain container numbers (e.g., MSCU1234567)</span>
+              <div className="flex flex-col items-center gap-1 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>File should contain container numbers (e.g., MSCU1234567)</span>
+                </div>
+                <span>Maximum file size: 5MB, up to 500 containers</span>
               </div>
             </>
           )}

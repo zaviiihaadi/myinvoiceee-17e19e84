@@ -98,11 +98,17 @@ export const upsertContainers = async (containers: ContainerData[], userId: stri
   }
 };
 
-// Delete a container
+// Delete a container (with user ownership verification)
 export const deleteContainer = async (containerNumber: string): Promise<void> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error('User not authenticated');
+  }
+
   const { error } = await supabase
     .from('tracked_containers')
     .delete()
+    .eq('user_id', user.id)
     .eq('container_number', containerNumber);
 
   if (error) {
