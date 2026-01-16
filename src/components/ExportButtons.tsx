@@ -1,6 +1,6 @@
 import { ContainerData } from '@/types/container';
 import { Button } from '@/components/ui/button';
-import { Download, FileSpreadsheet, FileText } from 'lucide-react';
+import { FileSpreadsheet, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ExportButtonsProps {
@@ -11,31 +11,52 @@ interface ExportButtonsProps {
 export function ExportButtons({ data, disabled }: ExportButtonsProps) {
   const exportToExcel = async () => {
     try {
-      const XLSX = await import('xlsx');
+      const ExcelJS = await import('exceljs');
       
-      const exportData = data.map(container => ({
-        'Container Number': container.containerNumber,
-        'Shipping Line': container.shippingLine,
-        'Current Location': container.currentLocation,
-        'Vessel Name': container.vesselName,
-        'Voyage Number': container.voyageNumber,
-        'ETA': container.eta,
-        'Last Update': container.lastUpdate,
-        'Status': container.status,
-        'Error': container.error || ''
-      }));
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Tracking Results');
       
-      const worksheet = XLSX.utils.json_to_sheet(exportData);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Tracking Results');
+      // Add headers
+      worksheet.columns = [
+        { header: 'Container Number', key: 'containerNumber', width: 20 },
+        { header: 'Shipping Line', key: 'shippingLine', width: 15 },
+        { header: 'Current Location', key: 'currentLocation', width: 20 },
+        { header: 'Vessel Name', key: 'vesselName', width: 20 },
+        { header: 'Voyage Number', key: 'voyageNumber', width: 15 },
+        { header: 'ETA', key: 'eta', width: 15 },
+        { header: 'Last Update', key: 'lastUpdate', width: 20 },
+        { header: 'Status', key: 'status', width: 12 },
+        { header: 'Error', key: 'error', width: 25 }
+      ];
       
-      // Auto-size columns
-      const colWidths = Object.keys(exportData[0] || {}).map(key => ({
-        wch: Math.max(key.length, 15)
-      }));
-      worksheet['!cols'] = colWidths;
+      // Add data rows
+      data.forEach(container => {
+        worksheet.addRow({
+          containerNumber: container.containerNumber,
+          shippingLine: container.shippingLine,
+          currentLocation: container.currentLocation,
+          vesselName: container.vesselName,
+          voyageNumber: container.voyageNumber,
+          eta: container.eta,
+          lastUpdate: container.lastUpdate,
+          status: container.status,
+          error: container.error || ''
+        });
+      });
       
-      XLSX.writeFile(workbook, `container_tracking_${new Date().toISOString().split('T')[0]}.xlsx`);
+      // Style header row
+      worksheet.getRow(1).font = { bold: true };
+      
+      // Generate buffer and download
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `container_tracking_${new Date().toISOString().split('T')[0]}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(url);
+      
       toast.success('Excel file downloaded successfully!');
     } catch (error) {
       console.error('Export error:', error);
