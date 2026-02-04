@@ -455,39 +455,60 @@ const Index = () => {
 
         {/* Main Content */}
         <div className="container mx-auto px-4 pb-16 space-y-8">
-          {/* Page Header when there's data */}
-          {trackingData.length > 0 && (
+          {/* Centered Page Heading - Always Visible */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="text-center py-10 lg:py-14"
+          >
             <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pt-8"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.1, duration: 0.4 }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6"
             >
-              <div className="flex items-center gap-4">
-                <motion.div 
-                  className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary via-primary to-accent flex items-center justify-center shadow-lg shadow-primary/25"
-                  whileHover={{ rotate: [0, -5, 5, 0] }}
-                  transition={{ duration: 0.4 }}
-                >
-                  <Package className="w-7 h-7 text-primary-foreground" />
-                </motion.div>
-                <div>
-                  <h1 className="text-2xl md:text-3xl font-bold font-display text-foreground">
-                    Container <span className="text-gradient">Tracking</span>
-                  </h1>
-                  <p className="text-sm text-muted-foreground">
-                    {trackingData.length} container{trackingData.length !== 1 ? 's' : ''} being tracked
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-status-arrived opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-status-arrived" />
-                </span>
-                <span className="text-sm font-medium text-status-arrived">Live Tracking</span>
-              </div>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-status-arrived opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-status-arrived" />
+              </span>
+              <span className="text-sm font-medium text-primary">Live Container Tracking</span>
             </motion.div>
-          )}
+            
+            <motion.h1 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.5 }}
+              className="text-4xl md:text-5xl lg:text-6xl font-extrabold font-display leading-tight tracking-tight mb-4"
+            >
+              Track Your <span className="text-gradient">Cargo</span>
+              <br />
+              <span className="text-gradient-sunset">Worldwide</span>
+            </motion.h1>
+            
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3, duration: 0.5 }}
+              className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto"
+            >
+              Real-time visibility for MSC, Maersk, CMA CGM, and more shipping lines
+            </motion.p>
+            
+            {trackingData.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.4 }}
+                className="mt-6 inline-flex items-center gap-3 px-5 py-2.5 rounded-2xl bg-card/80 backdrop-blur-sm border border-border/60 shadow-lg"
+              >
+                <Package className="w-5 h-5 text-primary" />
+                <span className="text-sm font-semibold text-foreground">
+                  {trackingData.length} container{trackingData.length !== 1 ? 's' : ''} being tracked
+                </span>
+              </motion.div>
+            )}
+          </motion.div>
 
           {/* Input Cards */}
           <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
