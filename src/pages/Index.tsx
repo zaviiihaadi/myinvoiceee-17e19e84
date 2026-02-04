@@ -455,6 +455,40 @@ const Index = () => {
 
         {/* Main Content */}
         <div className="container mx-auto px-4 pb-16 space-y-8">
+          {/* Page Header when there's data */}
+          {trackingData.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pt-8"
+            >
+              <div className="flex items-center gap-4">
+                <motion.div 
+                  className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary via-primary to-accent flex items-center justify-center shadow-lg shadow-primary/25"
+                  whileHover={{ rotate: [0, -5, 5, 0] }}
+                  transition={{ duration: 0.4 }}
+                >
+                  <Package className="w-7 h-7 text-primary-foreground" />
+                </motion.div>
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold font-display text-foreground">
+                    Container <span className="text-gradient">Tracking</span>
+                  </h1>
+                  <p className="text-sm text-muted-foreground">
+                    {trackingData.length} container{trackingData.length !== 1 ? 's' : ''} being tracked
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-status-arrived opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-status-arrived" />
+                </span>
+                <span className="text-sm font-medium text-status-arrived">Live Tracking</span>
+              </div>
+            </motion.div>
+          )}
+
           {/* Input Cards */}
           <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
             {/* Manual Entry Card */}
