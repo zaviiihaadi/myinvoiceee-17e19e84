@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Ship, Loader2, Mail, Lock, AlertCircle, Sparkles, Globe, Zap, Shield, Container, Anchor } from 'lucide-react';
+import { Ship, Loader2, Mail, Lock, AlertCircle, Sparkles, Globe, Zap, Shield, Container, Anchor, Waves } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
@@ -23,7 +24,6 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
-  // Redirect if user is logged in
   useEffect(() => {
     if (user && !loading) {
       navigate('/');
@@ -58,7 +58,7 @@ const Auth = () => {
     if (error) {
       setIsSubmitting(false);
       if (error.message.includes('already registered')) {
-        toast.error('This email is already registered. Please sign in instead.');
+        toast.error('This email is already registered.');
       } else {
         toast.error(error.message);
       }
@@ -78,7 +78,7 @@ const Auth = () => {
     if (error) {
       setIsSubmitting(false);
       if (error.message.includes('Invalid login credentials')) {
-        toast.error('Invalid email or password. Please try again.');
+        toast.error('Invalid email or password.');
       } else {
         toast.error(error.message);
       }
@@ -87,93 +87,124 @@ const Auth = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+        >
+          <Loader2 className="w-8 h-8 text-primary" />
+        </motion.div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row overflow-hidden">
-      {/* Left side - Beautiful gradient with features */}
-      <div className="hidden lg:flex lg:w-1/2 relative bg-ocean-gradient p-12 flex-col justify-between overflow-hidden">
-        {/* Animated background elements */}
+    <div className="min-h-screen flex flex-col lg:flex-row overflow-hidden bg-background">
+      {/* Left side - Feature showcase */}
+      <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-primary via-primary/90 to-accent p-12 flex-col justify-between overflow-hidden">
+        {/* Animated background */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-20 left-10 w-64 h-64 bg-white/10 rounded-full blur-3xl animate-blob" />
-          <div className="absolute bottom-20 right-10 w-80 h-80 bg-white/5 rounded-full blur-3xl animate-blob" style={{ animationDelay: '3s' }} />
-          <div className="absolute top-1/2 left-1/3 w-48 h-48 bg-white/10 rounded-full blur-2xl animate-blob" style={{ animationDelay: '5s' }} />
+          <motion.div 
+            className="absolute top-20 left-10 w-64 h-64 bg-white/10 rounded-full blur-3xl"
+            animate={{ x: [0, 30, 0], y: [0, -20, 0], scale: [1, 1.1, 1] }}
+            transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <motion.div 
+            className="absolute bottom-20 right-10 w-80 h-80 bg-white/5 rounded-full blur-3xl"
+            animate={{ x: [0, -20, 0], y: [0, 30, 0], scale: [1.1, 1, 1.1] }}
+            transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+          />
         </div>
         
-        <div className="relative z-10">
-          {/* Logo */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="relative z-10"
+        >
           <div className="flex items-center gap-4">
-            <div className="relative">
-              <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg animate-float">
-                <Ship className="w-8 h-8 text-white" />
+            <motion.div 
+              className="relative"
+              whileHover={{ rotate: [0, -10, 10, 0] }}
+              transition={{ duration: 0.5 }}
+            >
+              <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg">
+                <Waves className="w-7 h-7 text-white" />
               </div>
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-accent flex items-center justify-center shadow-md animate-bounce-soft">
-                <Anchor className="w-3.5 h-3.5 text-accent-foreground" />
-              </div>
-            </div>
+            </motion.div>
             <div>
-              <h1 className="text-3xl font-bold font-display text-white">CargoTrack Pro</h1>
-              <p className="text-white/80 text-sm">Real-time Container Tracking</p>
+              <h1 className="text-3xl font-bold font-display text-white">ShipAhead</h1>
+              <p className="text-white/70 text-sm">Container Tracking</p>
             </div>
           </div>
-        </div>
+        </motion.div>
         
-        <div className="relative z-10 space-y-8">
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="relative z-10 space-y-8"
+        >
           <h2 className="text-4xl font-bold font-display text-white leading-tight">
             Track Your Cargo<br />
             <span className="text-white/80">Across the Globe</span>
           </h2>
           
-          {/* Features */}
           <div className="space-y-4">
-            <div className="flex items-center gap-4 text-white/90">
-              <div className="w-12 h-12 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center">
-                <Globe className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="font-semibold">Global Coverage</p>
-                <p className="text-sm text-white/70">Track containers worldwide</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-4 text-white/90">
-              <div className="w-12 h-12 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center">
-                <Zap className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="font-semibold">Instant Updates</p>
-                <p className="text-sm text-white/70">Real-time tracking status</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-4 text-white/90">
-              <div className="w-12 h-12 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center">
-                <Shield className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="font-semibold">Secure & Reliable</p>
-                <p className="text-sm text-white/70">Enterprise-grade security</p>
-              </div>
-            </div>
+            {[
+              { icon: Globe, title: 'Global Coverage', desc: 'Track containers worldwide' },
+              { icon: Zap, title: 'Instant Updates', desc: 'Real-time tracking status' },
+              { icon: Shield, title: 'Secure & Reliable', desc: 'Enterprise-grade security' },
+            ].map((feature, i) => (
+              <motion.div 
+                key={feature.title}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.6 + i * 0.1 }}
+                className="flex items-center gap-4 text-white/90"
+              >
+                <div className="w-12 h-12 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center">
+                  <feature.icon className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="font-semibold">{feature.title}</p>
+                  <p className="text-sm text-white/60">{feature.desc}</p>
+                </div>
+              </motion.div>
+            ))}
           </div>
-        </div>
+        </motion.div>
         
         {/* Floating elements */}
-        <div className="hidden xl:block absolute top-1/4 right-16 animate-float-delayed">
+        <motion.div 
+          className="hidden xl:block absolute top-1/4 right-16"
+          animate={{ y: [0, -15, 0], rotate: [0, 5, 0] }}
+          transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+        >
           <div className="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center shadow-lg">
             <Container className="w-8 h-8 text-white/80" />
           </div>
-        </div>
+        </motion.div>
+        <motion.div 
+          className="hidden xl:block absolute bottom-1/3 right-24"
+          animate={{ y: [0, 15, 0], rotate: [0, -5, 0] }}
+          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+        >
+          <div className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center shadow-lg">
+            <Ship className="w-6 h-6 text-white/70" />
+          </div>
+        </motion.div>
         
-        <div className="relative z-10">
-          <p className="text-white/60 text-sm">
-            © {new Date().getFullYear()} CargoTrack Pro. All rights reserved.
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1 }}
+          className="relative z-10"
+        >
+          <p className="text-white/50 text-sm">
+            © {new Date().getFullYear()} ShipAhead. All rights reserved.
           </p>
-        </div>
+        </motion.div>
       </div>
       
       {/* Right side - Auth form */}
@@ -185,156 +216,212 @@ const Auth = () => {
         </div>
         
         {/* Mobile logo */}
-        <div className="flex lg:hidden items-center gap-3 mb-8 animate-fade-in">
-          <div className="relative">
-            <div className="w-12 h-12 rounded-2xl bg-ocean-gradient flex items-center justify-center shadow-lg">
-              <Ship className="w-6 h-6 text-white" />
-            </div>
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-accent flex items-center justify-center shadow-md">
-              <Anchor className="w-3 h-3 text-accent-foreground" />
-            </div>
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex lg:hidden items-center gap-3 mb-8"
+        >
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
+            <Waves className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold font-display text-foreground">CargoTrack Pro</h1>
-            <p className="text-xs text-muted-foreground">Real-time Container Tracking</p>
+            <h1 className="text-2xl font-bold font-display text-foreground">ShipAhead</h1>
+            <p className="text-xs text-muted-foreground">Container Tracking</p>
           </div>
-        </div>
+        </motion.div>
 
-        <Card className="w-full max-w-md shadow-xl border-border/50 rounded-3xl overflow-hidden animate-fade-in-up relative z-10">
-          <CardHeader className="text-center pb-2 pt-8">
-            <div className="mx-auto w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-              <Sparkles className="w-7 h-7 text-primary" />
-            </div>
-            <CardTitle className="text-2xl font-display">Welcome</CardTitle>
-            <CardDescription className="text-base">Sign in or create an account to get started</CardDescription>
-          </CardHeader>
-          <CardContent className="p-6 pt-4">
-            <Tabs defaultValue="signin" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-6 rounded-xl p-1 bg-muted/50">
-                <TabsTrigger value="signin" className="rounded-lg data-[state=active]:shadow-md">Sign In</TabsTrigger>
-                <TabsTrigger value="signup" className="rounded-lg data-[state=active]:shadow-md">Sign Up</TabsTrigger>
-              </TabsList>
+        <motion.div
+          initial={{ opacity: 0, y: 20, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ delay: 0.1, duration: 0.4 }}
+          className="w-full max-w-md relative z-10"
+        >
+          <Card className="shadow-2xl border-border/50 rounded-3xl overflow-hidden backdrop-blur-sm bg-card/95">
+            <CardHeader className="text-center pb-2 pt-8">
+              <motion.div 
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 500, damping: 30, delay: 0.2 }}
+                className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/10 flex items-center justify-center mb-4"
+              >
+                <Sparkles className="w-7 h-7 text-primary" />
+              </motion.div>
+              <CardTitle className="text-2xl font-display font-bold">Welcome</CardTitle>
+              <CardDescription className="text-base">Sign in or create an account</CardDescription>
+            </CardHeader>
+            <CardContent className="p-6 pt-4">
+              <Tabs defaultValue="signin" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 mb-6 rounded-xl p-1 bg-muted/50 h-11">
+                  <TabsTrigger value="signin" className="rounded-lg data-[state=active]:shadow-md font-semibold">Sign In</TabsTrigger>
+                  <TabsTrigger value="signup" className="rounded-lg data-[state=active]:shadow-md font-semibold">Sign Up</TabsTrigger>
+                </TabsList>
 
-              <TabsContent value="signin">
-                <form onSubmit={handleSignIn} className="space-y-5">
-                  <div className="space-y-2">
-                    <Label htmlFor="signin-email" className="text-sm font-medium">Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="signin-email"
-                        type="email"
-                        placeholder="you@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="pl-11 h-12 rounded-xl border-border/50 focus:border-primary"
-                        disabled={isSubmitting}
-                      />
+                <TabsContent value="signin">
+                  <form onSubmit={handleSignIn} className="space-y-5">
+                    <div className="space-y-2">
+                      <Label htmlFor="signin-email" className="text-sm font-semibold">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          id="signin-email"
+                          type="email"
+                          placeholder="you@example.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="pl-11 h-12 rounded-xl border-border/60 focus:border-primary bg-background/80"
+                          disabled={isSubmitting}
+                        />
+                      </div>
+                      <AnimatePresence>
+                        {errors.email && (
+                          <motion.p 
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            className="text-xs text-destructive flex items-center gap-1"
+                          >
+                            <AlertCircle className="w-3 h-3" />
+                            {errors.email}
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
                     </div>
-                    {errors.email && (
-                      <p className="text-xs text-destructive flex items-center gap-1 mt-1">
-                        <AlertCircle className="w-3 h-3" />
-                        {errors.email}
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signin-password" className="text-sm font-medium">Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="signin-password"
-                        type="password"
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="pl-11 h-12 rounded-xl border-border/50 focus:border-primary"
-                        disabled={isSubmitting}
-                      />
+                    <div className="space-y-2">
+                      <Label htmlFor="signin-password" className="text-sm font-semibold">Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          id="signin-password"
+                          type="password"
+                          placeholder="••••••••"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="pl-11 h-12 rounded-xl border-border/60 focus:border-primary bg-background/80"
+                          disabled={isSubmitting}
+                        />
+                      </div>
+                      <AnimatePresence>
+                        {errors.password && (
+                          <motion.p 
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            className="text-xs text-destructive flex items-center gap-1"
+                          >
+                            <AlertCircle className="w-3 h-3" />
+                            {errors.password}
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
                     </div>
-                    {errors.password && (
-                      <p className="text-xs text-destructive flex items-center gap-1 mt-1">
-                        <AlertCircle className="w-3 h-3" />
-                        {errors.password}
-                      </p>
-                    )}
-                  </div>
-                  <Button type="submit" className="w-full h-12 rounded-xl bg-ocean-gradient hover:opacity-90 shadow-lg hover:shadow-xl transition-all duration-300 text-base font-semibold" disabled={isSubmitting}>
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Signing in...
-                      </>
-                    ) : (
-                      'Sign In'
-                    )}
-                  </Button>
-                </form>
-              </TabsContent>
+                    <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                      <Button 
+                        type="submit" 
+                        className="w-full h-12 rounded-xl bg-gradient-to-r from-primary to-primary/90 hover:opacity-95 shadow-lg shadow-primary/20 transition-all duration-300 text-base font-semibold" 
+                        disabled={isSubmitting}
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                            Signing in...
+                          </>
+                        ) : (
+                          'Sign In'
+                        )}
+                      </Button>
+                    </motion.div>
+                  </form>
+                </TabsContent>
 
-              <TabsContent value="signup">
-                <form onSubmit={handleSignUp} className="space-y-5">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email" className="text-sm font-medium">Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="signup-email"
-                        type="email"
-                        placeholder="you@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="pl-11 h-12 rounded-xl border-border/50 focus:border-primary"
-                        disabled={isSubmitting}
-                      />
+                <TabsContent value="signup">
+                  <form onSubmit={handleSignUp} className="space-y-5">
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-email" className="text-sm font-semibold">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          id="signup-email"
+                          type="email"
+                          placeholder="you@example.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="pl-11 h-12 rounded-xl border-border/60 focus:border-primary bg-background/80"
+                          disabled={isSubmitting}
+                        />
+                      </div>
+                      <AnimatePresence>
+                        {errors.email && (
+                          <motion.p 
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            className="text-xs text-destructive flex items-center gap-1"
+                          >
+                            <AlertCircle className="w-3 h-3" />
+                            {errors.email}
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
                     </div>
-                    {errors.email && (
-                      <p className="text-xs text-destructive flex items-center gap-1 mt-1">
-                        <AlertCircle className="w-3 h-3" />
-                        {errors.email}
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password" className="text-sm font-medium">Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="signup-password"
-                        type="password"
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="pl-11 h-12 rounded-xl border-border/50 focus:border-primary"
-                        disabled={isSubmitting}
-                      />
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-password" className="text-sm font-semibold">Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          id="signup-password"
+                          type="password"
+                          placeholder="••••••••"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="pl-11 h-12 rounded-xl border-border/60 focus:border-primary bg-background/80"
+                          disabled={isSubmitting}
+                        />
+                      </div>
+                      <AnimatePresence>
+                        {errors.password && (
+                          <motion.p 
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            className="text-xs text-destructive flex items-center gap-1"
+                          >
+                            <AlertCircle className="w-3 h-3" />
+                            {errors.password}
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
                     </div>
-                    {errors.password && (
-                      <p className="text-xs text-destructive flex items-center gap-1 mt-1">
-                        <AlertCircle className="w-3 h-3" />
-                        {errors.password}
-                      </p>
-                    )}
-                  </div>
-                  <Button type="submit" className="w-full h-12 rounded-xl bg-ocean-gradient hover:opacity-90 shadow-lg hover:shadow-xl transition-all duration-300 text-base font-semibold" disabled={isSubmitting}>
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Creating account...
-                      </>
-                    ) : (
-                      'Create Account'
-                    )}
-                  </Button>
-                </form>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+                    <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                      <Button 
+                        type="submit" 
+                        className="w-full h-12 rounded-xl bg-gradient-to-r from-primary to-primary/90 hover:opacity-95 shadow-lg shadow-primary/20 transition-all duration-300 text-base font-semibold" 
+                        disabled={isSubmitting}
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                            Creating account...
+                          </>
+                        ) : (
+                          'Create Account'
+                        )}
+                      </Button>
+                    </motion.div>
+                  </form>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-        <p className="mt-8 text-sm text-muted-foreground animate-fade-in" style={{ animationDelay: '200ms' }}>
+        <motion.p 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="mt-8 text-sm text-muted-foreground"
+        >
           Track containers across MSC, Maersk, CMA CGM, and more
-        </p>
+        </motion.p>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { ContainerData, ContainerStatus } from '@/types/container';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Table, 
   TableBody, 
@@ -37,37 +38,43 @@ function getStatusConfig(status: ContainerStatus) {
       return { 
         color: 'bg-status-transit/15 text-status-transit border-status-transit/30', 
         icon: Ship,
-        label: 'In Transit'
+        label: 'In Transit',
+        gradient: 'from-status-transit/20 to-transparent'
       };
     case 'Arrived':
       return { 
         color: 'bg-status-arrived/15 text-status-arrived border-status-arrived/30', 
         icon: CheckCircle2,
-        label: 'Arrived'
+        label: 'Arrived',
+        gradient: 'from-status-arrived/20 to-transparent'
       };
     case 'Discharged':
       return { 
         color: 'bg-status-discharged/15 text-status-discharged border-status-discharged/30', 
         icon: Package,
-        label: 'Discharged'
+        label: 'Discharged',
+        gradient: 'from-status-discharged/20 to-transparent'
       };
     case 'Loading':
       return { 
         color: 'bg-primary/15 text-primary border-primary/30', 
         icon: Anchor,
-        label: 'Loading'
+        label: 'Loading',
+        gradient: 'from-primary/20 to-transparent'
       };
     case 'Pending':
       return { 
         color: 'bg-status-pending/15 text-status-pending border-status-pending/30', 
         icon: Timer,
-        label: 'Pending'
+        label: 'Pending',
+        gradient: 'from-status-pending/20 to-transparent'
       };
     default:
       return { 
         color: 'bg-muted text-muted-foreground border-border', 
         icon: AlertCircle,
-        label: 'Not Available'
+        label: 'Not Available',
+        gradient: 'from-muted/20 to-transparent'
       };
   }
 }
@@ -77,13 +84,17 @@ function StatusBadge({ status }: { status: ContainerStatus }) {
   const Icon = config.icon;
   
   return (
-    <span className={cn(
-      'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border',
-      config.color
-    )}>
+    <motion.span 
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      className={cn(
+        'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border backdrop-blur-sm',
+        config.color
+      )}
+    >
       <Icon className="w-3 h-3" />
       {config.label}
-    </span>
+    </motion.span>
   );
 }
 
@@ -123,64 +134,80 @@ export function TrackingTable({ data, onDeleteSelected, isDeleting }: TrackingTa
   };
 
   return (
-    <div className="w-full space-y-4 animate-fade-in">
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="w-full space-y-4"
+    >
       {/* Bulk Actions Bar */}
-      {selectedContainers.size > 0 && (
-        <div className="flex items-center justify-between p-4 rounded-xl bg-card border border-border shadow-sm">
-          <span className="text-sm font-medium text-foreground">
-            {selectedContainers.size} container{selectedContainers.size > 1 ? 's' : ''} selected
-          </span>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={handleDeleteSelected}
-            disabled={isDeleting}
-            className="gap-2"
+      <AnimatePresence>
+        {selectedContainers.size > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: 'auto' }}
+            exit={{ opacity: 0, y: -10, height: 0 }}
+            className="flex items-center justify-between p-4 rounded-2xl bg-card/80 backdrop-blur-sm border border-primary/20 shadow-lg"
           >
-            {isDeleting ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Trash2 className="w-4 h-4" />
-            )}
-            Delete Selected
-          </Button>
-        </div>
-      )}
+            <span className="text-sm font-semibold text-foreground">
+              {selectedContainers.size} container{selectedContainers.size > 1 ? 's' : ''} selected
+            </span>
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteSelected}
+                disabled={isDeleting}
+                className="gap-2 rounded-xl"
+              >
+                {isDeleting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                Delete
+              </Button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-md">
+      <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 backdrop-blur-sm shadow-xl">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/50 hover:bg-muted/50">
+              <TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-border/60">
                 <TableHead className="w-12">
                   <Checkbox
                     checked={allSelected}
                     onCheckedChange={handleSelectAll}
-                    aria-label="Select all containers"
+                    aria-label="Select all"
                     className={someSelected ? 'data-[state=checked]:bg-primary/50' : ''}
                   />
                 </TableHead>
-                <TableHead className="font-semibold">Container</TableHead>
-                <TableHead className="font-semibold">Shipping Line</TableHead>
-                <TableHead className="font-semibold">Location</TableHead>
-                <TableHead className="font-semibold">Vessel</TableHead>
-                <TableHead className="font-semibold">Voyage</TableHead>
-                <TableHead className="font-semibold">ETA Port</TableHead>
-                <TableHead className="font-semibold">ETA Date</TableHead>
-                <TableHead className="font-semibold">Last Update</TableHead>
-                <TableHead className="font-semibold">Status</TableHead>
+                <TableHead className="font-semibold text-foreground">Container</TableHead>
+                <TableHead className="font-semibold text-foreground">Line</TableHead>
+                <TableHead className="font-semibold text-foreground">Location</TableHead>
+                <TableHead className="font-semibold text-foreground">Vessel</TableHead>
+                <TableHead className="font-semibold text-foreground">Voyage</TableHead>
+                <TableHead className="font-semibold text-foreground">Destination</TableHead>
+                <TableHead className="font-semibold text-foreground">ETA</TableHead>
+                <TableHead className="font-semibold text-foreground">Updated</TableHead>
+                <TableHead className="font-semibold text-foreground">Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data.map((container, index) => (
-                <TableRow 
+                <motion.tr 
                   key={container.containerNumber}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.03, duration: 0.3 }}
                   className={cn(
-                    'transition-all duration-300 hover:bg-muted/30',
+                    'transition-all duration-200 hover:bg-muted/30 border-b border-border/40',
                     container.isTracking && 'bg-primary/5',
                     selectedContainers.has(container.containerNumber) && 'bg-primary/10'
                   )}
-                  style={{ animationDelay: `${index * 50}ms` }}
                 >
                   <TableCell>
                     <Checkbox
@@ -189,43 +216,48 @@ export function TrackingTable({ data, onDeleteSelected, isDeleting }: TrackingTa
                       aria-label={`Select ${container.containerNumber}`}
                     />
                   </TableCell>
-                  <TableCell className="font-mono font-medium">
+                  <TableCell className="font-mono font-semibold text-foreground">
                     <div className="flex items-center gap-2">
                       {container.isTracking ? (
-                        <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        >
+                          <Loader2 className="w-4 h-4 text-primary" />
+                        </motion.div>
                       ) : (
                         <Package className="w-4 h-4 text-muted-foreground" />
                       )}
-                      {container.containerNumber}
+                      <span className="tracking-wide">{container.containerNumber}</span>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Ship className="w-4 h-4 text-primary" />
-                      {container.shippingLine || '-'}
+                      <span className="text-sm">{container.shippingLine || '-'}</span>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-accent" />
-                      <span className="max-w-[150px] truncate">
+                      <span className="max-w-[140px] truncate text-sm">
                         {container.currentLocation || '-'}
                       </span>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className="max-w-[120px] truncate block">
+                    <span className="max-w-[100px] truncate block text-sm">
                       {container.vesselName || '-'}
                     </span>
                   </TableCell>
-                  <TableCell className="font-mono text-sm">
+                  <TableCell className="font-mono text-sm text-muted-foreground">
                     {container.voyageNumber || '-'}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Anchor className="w-4 h-4 text-primary" />
-                      <span className="max-w-[150px] truncate">
-                        {container.destinationPort || 'Mohammad Bin Qasim'}
+                      <span className="max-w-[120px] truncate text-sm">
+                        {container.destinationPort || 'MBQ'}
                       </span>
                     </div>
                   </TableCell>
@@ -233,27 +265,31 @@ export function TrackingTable({ data, onDeleteSelected, isDeleting }: TrackingTa
                     <RealTimeETA eta={container.eta} />
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-muted-foreground" />
-                      {container.lastUpdate || '-'}
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Clock className="w-4 h-4" />
+                      <span className="text-sm">{container.lastUpdate || '-'}</span>
                     </div>
                   </TableCell>
                   <TableCell>
                     {container.error ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-destructive/10 text-destructive border border-destructive/20">
+                      <motion.span 
+                        initial={{ scale: 0.9 }}
+                        animate={{ scale: 1 }}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-destructive/10 text-destructive border border-destructive/20"
+                      >
                         <AlertCircle className="w-3 h-3" />
                         Error
-                      </span>
+                      </motion.span>
                     ) : (
                       <StatusBadge status={container.status} />
                     )}
                   </TableCell>
-                </TableRow>
+                </motion.tr>
               ))}
             </TableBody>
           </Table>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
