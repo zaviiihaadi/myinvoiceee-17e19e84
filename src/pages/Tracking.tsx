@@ -380,6 +380,14 @@ export default function Tracking() {
   const [selectedDestination, setSelectedDestination] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [deletingContainer, setDeletingContainer] = useState<string | null>(null);
+  const [docStatuses, setDocStatuses] = useState<Record<string, { bl: boolean; invoice: boolean }>>({});
+
+  // Load document statuses
+  useEffect(() => {
+    if (!user || containers.length === 0) return;
+    const containerNumbers = containers.map(c => c.containerNumber);
+    getDocumentsStatus(user.id, containerNumbers).then(setDocStatuses);
+  }, [user, containers.length]);
 
   const handleDeleteContainer = async (containerNumber: string) => {
     setDeletingContainer(containerNumber);
@@ -648,6 +656,7 @@ export default function Tracking() {
                   container={container} 
                   onDelete={handleDeleteContainer}
                   isDeleting={deletingContainer === container.containerNumber}
+                  docStatus={docStatuses[container.containerNumber]}
                 />
               </div>
             ))}
