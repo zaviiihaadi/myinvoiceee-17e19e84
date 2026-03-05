@@ -130,13 +130,107 @@ function StatusBadge({ status }: { status: ContainerStatus }) {
   );
 }
 
+interface CardDocButtonsProps {
+  containerNumber: string;
+  docStatus: { bl: boolean; invoice: boolean } | undefined;
+}
+
+function CardDocButtons({ containerNumber, docStatus }: CardDocButtonsProps) {
+  const blInputRef = useRef<HTMLInputElement>(null);
+  const invoiceInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState<DocumentType | null>(null);
+  const [localStatus, setLocalStatus] = useState(docStatus);
+
+  useEffect(() => {
+    setLocalStatus(docStatus);
+  }, [docStatus]);
+
+  const handleUpload = async (docType: DocumentType, file: File) => {
+    setUploading(docType);
+    const result = await uploadDocument(containerNumber, docType, file);
+    if (result.success) {
+      toast.success(`${docType === 'bl' ? 'BL' : 'Invoice'} uploaded for ${containerNumber}`);
+      setLocalStatus(prev => prev ? { ...prev, [docType]: true } : { bl: docType === 'bl', invoice: docType === 'invoice' });
+    } else {
+      toast.error(`Upload failed: ${result.error}`);
+    }
+    setUploading(null);
+  };
+
+  const handleDownload = async (docType: DocumentType) => {
+    const { url } = await getDocumentUrl(containerNumber, docType);
+    if (url) {
+      window.open(url, '_blank');
+    } else {
+      toast.error(`No ${docType === 'bl' ? 'BL' : 'Invoice'} found`);
+    }
+  };
+
+  const hasDoc = (type: DocumentType) => localStatus?.[type] ?? false;
+
+  return (
+    <TooltipProvider delayDuration={300}>
+      <div className="flex items-center gap-1">
+        {/* BL */}
+        <input ref={blInputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+          onChange={(e) => { if (e.target.files?.[0]) handleUpload('bl', e.target.files[0]); e.target.value = ''; }} />
+        {hasDoc('bl') ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-500" onClick={() => handleDownload('bl')}>
+                <FileText className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent><p>Download BL</p></TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
+                onClick={() => blInputRef.current?.click()} disabled={uploading === 'bl'}>
+                {uploading === 'bl' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent><p>Upload BL</p></TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Invoice */}
+        <input ref={invoiceInputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+          onChange={(e) => { if (e.target.files?.[0]) handleUpload('invoice', e.target.files[0]); e.target.value = ''; }} />
+        {hasDoc('invoice') ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handleDownload('invoice')}>
+                <Receipt className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent><p>Download Invoice</p></TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
+                onClick={() => invoiceInputRef.current?.click()} disabled={uploading === 'invoice'}>
+                {uploading === 'invoice' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent><p>Upload Invoice</p></TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+    </TooltipProvider>
+  );
+}
+
 interface LocationCardProps {
   container: ContainerData;
   onDelete: (containerNumber: string) => void;
   isDeleting: boolean;
+  docStatus: { bl: boolean; invoice: boolean } | undefined;
 }
 
-function LocationCard({ container, onDelete, isDeleting }: LocationCardProps) {
+function LocationCard({ container, onDelete, isDeleting, docStatus }: LocationCardProps) {
   return (
     <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-card via-card to-muted/30 border border-border/50 shadow-xl hover:shadow-2xl transition-all duration-500 group">
       {/* Decorative Elements */}
