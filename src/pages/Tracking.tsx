@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Header } from '@/components/Header';
@@ -38,8 +38,18 @@ import {
   Sparkles,
   Container,
   Trash2,
-  Loader2
+  Loader2,
+  Upload,
+  FileText,
+  Receipt
 } from 'lucide-react';
+import { uploadDocument, getDocumentUrl, getDocumentsStatus, DocumentType } from '@/services/documentService';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -250,12 +260,15 @@ function LocationCard({ container, onDelete, isDeleting }: LocationCardProps) {
               <Clock className="w-4 h-4" />
               <span>Last Update: {container.lastUpdate || 'Not available'}</span>
             </div>
-            {container.error && (
-              <Badge variant="destructive" className="gap-1">
-                <AlertCircle className="w-3 h-3" />
-                Error
-              </Badge>
-            )}
+            <div className="flex items-center gap-2">
+              {container.error && (
+                <Badge variant="destructive" className="gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  Error
+                </Badge>
+              )}
+              <CardDocButtons containerNumber={container.containerNumber} docStatus={docStatus} />
+            </div>
           </div>
         </div>
       </div>
