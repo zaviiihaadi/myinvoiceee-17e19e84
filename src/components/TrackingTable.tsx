@@ -18,13 +18,26 @@ import {
   CheckCircle2,
   Package,
   Timer,
-  Trash2
+  Trash2,
+  Upload,
+  Download,
+  FileText,
+  Receipt
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RealTimeETA } from '@/components/RealTimeETA';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { uploadDocument, getDocumentUrl, getDocumentsStatus, DocumentType } from '@/services/documentService';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface TrackingTableProps {
   data: ContainerData[];
@@ -98,8 +111,112 @@ function StatusBadge({ status }: { status: ContainerStatus }) {
   );
 }
 
+function DocButtons({ containerNumber, docStatus }: { 
+  containerNumber: string; 
+  docStatus: { bl: boolean; invoice: boolean } | undefined;
+}) {
+  const blInputRef = useRef<HTMLInputElement>(null);
+  const invoiceInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState<DocumentType | null>(null);
+  const [localStatus, setLocalStatus] = useState(docStatus);
+
+  useEffect(() => {
+    setLocalStatus(docStatus);
+  }, [docStatus]);
+
+  const handleUpload = async (docType: DocumentType, file: File) => {
+    setUploading(docType);
+    const result = await uploadDocument(containerNumber, docType, file);
+    if (result.success) {
+      toast.success(`${docType === 'bl' ? 'BL' : 'Invoice'} uploaded for ${containerNumber}`);
+      setLocalStatus(prev => prev ? { ...prev, [docType]: true } : { bl: docType === 'bl', invoice: docType === 'invoice' });
+    } else {
+      toast.error(`Upload failed: ${result.error}`);
+    }
+    setUploading(null);
+  };
+
+  const handleDownload = async (docType: DocumentType) => {
+    const { url } = await getDocumentUrl(containerNumber, docType);
+    if (url) {
+      window.open(url, '_blank');
+    } else {
+      toast.error(`No ${docType === 'bl' ? 'BL' : 'Invoice'} found`);
+    }
+  };
+
+  const hasDoc = (type: DocumentType) => localStatus?.[type] ?? false;
+
+  return (
+    <TooltipProvider delayDuration={300}>
+      <div className="flex items-center gap-1">
+        {/* BL */}
+        <input 
+          ref={blInputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+          onChange={(e) => { if (e.target.files?.[0]) handleUpload('bl', e.target.files[0]); e.target.value = ''; }}
+        />
+        {hasDoc('bl') ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-status-arrived" onClick={() => handleDownload('bl')}>
+                <FileText className="w-3.5 h-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent><p>Download BL</p></TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" 
+                onClick={() => blInputRef.current?.click()} disabled={uploading === 'bl'}>
+                {uploading === 'bl' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent><p>Upload BL</p></TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Invoice */}
+        <input 
+          ref={invoiceInputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+          onChange={(e) => { if (e.target.files?.[0]) handleUpload('invoice', e.target.files[0]); e.target.value = ''; }}
+        />
+        {hasDoc('invoice') ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={() => handleDownload('invoice')}>
+                <Receipt className="w-3.5 h-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent><p>Download Invoice</p></TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" 
+                onClick={() => invoiceInputRef.current?.click()} disabled={uploading === 'invoice'}>
+                {uploading === 'invoice' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent><p>Upload Invoice</p></TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+    </TooltipProvider>
+  );
+}
+
 export function TrackingTable({ data, onDeleteSelected, isDeleting }: TrackingTableProps) {
   const [selectedContainers, setSelectedContainers] = useState<Set<string>>(new Set());
+  const [docStatuses, setDocStatuses] = useState<Record<string, { bl: boolean; invoice: boolean }>>({});
+  const { user } = useAuth();
+
+  // Load document statuses
+  useEffect(() => {
+    if (!user || data.length === 0) return;
+    const containerNumbers = data.map(c => c.containerNumber);
+    getDocumentsStatus(user.id, containerNumbers).then(setDocStatuses);
+  }, [user, data.length]);
 
   if (data.length === 0) {
     return null;
@@ -194,6 +311,7 @@ export function TrackingTable({ data, onDeleteSelected, isDeleting }: TrackingTa
                 <TableHead className="font-semibold text-foreground">ETA</TableHead>
                 <TableHead className="font-semibold text-foreground">Updated</TableHead>
                 <TableHead className="font-semibold text-foreground">Status</TableHead>
+                <TableHead className="font-semibold text-foreground text-center">Docs</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -283,6 +401,12 @@ export function TrackingTable({ data, onDeleteSelected, isDeleting }: TrackingTa
                     ) : (
                       <StatusBadge status={container.status} />
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <DocButtons 
+                      containerNumber={container.containerNumber} 
+                      docStatus={docStatuses[container.containerNumber]}
+                    />
                   </TableCell>
                 </motion.tr>
               ))}
