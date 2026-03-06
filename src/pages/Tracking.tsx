@@ -351,6 +351,15 @@ function LocationCard({ container, onDelete, isDeleting, docStatus }: LocationCa
           </div>
         </div>
 
+        {/* Documents Section */}
+        <div className="pt-4 mt-4 border-t border-border/50">
+          <div className="flex items-center gap-2 mb-3">
+            <FileText className="w-4 h-4 text-primary" />
+            <span className="text-sm font-semibold text-foreground">Documents</span>
+          </div>
+          <CardDocSection containerNumber={container.containerNumber} docStatus={docStatus} />
+        </div>
+
         {/* Footer */}
         <div className="pt-4 mt-4 border-t border-border/50">
           <div className="flex items-center justify-between">
@@ -358,15 +367,12 @@ function LocationCard({ container, onDelete, isDeleting, docStatus }: LocationCa
               <Clock className="w-4 h-4" />
               <span>Last Update: {container.lastUpdate || 'Not available'}</span>
             </div>
-            <div className="flex items-center gap-2">
-              {container.error && (
-                <Badge variant="destructive" className="gap-1">
-                  <AlertCircle className="w-3 h-3" />
-                  Error
-                </Badge>
-              )}
-              <CardDocButtons containerNumber={container.containerNumber} docStatus={docStatus} />
-            </div>
+            {container.error && (
+              <Badge variant="destructive" className="gap-1">
+                <AlertCircle className="w-3 h-3" />
+                Error
+              </Badge>
+            )}
           </div>
         </div>
       </div>
