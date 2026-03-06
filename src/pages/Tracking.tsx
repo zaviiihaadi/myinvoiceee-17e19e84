@@ -43,7 +43,7 @@ import {
   FileText,
   Receipt
 } from 'lucide-react';
-import { uploadDocument, getDocumentUrl, getDocumentsStatus, DocumentType } from '@/services/documentService';
+import { getDocumentUrl, getDocumentsStatus, DocumentType } from '@/services/documentService';
 import {
   Tooltip,
   TooltipContent,
