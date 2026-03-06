@@ -136,27 +136,6 @@ interface CardDocSectionProps {
 }
 
 function CardDocSection({ containerNumber, docStatus }: CardDocSectionProps) {
-  const blInputRef = useRef<HTMLInputElement>(null);
-  const invoiceInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState<DocumentType | null>(null);
-  const [localStatus, setLocalStatus] = useState(docStatus);
-
-  useEffect(() => {
-    setLocalStatus(docStatus);
-  }, [docStatus]);
-
-  const handleUpload = async (docType: DocumentType, file: File) => {
-    setUploading(docType);
-    const result = await uploadDocument(containerNumber, docType, file);
-    if (result.success) {
-      toast.success(`${docType === 'bl' ? 'BL' : 'Invoice'} uploaded for ${containerNumber}`);
-      setLocalStatus(prev => prev ? { ...prev, [docType]: true } : { bl: docType === 'bl', invoice: docType === 'invoice' });
-    } else {
-      toast.error(`Upload failed: ${result.error}`);
-    }
-    setUploading(null);
-  };
-
   const handleDownload = async (docType: DocumentType) => {
     const { url } = await getDocumentUrl(containerNumber, docType);
     if (url) {
@@ -166,18 +145,22 @@ function CardDocSection({ containerNumber, docStatus }: CardDocSectionProps) {
     }
   };
 
-  const hasDoc = (type: DocumentType) => localStatus?.[type] ?? false;
+  const hasBl = docStatus?.bl ?? false;
+  const hasInvoice = docStatus?.invoice ?? false;
+
+  if (!hasBl && !hasInvoice) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <FileText className="w-4 h-4" />
+        <span>No documents uploaded</span>
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-2 gap-3">
-      {/* Hidden file inputs */}
-      <input ref={blInputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-        onChange={(e) => { if (e.target.files?.[0]) handleUpload('bl', e.target.files[0]); e.target.value = ''; }} />
-      <input ref={invoiceInputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-        onChange={(e) => { if (e.target.files?.[0]) handleUpload('invoice', e.target.files[0]); e.target.value = ''; }} />
-
-      {/* BL Button */}
-      {hasDoc('bl') ? (
+      {/* BL Download */}
+      {hasBl ? (
         <Button
           variant="outline"
           size="sm"
@@ -188,20 +171,14 @@ function CardDocSection({ containerNumber, docStatus }: CardDocSectionProps) {
           <span className="font-semibold">Download BL</span>
         </Button>
       ) : (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => blInputRef.current?.click()}
-          disabled={uploading === 'bl'}
-          className="gap-2 rounded-xl border-dashed border-border hover:border-primary/50 hover:bg-primary/5 text-muted-foreground hover:text-primary transition-all"
-        >
-          {uploading === 'bl' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-          <span className="font-medium">Upload BL</span>
-        </Button>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground px-3 py-2 rounded-xl border border-dashed border-border">
+          <FileText className="w-4 h-4" />
+          <span>No BL</span>
+        </div>
       )}
 
-      {/* Invoice Button */}
-      {hasDoc('invoice') ? (
+      {/* Invoice Download */}
+      {hasInvoice ? (
         <Button
           variant="outline"
           size="sm"
@@ -212,26 +189,13 @@ function CardDocSection({ containerNumber, docStatus }: CardDocSectionProps) {
           <span className="font-semibold">Download Invoice</span>
         </Button>
       ) : (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => invoiceInputRef.current?.click()}
-          disabled={uploading === 'invoice'}
-          className="gap-2 rounded-xl border-dashed border-border hover:border-accent/50 hover:bg-accent/5 text-muted-foreground hover:text-accent transition-all"
-        >
-          {uploading === 'invoice' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-          <span className="font-medium">Upload Invoice</span>
-        </Button>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground px-3 py-2 rounded-xl border border-dashed border-border">
+          <Receipt className="w-4 h-4" />
+          <span>No Invoice</span>
+        </div>
       )}
     </div>
   );
-}
-
-interface LocationCardProps {
-  container: ContainerData;
-  onDelete: (containerNumber: string) => void;
-  isDeleting: boolean;
-  docStatus: { bl: boolean; invoice: boolean } | undefined;
 }
 
 function LocationCard({ container, onDelete, isDeleting, docStatus }: LocationCardProps) {
