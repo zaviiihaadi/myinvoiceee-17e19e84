@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, ArrowRight, X, Sparkles } from 'lucide-react';
+import { Search, ArrowRight, X, Sparkles, FileText, Receipt, Upload, CheckCircle2 } from 'lucide-react';
 
 interface ManualEntryFormProps {
-  onTrack: (containerNumber: string) => void;
+  onTrack: (containerNumber: string, blFile?: File, invoiceFile?: File) => void;
   isTracking: boolean;
 }
 
@@ -15,6 +15,10 @@ export function ManualEntryForm({ onTrack, isTracking }: ManualEntryFormProps) {
   const [containerNumber, setContainerNumber] = useState('');
   const [error, setError] = useState('');
   const [isFocused, setIsFocused] = useState(false);
+  const [blFile, setBlFile] = useState<File | null>(null);
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const blInputRef = useRef<HTMLInputElement>(null);
+  const invoiceInputRef = useRef<HTMLInputElement>(null);
 
   const formatContainerNumber = (value: string): string => {
     return value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11);
@@ -39,8 +43,10 @@ export function ManualEntryForm({ onTrack, isTracking }: ManualEntryFormProps) {
       return;
     }
 
-    onTrack(containerNumber);
+    onTrack(containerNumber, blFile || undefined, invoiceFile || undefined);
     setContainerNumber('');
+    setBlFile(null);
+    setInvoiceFile(null);
   };
 
   const handleClear = () => {
@@ -137,6 +143,89 @@ export function ManualEntryForm({ onTrack, isTracking }: ManualEntryFormProps) {
           </motion.div>
         </div>
       </div>
+
+      {/* Document Upload Section */}
+      <AnimatePresence>
+        {isValid && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+            className="overflow-hidden"
+          >
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              {/* Hidden file inputs */}
+              <input ref={blInputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                onChange={(e) => { if (e.target.files?.[0]) setBlFile(e.target.files[0]); }} />
+              <input ref={invoiceInputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                onChange={(e) => { if (e.target.files?.[0]) setInvoiceFile(e.target.files[0]); }} />
+
+              {/* BL Upload */}
+              <motion.button
+                type="button"
+                onClick={() => blInputRef.current?.click()}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border-2 border-dashed transition-all duration-200 text-left ${
+                  blFile 
+                    ? 'border-emerald-500/40 bg-emerald-500/10' 
+                    : 'border-border/60 hover:border-primary/40 hover:bg-primary/5'
+                }`}
+              >
+                {blFile ? (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                ) : (
+                  <FileText className="w-5 h-5 text-muted-foreground shrink-0" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className={`text-sm font-semibold truncate ${blFile ? 'text-emerald-600' : 'text-foreground'}`}>
+                    {blFile ? blFile.name : 'Upload BL'}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {blFile ? `${(blFile.size / 1024).toFixed(0)} KB` : 'Bill of Lading (optional)'}
+                  </p>
+                </div>
+                {blFile && (
+                  <X className="w-4 h-4 text-muted-foreground hover:text-destructive shrink-0" 
+                    onClick={(e) => { e.stopPropagation(); setBlFile(null); if(blInputRef.current) blInputRef.current.value = ''; }} />
+                )}
+              </motion.button>
+
+              {/* Invoice Upload */}
+              <motion.button
+                type="button"
+                onClick={() => invoiceInputRef.current?.click()}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border-2 border-dashed transition-all duration-200 text-left ${
+                  invoiceFile 
+                    ? 'border-primary/40 bg-primary/10' 
+                    : 'border-border/60 hover:border-accent/40 hover:bg-accent/5'
+                }`}
+              >
+                {invoiceFile ? (
+                  <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
+                ) : (
+                  <Receipt className="w-5 h-5 text-muted-foreground shrink-0" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className={`text-sm font-semibold truncate ${invoiceFile ? 'text-primary' : 'text-foreground'}`}>
+                    {invoiceFile ? invoiceFile.name : 'Upload Invoice'}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {invoiceFile ? `${(invoiceFile.size / 1024).toFixed(0)} KB` : 'Invoice document (optional)'}
+                  </p>
+                </div>
+                {invoiceFile && (
+                  <X className="w-4 h-4 text-muted-foreground hover:text-destructive shrink-0" 
+                    onClick={(e) => { e.stopPropagation(); setInvoiceFile(null); if(invoiceInputRef.current) invoiceInputRef.current.value = ''; }} />
+                )}
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Validation feedback */}
       <div className="flex items-center justify-between">
