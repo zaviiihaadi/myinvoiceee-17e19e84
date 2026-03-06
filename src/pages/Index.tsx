@@ -13,6 +13,7 @@ import { ContainerData } from '@/types/container';
 import { trackContainer, trackContainers } from '@/services/trackingService';
 import { sendStatusNotification, detectStatusChanges } from '@/services/notificationService';
 import { fetchUserContainers, upsertContainer, upsertContainers, deleteAllContainers, deleteContainers } from '@/services/containerDbService';
+import { uploadDocument } from '@/services/documentService';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { 
