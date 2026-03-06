@@ -229,7 +229,7 @@ const Index = () => {
     }
   }, [user, saveTrackingData, trackingData, containerNumbers]);
 
-  const handleManualTrack = useCallback(async (containerNumber: string) => {
+  const handleManualTrack = useCallback(async (containerNumber: string, blFile?: File, invoiceFile?: File) => {
     if (!user) return;
     if (trackingData.some(c => c.containerNumber === containerNumber)) {
       toast.info('Container is already in the tracking list');
@@ -242,8 +242,31 @@ const Index = () => {
     };
     setTrackingData(prev => [...prev, newContainer]);
     toast.info(`Tracking ${containerNumber}...`);
+
+    // Upload documents in parallel if provided
+    const uploadPromises: Promise<void>[] = [];
+    if (blFile) {
+      uploadPromises.push(
+        uploadDocument(containerNumber, 'bl', blFile).then(r => {
+          if (r.success) toast.success('BL uploaded successfully');
+          else toast.error(`BL upload failed: ${r.error}`);
+        })
+      );
+    }
+    if (invoiceFile) {
+      uploadPromises.push(
+        uploadDocument(containerNumber, 'invoice', invoiceFile).then(r => {
+          if (r.success) toast.success('Invoice uploaded successfully');
+          else toast.error(`Invoice upload failed: ${r.error}`);
+        })
+      );
+    }
+
     try {
-      const result = await trackContainer(containerNumber);
+      const [result] = await Promise.all([
+        trackContainer(containerNumber),
+        ...uploadPromises
+      ]);
       const data = result.data || {
         containerNumber, shippingLine: '', currentLocation: '', vesselName: '',
         voyageNumber: '', eta: '', lastUpdate: '', status: 'Not Available' as const, error: result.error
