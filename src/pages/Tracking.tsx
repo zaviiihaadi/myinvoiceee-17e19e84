@@ -130,12 +130,12 @@ function StatusBadge({ status }: { status: ContainerStatus }) {
   );
 }
 
-interface CardDocButtonsProps {
+interface CardDocSectionProps {
   containerNumber: string;
   docStatus: { bl: boolean; invoice: boolean } | undefined;
 }
 
-function CardDocButtons({ containerNumber, docStatus }: CardDocButtonsProps) {
+function CardDocSection({ containerNumber, docStatus }: CardDocSectionProps) {
   const blInputRef = useRef<HTMLInputElement>(null);
   const invoiceInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState<DocumentType | null>(null);
@@ -169,57 +169,61 @@ function CardDocButtons({ containerNumber, docStatus }: CardDocButtonsProps) {
   const hasDoc = (type: DocumentType) => localStatus?.[type] ?? false;
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <div className="flex items-center gap-1">
-        {/* BL */}
-        <input ref={blInputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-          onChange={(e) => { if (e.target.files?.[0]) handleUpload('bl', e.target.files[0]); e.target.value = ''; }} />
-        {hasDoc('bl') ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-500" onClick={() => handleDownload('bl')}>
-                <FileText className="w-4 h-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent><p>Download BL</p></TooltipContent>
-          </Tooltip>
-        ) : (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
-                onClick={() => blInputRef.current?.click()} disabled={uploading === 'bl'}>
-                {uploading === 'bl' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent><p>Upload BL</p></TooltipContent>
-          </Tooltip>
-        )}
+    <div className="grid grid-cols-2 gap-3">
+      {/* Hidden file inputs */}
+      <input ref={blInputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+        onChange={(e) => { if (e.target.files?.[0]) handleUpload('bl', e.target.files[0]); e.target.value = ''; }} />
+      <input ref={invoiceInputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+        onChange={(e) => { if (e.target.files?.[0]) handleUpload('invoice', e.target.files[0]); e.target.value = ''; }} />
 
-        {/* Invoice */}
-        <input ref={invoiceInputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-          onChange={(e) => { if (e.target.files?.[0]) handleUpload('invoice', e.target.files[0]); e.target.value = ''; }} />
-        {hasDoc('invoice') ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handleDownload('invoice')}>
-                <Receipt className="w-4 h-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent><p>Download Invoice</p></TooltipContent>
-          </Tooltip>
-        ) : (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
-                onClick={() => invoiceInputRef.current?.click()} disabled={uploading === 'invoice'}>
-                {uploading === 'invoice' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent><p>Upload Invoice</p></TooltipContent>
-          </Tooltip>
-        )}
-      </div>
-    </TooltipProvider>
+      {/* BL Button */}
+      {hasDoc('bl') ? (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handleDownload('bl')}
+          className="gap-2 rounded-xl border-emerald-500/30 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 hover:text-emerald-700 transition-all"
+        >
+          <FileText className="w-4 h-4" />
+          <span className="font-semibold">Download BL</span>
+        </Button>
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => blInputRef.current?.click()}
+          disabled={uploading === 'bl'}
+          className="gap-2 rounded-xl border-dashed border-border hover:border-primary/50 hover:bg-primary/5 text-muted-foreground hover:text-primary transition-all"
+        >
+          {uploading === 'bl' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+          <span className="font-medium">Upload BL</span>
+        </Button>
+      )}
+
+      {/* Invoice Button */}
+      {hasDoc('invoice') ? (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handleDownload('invoice')}
+          className="gap-2 rounded-xl border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-all"
+        >
+          <Receipt className="w-4 h-4" />
+          <span className="font-semibold">Download Invoice</span>
+        </Button>
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => invoiceInputRef.current?.click()}
+          disabled={uploading === 'invoice'}
+          className="gap-2 rounded-xl border-dashed border-border hover:border-accent/50 hover:bg-accent/5 text-muted-foreground hover:text-accent transition-all"
+        >
+          {uploading === 'invoice' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+          <span className="font-medium">Upload Invoice</span>
+        </Button>
+      )}
+    </div>
   );
 }
 
