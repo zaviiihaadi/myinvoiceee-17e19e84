@@ -197,6 +197,12 @@ function CardDocSection({ containerNumber, docStatus }: CardDocSectionProps) {
     </div>
   );
 }
+interface LocationCardProps {
+  container: ContainerData;
+  onDelete: (containerNumber: string) => void;
+  isDeleting: boolean;
+  docStatus: { bl: boolean; invoice: boolean } | undefined;
+}
 
 function LocationCard({ container, onDelete, isDeleting, docStatus }: LocationCardProps) {
   return (
