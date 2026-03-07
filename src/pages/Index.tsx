@@ -16,23 +16,23 @@ import { fetchUserContainers, upsertContainer, upsertContainers, deleteAllContai
 import { uploadDocument } from '@/services/documentService';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { 
-  RefreshCcw, 
-  FileSpreadsheet, 
-  Sparkles, 
-  Search, 
-  Clock, 
-  Bell, 
-  Loader2, 
-  Ship, 
-  Globe, 
-  Zap, 
-  Shield, 
+import {
+  RefreshCcw,
+  FileSpreadsheet,
+  Sparkles,
+  Search,
+  Clock,
+  Bell,
+  Loader2,
+  Ship,
+  Globe,
+  Zap,
+  Shield,
   Container,
   Waves,
   ArrowRight,
-  Package
-} from 'lucide-react';
+  Package } from
+'lucide-react';
 import { toast } from 'sonner';
 
 const AUTO_REFRESH_INTERVAL = 3 * 60 * 60 * 1000;
@@ -65,7 +65,7 @@ const Index = () => {
       try {
         const containers = await fetchUserContainers();
         setTrackingData(containers);
-        setContainerNumbers(containers.map(c => c.containerNumber));
+        setContainerNumbers(containers.map((c) => c.containerNumber));
       } catch (error) {
         console.error('Error loading containers:', error);
         toast.error('Failed to load your containers');
@@ -120,9 +120,9 @@ const Index = () => {
     localStorage.setItem('cargotrack_tracking_data', JSON.stringify(data));
     const now = new Date();
     const counts: Record<string, number> = {
-      'In Transit': 0, 'Arrived': 0, 'Discharged': 0, 'Loading': 0, 'Pending': 0, 'Not Available': 0,
+      'In Transit': 0, 'Arrived': 0, 'Discharged': 0, 'Loading': 0, 'Pending': 0, 'Not Available': 0
     };
-    data.forEach(container => {
+    data.forEach((container) => {
       if (counts[container.status] !== undefined) {
         counts[container.status]++;
       }
@@ -130,7 +130,7 @@ const Index = () => {
     const historyEntry = {
       timestamp: now.toISOString(),
       date: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-      counts,
+      counts
     };
     const existingHistory = localStorage.getItem('cargotrack_status_history');
     let history = existingHistory ? JSON.parse(existingHistory) : [];
@@ -146,18 +146,18 @@ const Index = () => {
     previousDataRef.current = [...trackingData];
     setIsTracking(true);
     setTrackingProgress(0);
-    setTrackingData(prev => prev.map(item => ({ ...item, isTracking: true })));
+    setTrackingData((prev) => prev.map((item) => ({ ...item, isTracking: true })));
     const newResults: ContainerData[] = [];
     try {
       await trackContainers(containerNumbers, (completed, data) => {
         setTrackingProgress(completed);
         newResults.push(data);
-        setTrackingData(prev => 
-          prev.map(item => 
-            item.containerNumber === data.containerNumber 
-              ? { ...data, isTracking: false }
-              : item
-          )
+        setTrackingData((prev) =>
+        prev.map((item) =>
+        item.containerNumber === data.containerNumber ?
+        { ...data, isTracking: false } :
+        item
+        )
         );
       });
       await upsertContainers(newResults, user.id);
@@ -186,8 +186,8 @@ const Index = () => {
 
   const handleFileProcessed = useCallback(async (numbers: string[]) => {
     if (!user) return;
-    const existingNumbers = new Set(trackingData.map(c => c.containerNumber));
-    const newNumbers = numbers.filter(num => !existingNumbers.has(num));
+    const existingNumbers = new Set(trackingData.map((c) => c.containerNumber));
+    const newNumbers = numbers.filter((num) => !existingNumbers.has(num));
     if (newNumbers.length === 0) {
       toast.info(`All ${numbers.length} containers are already being tracked`);
       return;
@@ -195,11 +195,11 @@ const Index = () => {
     const allNumbers = [...containerNumbers, ...newNumbers];
     setContainerNumbers(allNumbers);
     toast.success(`Found ${numbers.length} containers, tracking ${newNumbers.length} new ones!`);
-    const initialData: ContainerData[] = newNumbers.map(num => ({
+    const initialData: ContainerData[] = newNumbers.map((num) => ({
       containerNumber: num, shippingLine: '', currentLocation: '', vesselName: '',
       voyageNumber: '', eta: '', lastUpdate: '', status: 'Pending', isTracking: true
     }));
-    setTrackingData(prev => [...prev, ...initialData]);
+    setTrackingData((prev) => [...prev, ...initialData]);
     setIsTracking(true);
     setTrackingProgress(0);
     const results: ContainerData[] = [];
@@ -207,16 +207,16 @@ const Index = () => {
       await trackContainers(newNumbers, async (completed, data) => {
         setTrackingProgress(completed);
         results.push(data);
-        setTrackingData(prev => 
-          prev.map(item => 
-            item.containerNumber === data.containerNumber 
-              ? { ...data, isTracking: false }
-              : item
-          )
+        setTrackingData((prev) =>
+        prev.map((item) =>
+        item.containerNumber === data.containerNumber ?
+        { ...data, isTracking: false } :
+        item
+        )
         );
         await upsertContainer(data, user.id);
       });
-      setTrackingData(prev => {
+      setTrackingData((prev) => {
         saveTrackingData(prev);
         return prev;
       });
@@ -231,52 +231,52 @@ const Index = () => {
 
   const handleManualTrack = useCallback(async (containerNumber: string, blFile?: File, invoiceFile?: File) => {
     if (!user) return;
-    if (trackingData.some(c => c.containerNumber === containerNumber)) {
+    if (trackingData.some((c) => c.containerNumber === containerNumber)) {
       toast.info('Container is already in the tracking list');
       return;
     }
-    setContainerNumbers(prev => [...prev, containerNumber]);
+    setContainerNumbers((prev) => [...prev, containerNumber]);
     const newContainer: ContainerData = {
       containerNumber, shippingLine: '', currentLocation: '', vesselName: '',
       voyageNumber: '', eta: '', lastUpdate: '', status: 'Pending', isTracking: true
     };
-    setTrackingData(prev => [...prev, newContainer]);
+    setTrackingData((prev) => [...prev, newContainer]);
     toast.info(`Tracking ${containerNumber}...`);
 
     // Upload documents in parallel if provided
     const uploadPromises: Promise<void>[] = [];
     if (blFile) {
       uploadPromises.push(
-        uploadDocument(containerNumber, 'bl', blFile).then(r => {
-          if (r.success) toast.success('BL uploaded successfully');
-          else toast.error(`BL upload failed: ${r.error}`);
+        uploadDocument(containerNumber, 'bl', blFile).then((r) => {
+          if (r.success) toast.success('BL uploaded successfully');else
+          toast.error(`BL upload failed: ${r.error}`);
         })
       );
     }
     if (invoiceFile) {
       uploadPromises.push(
-        uploadDocument(containerNumber, 'invoice', invoiceFile).then(r => {
-          if (r.success) toast.success('Invoice uploaded successfully');
-          else toast.error(`Invoice upload failed: ${r.error}`);
+        uploadDocument(containerNumber, 'invoice', invoiceFile).then((r) => {
+          if (r.success) toast.success('Invoice uploaded successfully');else
+          toast.error(`Invoice upload failed: ${r.error}`);
         })
       );
     }
 
     try {
       const [result] = await Promise.all([
-        trackContainer(containerNumber),
-        ...uploadPromises
-      ]);
+      trackContainer(containerNumber),
+      ...uploadPromises]
+      );
       const data = result.data || {
         containerNumber, shippingLine: '', currentLocation: '', vesselName: '',
         voyageNumber: '', eta: '', lastUpdate: '', status: 'Not Available' as const, error: result.error
       };
       await upsertContainer(data, user.id);
-      setTrackingData(prev => {
-        const updated = prev.map(item => 
-          item.containerNumber === containerNumber 
-            ? { ...data, isTracking: false }
-            : item
+      setTrackingData((prev) => {
+        const updated = prev.map((item) =>
+        item.containerNumber === containerNumber ?
+        { ...data, isTracking: false } :
+        item
         );
         saveTrackingData(updated);
         return updated;
@@ -288,12 +288,12 @@ const Index = () => {
       }
     } catch (error) {
       console.error('Manual tracking error:', error);
-      setTrackingData(prev => 
-        prev.map(item => 
-          item.containerNumber === containerNumber 
-            ? { ...item, isTracking: false, status: 'Not Available', error: 'Tracking failed' }
-            : item
-        )
+      setTrackingData((prev) =>
+      prev.map((item) =>
+      item.containerNumber === containerNumber ?
+      { ...item, isTracking: false, status: 'Not Available', error: 'Tracking failed' } :
+      item
+      )
       );
       toast.error(`Failed to track ${containerNumber}`);
     }
@@ -322,8 +322,8 @@ const Index = () => {
   const handleDeleteSelected = useCallback(async (containerNumbersToDelete: string[]) => {
     try {
       await deleteContainers(containerNumbersToDelete);
-      setContainerNumbers(prev => prev.filter(n => !containerNumbersToDelete.includes(n)));
-      setTrackingData(prev => prev.filter(c => !containerNumbersToDelete.includes(c.containerNumber)));
+      setContainerNumbers((prev) => prev.filter((n) => !containerNumbersToDelete.includes(n)));
+      setTrackingData((prev) => prev.filter((c) => !containerNumbersToDelete.includes(c.containerNumber)));
       toast.success(`${containerNumbersToDelete.length} container${containerNumbersToDelete.length > 1 ? 's' : ''} deleted`);
     } catch (error) {
       console.error('Error deleting containers:', error);
@@ -331,27 +331,27 @@ const Index = () => {
     }
   }, []);
 
-  if (authLoading || (user && isLoadingData)) {
+  if (authLoading || user && isLoadingData) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
         <Header />
         <main className="flex-1 flex items-center justify-center">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="text-center space-y-4"
-          >
+            className="text-center space-y-4">
+            
             <motion.div
               animate={{ rotate: 360 }}
-              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-            >
+              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}>
+              
               <Loader2 className="w-10 h-10 text-primary mx-auto" />
             </motion.div>
             <p className="text-muted-foreground font-medium">Loading your containers...</p>
           </motion.div>
         </main>
-      </div>
-    );
+      </div>);
+
   }
 
   return (
@@ -360,47 +360,47 @@ const Index = () => {
       
       <main className="flex-1">
         {/* Hero Section - Only show when no data */}
-        {trackingData.length === 0 && (
-          <section className="relative py-16 lg:py-24 overflow-hidden">
+        {trackingData.length === 0 &&
+        <section className="relative py-16 lg:py-24 overflow-hidden">
             {/* Animated background */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              <motion.div 
-                className="absolute top-20 left-[10%] w-72 h-72 bg-primary/10 rounded-full blur-3xl"
-                animate={{ 
-                  x: [0, 30, 0], 
-                  y: [0, -20, 0],
-                  scale: [1, 1.1, 1]
-                }}
-                transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-              />
-              <motion.div 
-                className="absolute top-40 right-[10%] w-80 h-80 bg-accent/10 rounded-full blur-3xl"
-                animate={{ 
-                  x: [0, -20, 0], 
-                  y: [0, 30, 0],
-                  scale: [1.1, 1, 1.1]
-                }}
-                transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-              />
-              <motion.div 
-                className="absolute bottom-20 left-1/3 w-64 h-64 bg-status-arrived/10 rounded-full blur-3xl"
-                animate={{ 
-                  x: [0, 20, 0], 
-                  y: [0, 20, 0]
-                }}
-                transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
-              />
+              <motion.div
+              className="absolute top-20 left-[10%] w-72 h-72 bg-primary/10 rounded-full blur-3xl"
+              animate={{
+                x: [0, 30, 0],
+                y: [0, -20, 0],
+                scale: [1, 1.1, 1]
+              }}
+              transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }} />
+            
+              <motion.div
+              className="absolute top-40 right-[10%] w-80 h-80 bg-accent/10 rounded-full blur-3xl"
+              animate={{
+                x: [0, -20, 0],
+                y: [0, 30, 0],
+                scale: [1.1, 1, 1.1]
+              }}
+              transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }} />
+            
+              <motion.div
+              className="absolute bottom-20 left-1/3 w-64 h-64 bg-status-arrived/10 rounded-full blur-3xl"
+              animate={{
+                x: [0, 20, 0],
+                y: [0, 20, 0]
+              }}
+              transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }} />
+            
             </div>
             
             <div className="container mx-auto px-4 relative z-10">
               <div className="text-center space-y-6 max-w-3xl mx-auto">
                 {/* Badge */}
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 }}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-card/80 backdrop-blur-sm border border-border/60 shadow-lg"
-                >
+                <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-card/80 backdrop-blur-sm border border-border/60 shadow-lg">
+                
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-status-arrived opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-status-arrived" />
@@ -409,73 +409,73 @@ const Index = () => {
                 </motion.div>
                 
                 {/* Main heading */}
-                <motion.h1 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="text-4xl md:text-5xl lg:text-6xl font-extrabold font-display leading-tight tracking-tight"
-                >
+                <motion.h1
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="text-4xl md:text-5xl lg:text-6xl font-extrabold font-display leading-tight tracking-tight">
+                
                   Track Your Cargo
                   <br />
                   <span className="text-gradient">Across the Globe</span>
                 </motion.h1>
                 
                 {/* Subheading */}
-                <motion.p 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="text-lg text-muted-foreground max-w-xl mx-auto"
-                >
+                <motion.p
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="text-lg text-muted-foreground max-w-xl mx-auto">
+                
                   Real-time visibility for your shipments. Track containers from MSC, Maersk, CMA CGM, and more.
                 </motion.p>
                 
                 {/* Feature pills */}
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
-                  className="flex flex-wrap justify-center gap-2"
-                >
+                <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="flex flex-wrap justify-center gap-2">
+                
                   {[
-                    { icon: Globe, label: 'Global Coverage' },
-                    { icon: Zap, label: 'Instant Updates' },
-                    { icon: Shield, label: 'Secure & Reliable' },
-                  ].map((feature, i) => (
-                    <motion.div
-                      key={feature.label}
-                      whileHover={{ scale: 1.05, y: -2 }}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-card/80 backdrop-blur-sm border border-border/60 shadow-sm"
-                    >
+                { icon: Globe, label: 'Global Coverage' },
+                { icon: Zap, label: 'Instant Updates' },
+                { icon: Shield, label: 'Secure & Reliable' }].
+                map((feature, i) =>
+                <motion.div
+                  key={feature.label}
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-card/80 backdrop-blur-sm border border-border/60 shadow-sm">
+                  
                       <feature.icon className="w-4 h-4 text-primary" />
                       <span className="text-sm font-medium">{feature.label}</span>
                     </motion.div>
-                  ))}
+                )}
                 </motion.div>
               </div>
               
               {/* Floating icons */}
-              <motion.div 
-                className="hidden lg:block absolute top-1/4 left-[5%]"
-                animate={{ y: [0, -15, 0], rotate: [0, 5, 0] }}
-                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-              >
+              <motion.div
+              className="hidden lg:block absolute top-1/4 left-[5%]"
+              animate={{ y: [0, -15, 0], rotate: [0, 5, 0] }}
+              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}>
+              
                 <div className="w-14 h-14 rounded-2xl bg-card/80 backdrop-blur-sm border border-border/60 shadow-lg flex items-center justify-center">
                   <Container className="w-7 h-7 text-primary" />
                 </div>
               </motion.div>
-              <motion.div 
-                className="hidden lg:block absolute top-1/3 right-[5%]"
-                animate={{ y: [0, 15, 0], rotate: [0, -5, 0] }}
-                transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-              >
+              <motion.div
+              className="hidden lg:block absolute top-1/3 right-[5%]"
+              animate={{ y: [0, 15, 0], rotate: [0, -5, 0] }}
+              transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}>
+              
                 <div className="w-12 h-12 rounded-xl bg-card/80 backdrop-blur-sm border border-border/60 shadow-lg flex items-center justify-center">
                   <Ship className="w-6 h-6 text-accent" />
                 </div>
               </motion.div>
             </div>
           </section>
-        )}
+        }
 
         {/* Main Content */}
         <div className="container mx-auto px-4 pb-16 space-y-8">
@@ -484,14 +484,14 @@ const Index = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="text-center py-10 lg:py-14"
-          >
+            className="text-center py-10 lg:py-14">
+            
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.1, duration: 0.4 }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6"
-            >
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6">
+              
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-status-arrived opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-status-arrived" />
@@ -499,12 +499,12 @@ const Index = () => {
               <span className="text-sm font-medium text-primary">Live Container Tracking</span>
             </motion.div>
             
-            <motion.h1 
+            <motion.h1
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.5 }}
-              className="text-4xl md:text-5xl lg:text-6xl font-extrabold font-display leading-tight tracking-tight mb-4"
-            >
+              className="text-4xl md:text-5xl lg:text-6xl font-extrabold font-display leading-tight tracking-tight mb-4">
+              
               Track Your <span className="text-gradient">Cargo</span>
               <br />
               <span className="text-gradient-sunset">Worldwide</span>
@@ -514,24 +514,24 @@ const Index = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3, duration: 0.5 }}
-              className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto"
-            >
+              className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
+              
               Real-time visibility for MSC, Maersk, CMA CGM, and more shipping lines
             </motion.p>
             
-            {trackingData.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.4 }}
-                className="mt-6 inline-flex items-center gap-3 px-5 py-2.5 rounded-2xl bg-card/80 backdrop-blur-sm border border-border/60 shadow-lg"
-              >
+            {trackingData.length > 0 &&
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.4 }}
+              className="mt-6 inline-flex items-center gap-3 px-5 py-2.5 rounded-2xl bg-card/80 backdrop-blur-sm border border-border/60 shadow-lg">
+              
                 <Package className="w-5 h-5 text-primary" />
                 <span className="text-sm font-semibold text-foreground">
                   {trackingData.length} container{trackingData.length !== 1 ? 's' : ''} being tracked
                 </span>
               </motion.div>
-            )}
+            }
           </motion.div>
 
           {/* Input Cards */}
@@ -542,14 +542,14 @@ const Index = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
               whileHover={{ y: -4 }}
-              className="bg-card/80 backdrop-blur-sm rounded-3xl border border-border/60 shadow-xl p-6 lg:p-8 transition-shadow hover:shadow-2xl"
-            >
+              className="bg-card/60 backdrop-blur-sm rounded-3xl border border-border/60 shadow-xl p-6 lg:p-8 transition-shadow hover:shadow-2xl">
+              
               <div className="flex items-center gap-4 mb-6">
-                <motion.div 
+                <motion.div
                   className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20"
                   whileHover={{ rotate: [0, -10, 10, 0] }}
-                  transition={{ duration: 0.4 }}
-                >
+                  transition={{ duration: 0.4 }}>
+                  
                   <Search className="w-6 h-6 text-primary-foreground" />
                 </motion.div>
                 <div>
@@ -566,14 +566,14 @@ const Index = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
               whileHover={{ y: -4 }}
-              className="bg-card/80 backdrop-blur-sm rounded-3xl border border-border/60 shadow-xl p-6 lg:p-8 transition-shadow hover:shadow-2xl"
-            >
+              className="bg-card/80 backdrop-blur-sm rounded-3xl border border-border/60 shadow-xl p-6 lg:p-8 transition-shadow hover:shadow-2xl">
+              
               <div className="flex items-center gap-4 mb-6">
-                <motion.div 
+                <motion.div
                   className="w-12 h-12 rounded-2xl bg-gradient-to-br from-accent to-accent/80 flex items-center justify-center shadow-lg shadow-accent/20"
                   whileHover={{ rotate: [0, -10, 10, 0] }}
-                  transition={{ duration: 0.4 }}
-                >
+                  transition={{ duration: 0.4 }}>
+                  
                   <FileSpreadsheet className="w-6 h-6 text-accent-foreground" />
                 </motion.div>
                 <div>
@@ -586,23 +586,23 @@ const Index = () => {
           </div>
 
           {/* Results Section */}
-          {trackingData.length > 0 && (
-            <motion.section 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="space-y-6"
-            >
+          {trackingData.length > 0 &&
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="space-y-6">
+            
               {/* Stats */}
               <StatsCards data={trackingData} isTracking={isTracking} />
               
               {/* Email & Actions Row */}
               <div className="flex flex-col lg:flex-row gap-4">
                 {/* Email Notifications */}
-                <motion.div 
-                  whileHover={{ scale: 1.005 }}
-                  className="flex-1 bg-card/80 backdrop-blur-sm rounded-2xl border border-border/60 shadow-lg p-5"
-                >
+                <motion.div
+                whileHover={{ scale: 1.005 }}
+                className="flex-1 bg-card/80 backdrop-blur-sm rounded-2xl border border-border/60 shadow-lg p-5">
+                
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
                       <Bell className="w-4 h-4 text-primary-foreground" />
@@ -613,38 +613,38 @@ const Index = () => {
                     </div>
                   </div>
                   <EmailNotificationForm
-                    subscribedEmail={notificationEmail}
-                    onSubscribe={handleSubscribe}
-                    onUnsubscribe={handleUnsubscribe}
-                  />
+                  subscribedEmail={notificationEmail}
+                  onSubscribe={handleSubscribe}
+                  onUnsubscribe={handleUnsubscribe} />
+                
                 </motion.div>
 
                 {/* Actions */}
                 <div className="flex flex-wrap items-center gap-3 lg:justify-end">
-                  {nextRefresh && !isTracking && (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground bg-card/80 backdrop-blur-sm border border-border/60 px-4 py-2 rounded-xl shadow-sm">
+                  {nextRefresh && !isTracking &&
+                <div className="flex items-center gap-2 text-xs text-muted-foreground bg-card/80 backdrop-blur-sm border border-border/60 px-4 py-2 rounded-xl shadow-sm">
                       <Clock className="w-3.5 h-3.5" />
                       <span>Auto-refresh in 3h</span>
                     </div>
-                  )}
+                }
                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                     <Button
-                      onClick={handleRefreshAll}
-                      disabled={isTracking}
-                      variant="outline"
-                      className="gap-2 rounded-xl"
-                    >
+                    onClick={handleRefreshAll}
+                    disabled={isTracking}
+                    variant="outline"
+                    className="gap-2 rounded-xl">
+                    
                       <RefreshCcw className="w-4 h-4" />
                       Refresh All
                     </Button>
                   </motion.div>
                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                     <Button
-                      onClick={handleClear}
-                      disabled={isTracking}
-                      variant="ghost"
-                      className="text-muted-foreground rounded-xl"
-                    >
+                    onClick={handleClear}
+                    disabled={isTracking}
+                    variant="ghost"
+                    className="text-muted-foreground rounded-xl">
+                    
                       Clear All
                     </Button>
                   </motion.div>
@@ -653,13 +653,13 @@ const Index = () => {
               </div>
               
               {/* Table */}
-              <TrackingTable 
-                data={trackingData} 
-                onDeleteSelected={handleDeleteSelected}
-                isDeleting={isTracking}
-              />
+              <TrackingTable
+              data={trackingData}
+              onDeleteSelected={handleDeleteSelected}
+              isDeleting={isTracking} />
+            
             </motion.section>
-          )}
+          }
         </div>
       </main>
 
@@ -683,11 +683,11 @@ const Index = () => {
       </footer>
 
       {/* Loading Overlay */}
-      {isTracking && trackingData.length > 0 && (
-        <LoadingOverlay progress={trackingProgress} total={containerNumbers.length} />
-      )}
-    </div>
-  );
+      {isTracking && trackingData.length > 0 &&
+      <LoadingOverlay progress={trackingProgress} total={containerNumbers.length} />
+      }
+    </div>);
+
 };
 
 export default Index;
