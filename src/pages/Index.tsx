@@ -542,7 +542,7 @@ const Index = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
               whileHover={{ y: -4 }}
-              className="bg-card/60 backdrop-blur-sm rounded-3xl border border-border/60 shadow-xl p-6 lg:p-8 transition-shadow hover:shadow-2xl py-[2px]">
+              className="bg-card/60 backdrop-blur-sm rounded-3xl border border-border/60 shadow-xl p-6 lg:p-8 transition-shadow hover:shadow-2xl py-[32px] mx-0 my-[40px]">
               
               <div className="flex items-center gap-4 mb-6">
                 <motion.div
