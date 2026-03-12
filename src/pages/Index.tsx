@@ -50,7 +50,7 @@ const Index = () => {
   const [notificationEmail, setNotificationEmail] = useState<string | null>(() => {
     return localStorage.getItem('cargotrack_notification_email');
   });
-  const autoRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousDataRef = useRef<ContainerData[]>([]);
 
   useEffect(() => {
