@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import Tracking from "./pages/Tracking";
+import InvoiceGenerator from "./pages/InvoiceGenerator";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
