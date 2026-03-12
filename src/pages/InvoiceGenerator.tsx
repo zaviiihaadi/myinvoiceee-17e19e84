@@ -44,10 +44,10 @@ export default function InvoiceGenerator() {
   const [blData, setBlData] = useState<BLData | null>(null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
-  if (authLoading) return null;
+  if (authLoading) return <div className="min-h-screen bg-background" />;
   if (!user) {
     navigate('/auth');
-    return null;
+    return <div className="min-h-screen bg-background" />;
   }
 
   const handleBLUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
