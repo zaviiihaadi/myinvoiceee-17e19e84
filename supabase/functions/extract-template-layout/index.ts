@@ -29,50 +29,29 @@ serve(async (req) => {
     const messages: any[] = [
       {
         role: 'system',
-        content: `You are a Bill of Lading (BL) and Invoice document parser. Extract all data from the document.
+        content: `You are a document layout analyzer. Analyze this invoice/packing template and extract its exact structure.
 
-Look for weight keywords: "KGS", "KG", "WEIGHT", "GROSS WEIGHT", "G.Weight", "GROSS WT".
-Look for bales/packages: "BALES", "PKGS", "No. & Kind of Pkgs".
-
-Extract ALL of these fields:
-- Shipper name and full address
-- Consignee name and full address  
-- Notify Party name and full address
-- Port of Loading
-- Port of Discharge / Destination
-- Description of goods
-- Number of bales/packages
-- Container number(s)
-- Container size (e.g. "1X 40' HC")
-- BL number or Invoice number
-- Vessel / Flight name
-- HS Code
-- Shipping Marks
-
-Return ONLY a JSON object (no markdown, no code blocks) with this exact structure:
+Return ONLY a JSON object describing the layout:
 {
-  "kgs": <number or null>,
-  "shipper": "<string or null>",
-  "shipper_address": "<full address string or null>",
-  "consignee": "<string or null>",
-  "consignee_address": "<full address string or null>",
-  "notify_party": "<string or null>",
-  "notify_party_address": "<full address string or null>",
-  "port_of_loading": "<string or null>",
-  "port_of_discharge": "<string or null>",
-  "description": "<string or null>",
-  "packages": "<string or null>",
-  "bales": <number or null>,
-  "container_numbers": ["<string>"],
-  "container_size": "<string or null>",
-  "bl_number": "<string or null>",
-  "vessel_name": "<string or null>",
-  "hs_code": "<string or null>",
-  "shipping_marks": "<string or null>",
-  "raw_weight_text": "<the exact text where weight was found>"
+  "title": "<main title text e.g. INVOICE/PACKING>",
+  "has_shipper_section": true/false,
+  "has_consignee_section": true/false,
+  "has_notify_party": true/false,
+  "has_container_info": true/false,
+  "has_vessel_section": true/false,
+  "has_port_section": true/false,
+  "has_hs_code": true/false,
+  "has_goods_description": true/false,
+  "has_shipping_marks": true/false,
+  "has_weight_pricing": true/false,
+  "has_bales_packages": true/false,
+  "has_stamp_area": true/false,
+  "company_name_position": "bottom" or "top",
+  "layout_style": "two-column" or "single-column",
+  "sections_order": ["shipper", "notify_party", "consignee", "container", "vessel", "ports", "goods", "weight", "company"]
 }
 
-If KGS cannot be found, set kgs to null. For bales, extract the number only (e.g. from "32 BALES" extract 32).`
+Analyze the visual layout carefully.`
       },
       {
         role: 'user',
@@ -85,7 +64,7 @@ If KGS cannot be found, set kgs to null. For bales, extract the number only (e.g
           },
           {
             type: 'text',
-            text: 'Extract all details from this Bill of Lading / Invoice document.'
+            text: 'Analyze this invoice template layout and return the structure as JSON.'
           }
         ]
       }
@@ -119,14 +98,14 @@ If KGS cannot be found, set kgs to null. For bales, extract the number only (e.g
       parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(content);
     } catch {
       console.error('Failed to parse AI response:', content);
-      parsed = { kgs: null, raw_weight_text: content };
+      parsed = null;
     }
 
     return new Response(JSON.stringify(parsed), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Error in extract-bl-data:', error);
+    console.error('Error in extract-template-layout:', error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

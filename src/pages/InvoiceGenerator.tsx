@@ -12,20 +12,29 @@ import { supabase } from '@/integrations/supabase/client';
 import jsPDF from 'jspdf';
 import {
   FileText, Upload, Calculator, Download, Loader2, CheckCircle2,
-  AlertCircle, Package, Scale, DollarSign, Hash, Calendar, ArrowRight,
-  Sparkles, Ship, FileUp, Eye
+  AlertCircle, Scale, DollarSign, Hash, ArrowRight,
+  Sparkles, Ship, FileUp, Eye, Package, RotateCcw
 } from 'lucide-react';
 
 interface BLData {
   kgs: number | null;
   shipper: string | null;
+  shipper_address: string | null;
   consignee: string | null;
+  consignee_address: string | null;
+  notify_party: string | null;
+  notify_party_address: string | null;
   port_of_loading: string | null;
   port_of_discharge: string | null;
   description: string | null;
   packages: string | null;
+  bales: number | null;
   container_numbers: string[];
+  container_size: string | null;
   bl_number: string | null;
+  vessel_name: string | null;
+  hs_code: string | null;
+  shipping_marks: string | null;
   raw_weight_text: string | null;
 }
 
@@ -39,10 +48,17 @@ export default function InvoiceGenerator() {
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [companyPrice, setCompanyPrice] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [balesCount, setBalesCount] = useState('');
+  const [invoiceDate, setInvoiceDate] = useState(() => {
+    const d = new Date();
+    return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+  });
   const [extracting, setExtracting] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [blData, setBlData] = useState<BLData | null>(null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [templateLayout, setTemplateLayout] = useState<any>(null);
+  const [extractingTemplate, setExtractingTemplate] = useState(false);
 
   if (authLoading) return <div className="min-h-screen bg-background" />;
   if (!user) {
@@ -62,10 +78,38 @@ export default function InvoiceGenerator() {
     setBlData(null);
   };
 
-  const handleTemplateUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setTemplateFile(file);
+    
+    // Extract template layout using AI
+    setExtractingTemplate(true);
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(',')[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const { data, error } = await supabase.functions.invoke('extract-template-layout', {
+        body: { fileBase64: base64, mimeType: file.type },
+      });
+
+      if (error) throw error;
+      setTemplateLayout(data);
+      toast.success('Template layout extracted! Invoice will match this format.');
+    } catch (err: any) {
+      console.error('Template extraction error:', err);
+      toast.warning('Could not extract template layout. Will use default format.');
+      setTemplateLayout(null);
+    } finally {
+      setExtractingTemplate(false);
+    }
   };
 
   const extractBLData = async () => {
@@ -90,6 +134,8 @@ export default function InvoiceGenerator() {
 
       if (data.kgs) {
         setBlData(data);
+        if (data.bales) setBalesCount(String(data.bales));
+        if (data.bl_number) setInvoiceNumber(data.bl_number);
         setStep(2);
         toast.success(`KGS extracted: ${data.kgs} kg`);
       } else {
@@ -113,6 +159,220 @@ export default function InvoiceGenerator() {
     return { unitPrice, totalPrice, kgs: blData.kgs };
   };
 
+  const generateInvoicePDF = (calc: { unitPrice: number; totalPrice: number; kgs: number }) => {
+    const doc = new jsPDF();
+    const pw = doc.internal.pageSize.getWidth(); // ~210
+    const invNum = invoiceNumber || `INV-${Date.now()}`;
+    const bales = balesCount || blData?.bales || '';
+    const date = invoiceDate;
+
+    // Use template layout if available, otherwise use the default INVOICE/PACKING layout
+    const layout = templateLayout;
+
+    // ===== EXACT REPLICA OF THE SAMPLE INVOICE/PACKING TEMPLATE =====
+    
+    const leftCol = 14;
+    const rightCol = pw / 2 + 5;
+    let y = 16;
+
+    // Title: INVOICE/PACKING
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(0, 0, 0);
+    doc.text(layout?.title || 'INVOICE/PACKING', pw / 2, y, { align: 'center' });
+    y += 10;
+
+    // Draw horizontal line under title
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.5);
+    doc.line(leftCol, y, pw - 14, y);
+    y += 6;
+
+    // LEFT SIDE: 1. Shipper
+    const shipperStartY = y;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('1.Shipper', leftCol, y);
+    y += 5;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    const shipperName = blData?.shipper || 'N/A';
+    doc.text(shipperName, leftCol, y);
+    y += 4;
+    
+    if (blData?.shipper_address) {
+      const addrLines = doc.splitTextToSize(blData.shipper_address, pw / 2 - 20);
+      doc.text(addrLines, leftCol, y);
+      y += addrLines.length * 4;
+    }
+
+    // RIGHT SIDE: Invoice No. and Date (at same level as shipper)
+    let ry = shipperStartY;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('Invoice No.', rightCol, ry);
+    doc.text('Date', rightCol + 55, ry);
+    ry += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(invNum, rightCol, ry);
+    doc.text(date, rightCol + 55, ry);
+    ry += 8;
+
+    // RIGHT SIDE: Notify Party
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('NOTIFY PARTY', rightCol, ry);
+    ry += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    const notifyName = blData?.notify_party || blData?.consignee || 'N/A';
+    doc.text(notifyName, rightCol, ry);
+    ry += 4;
+    const notifyAddr = blData?.notify_party_address || blData?.consignee_address || '';
+    if (notifyAddr) {
+      const notifyLines = doc.splitTextToSize(notifyAddr, pw / 2 - 20);
+      doc.text(notifyLines, rightCol, ry);
+      ry += notifyLines.length * 4;
+    }
+
+    y = Math.max(y, ry) + 6;
+    // Separator line
+    doc.setLineWidth(0.3);
+    doc.line(leftCol, y, pw - 14, y);
+    y += 6;
+
+    // LEFT SIDE: 2. Consignee
+    const consStartY = y;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('2.Consignee', leftCol, y);
+    y += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(blData?.consignee || 'N/A', leftCol, y);
+    y += 4;
+    if (blData?.consignee_address) {
+      const consLines = doc.splitTextToSize(blData.consignee_address, pw / 2 - 20);
+      doc.text(consLines, leftCol, y);
+      y += consLines.length * 4;
+    }
+
+    // RIGHT SIDE: Container info
+    ry = consStartY;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    const containerSize = blData?.container_size || '1X 40\' HC';
+    doc.text(containerSize, rightCol, ry);
+    ry += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.text('CONTAINER NO:', rightCol, ry);
+    ry += 5;
+
+    y = Math.max(y, ry) + 6;
+    doc.line(leftCol, y, pw - 14, y);
+    y += 8;
+
+    // LEFT SIDE: VESSEL / FLIGHT
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text('VESSEL / FLIGHT', leftCol, y);
+    y += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(blData?.vessel_name || 'N/A', leftCol, y);
+
+    // RIGHT: Container Number(s)
+    const containerNums = blData?.container_numbers?.join(', ') || 'N/A';
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(containerNums, rightCol, y);
+    y += 8;
+
+    // Port of Loading on left
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(blData?.port_of_loading || 'N/A', leftCol, y);
+
+    // HS Code on right
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text('HS CODE: ', rightCol, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(blData?.hs_code || 'N/A', rightCol + 22, y);
+    y += 8;
+
+    // Port of Loading label + destination
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text('Port  of  Loading', leftCol + 4, y);
+    y += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(blData?.port_of_discharge || 'N/A', leftCol, y);
+
+    // Goods Description on right
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text('Goods Description', rightCol, y - 5);
+    y += 1;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text(blData?.description || 'N/A', rightCol, y + 4);
+    y += 14;
+
+    // Separator
+    doc.line(leftCol, y, pw - 14, y);
+    y += 8;
+
+    // Weight and Pricing section on RIGHT
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    
+    // G.Weight
+    doc.text('G.Weight', rightCol, y);
+    doc.text(`${calc.kgs.toFixed(4)}KGS`, rightCol + 35, y);
+    y += 6;
+    
+    // Unit Price
+    doc.text('Unit Price', rightCol, y);
+    doc.text(`${calc.unitPrice.toFixed(2)}US$ Per KG`, rightCol + 35, y);
+    y += 6;
+    
+    // Amount
+    doc.text('Amount', rightCol, y);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${calc.totalPrice.toLocaleString()}$`, rightCol + 35, y);
+    y += 10;
+
+    // SHIPPING MARKS on left
+    const marksY = y - 22;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text('SHIPPING MARKS', leftCol, marksY);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(blData?.shipping_marks || 'NIL', leftCol + 4, marksY + 5);
+
+    // No. & Kind of Pkgs
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text('No.& Kind of Pkgs', leftCol, marksY + 14);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(`${bales}  BALES`, leftCol + 4, marksY + 19);
+
+    y += 10;
+
+    // Company name at bottom center
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(blData?.shipper || 'COMPANY NAME', pw / 2, y + 10, { align: 'center' });
+
+    return doc;
+  };
+
   const generateInvoice = async () => {
     const calc = calculateValues();
     if (!calc) {
@@ -121,173 +381,8 @@ export default function InvoiceGenerator() {
     }
     setGenerating(true);
     try {
-      const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
       const invNum = invoiceNumber || `INV-${Date.now()}`;
-
-      // If user uploaded a template, read it and replace placeholders
-      let templateContent: string | null = null;
-      if (templateFile) {
-        const text = await templateFile.text();
-        templateContent = text
-          .replace(/\{invoice_number\}/g, invNum)
-          .replace(/\{kgs\}/g, String(calc.kgs))
-          .replace(/\{unit_price\}/g, String(calc.unitPrice))
-          .replace(/\{total_price\}/g, String(calc.totalPrice))
-          .replace(/\{date\}/g, today)
-          .replace(/\{shipper\}/g, blData?.shipper || 'N/A')
-          .replace(/\{consignee\}/g, blData?.consignee || 'N/A')
-          .replace(/\{port_of_loading\}/g, blData?.port_of_loading || 'N/A')
-          .replace(/\{port_of_discharge\}/g, blData?.port_of_discharge || 'N/A')
-          .replace(/\{description\}/g, blData?.description || 'N/A')
-          .replace(/\{bl_number\}/g, blData?.bl_number || 'N/A')
-          .replace(/\{packages\}/g, blData?.packages || 'N/A');
-      }
-
-      // Generate PDF
-      const doc = new jsPDF();
-      const pageWidth = doc.internal.pageSize.getWidth();
-
-      if (templateContent) {
-        // Simple text-based template rendering
-        const lines = templateContent.split('\n');
-        let y = 20;
-        lines.forEach(line => {
-          if (y > 270) { doc.addPage(); y = 20; }
-          doc.setFontSize(11);
-          doc.text(line, 14, y);
-          y += 7;
-        });
-      } else {
-        // Default professional invoice template
-        // Header gradient bar
-        doc.setFillColor(29, 119, 209);
-        doc.rect(0, 0, pageWidth, 40, 'F');
-        doc.setFillColor(15, 85, 170);
-        doc.rect(0, 35, pageWidth, 5, 'F');
-
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(28);
-        doc.setFont('helvetica', 'bold');
-        doc.text('INVOICE', 14, 25);
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`#${invNum}`, 14, 33);
-        doc.text(today, pageWidth - 14, 25, { align: 'right' });
-
-        // Reset text color
-        doc.setTextColor(30, 30, 30);
-        let y = 55;
-
-        // Shipper / Consignee info
-        doc.setFontSize(9);
-        doc.setTextColor(120, 120, 120);
-        doc.text('FROM', 14, y);
-        doc.text('TO', pageWidth / 2 + 5, y);
-        y += 6;
-        doc.setTextColor(30, 30, 30);
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.text(blData?.shipper || 'N/A', 14, y);
-        doc.text(blData?.consignee || 'N/A', pageWidth / 2 + 5, y);
-        y += 14;
-
-        // Shipment details
-        doc.setFillColor(245, 247, 250);
-        doc.roundedRect(14, y - 4, pageWidth - 28, 30, 3, 3, 'F');
-        doc.setFontSize(9);
-        doc.setTextColor(120, 120, 120);
-        const cols = [
-          { label: 'Port of Loading', value: blData?.port_of_loading || 'N/A' },
-          { label: 'Port of Discharge', value: blData?.port_of_discharge || 'N/A' },
-          { label: 'BL Number', value: blData?.bl_number || 'N/A' },
-        ];
-        const colW = (pageWidth - 28) / 3;
-        cols.forEach((col, i) => {
-          const x = 14 + i * colW + 6;
-          doc.text(col.label, x, y + 5);
-          doc.setTextColor(30, 30, 30);
-          doc.setFontSize(10);
-          doc.setFont('helvetica', 'bold');
-          doc.text(col.value, x, y + 14);
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(9);
-          doc.setTextColor(120, 120, 120);
-        });
-        y += 38;
-
-        // Description
-        if (blData?.description) {
-          doc.setTextColor(120, 120, 120);
-          doc.setFontSize(9);
-          doc.text('DESCRIPTION OF GOODS', 14, y);
-          y += 6;
-          doc.setTextColor(30, 30, 30);
-          doc.setFontSize(10);
-          const descLines = doc.splitTextToSize(blData.description, pageWidth - 28);
-          doc.text(descLines, 14, y);
-          y += descLines.length * 5 + 10;
-        }
-
-        // Table header
-        doc.setFillColor(29, 119, 209);
-        doc.rect(14, y, pageWidth - 28, 10, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'bold');
-        doc.text('ITEM', 20, y + 7);
-        doc.text('WEIGHT (KGS)', 80, y + 7);
-        doc.text('UNIT PRICE', 125, y + 7);
-        doc.text('TOTAL', pageWidth - 20, y + 7, { align: 'right' });
-        y += 14;
-
-        // Table row
-        doc.setTextColor(30, 30, 30);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        doc.text(blData?.description?.substring(0, 35) || 'Cargo', 20, y + 5);
-        doc.text(String(calc.kgs), 80, y + 5);
-        doc.text(`$${calc.unitPrice.toFixed(2)}`, 125, y + 5);
-        doc.text(`$${calc.totalPrice.toFixed(2)}`, pageWidth - 20, y + 5, { align: 'right' });
-
-        // Row line
-        doc.setDrawColor(230, 230, 230);
-        doc.line(14, y + 10, pageWidth - 14, y + 10);
-        y += 20;
-
-        // Totals box
-        const totalsX = pageWidth - 90;
-        doc.setFillColor(245, 247, 250);
-        doc.roundedRect(totalsX - 6, y, 82, 35, 3, 3, 'F');
-        doc.setFontSize(9);
-        doc.setTextColor(120, 120, 120);
-        doc.text('Subtotal', totalsX, y + 10);
-        doc.text('Tax (0%)', totalsX, y + 20);
-        doc.setTextColor(30, 30, 30);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(12);
-        doc.text('TOTAL', totalsX, y + 30);
-
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.setTextColor(120, 120, 120);
-        doc.text(`$${calc.totalPrice.toFixed(2)}`, pageWidth - 20, y + 10, { align: 'right' });
-        doc.text('$0.00', pageWidth - 20, y + 20, { align: 'right' });
-        doc.setTextColor(29, 119, 209);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(14);
-        doc.text(`$${calc.totalPrice.toFixed(2)}`, pageWidth - 20, y + 30, { align: 'right' });
-
-        // Footer
-        const footerY = doc.internal.pageSize.getHeight() - 20;
-        doc.setDrawColor(230, 230, 230);
-        doc.line(14, footerY - 5, pageWidth - 14, footerY - 5);
-        doc.setFontSize(8);
-        doc.setTextColor(160, 160, 160);
-        doc.setFont('helvetica', 'normal');
-        doc.text('Generated by ShipAhead Invoice Generator', 14, footerY);
-        doc.text(today, pageWidth - 14, footerY, { align: 'right' });
-      }
-
+      const doc = generateInvoicePDF(calc);
       doc.save(`Invoice-${invNum}.pdf`);
       setStep(3);
       toast.success('Invoice generated and downloaded!');
@@ -306,8 +401,14 @@ export default function InvoiceGenerator() {
     setTemplateFile(null);
     setCompanyPrice('');
     setInvoiceNumber('');
+    setBalesCount('');
     setBlData(null);
     setStep(1);
+    setTemplateLayout(null);
+    setInvoiceDate(() => {
+      const d = new Date();
+      return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+    });
   };
 
   return (
@@ -328,7 +429,7 @@ export default function InvoiceGenerator() {
             Generate Invoice from <span className="text-primary">Bill of Lading</span>
           </h1>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            Upload your BL, extract weight automatically, and generate professional invoices in seconds.
+            Upload your BL, extract data automatically, and generate invoices matching your exact template.
           </p>
         </motion.div>
 
@@ -400,12 +501,12 @@ export default function InvoiceGenerator() {
                   {extracting ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Extracting KGS with AI...
+                      Extracting data with AI...
                     </>
                   ) : (
                     <>
                       <Scale className="w-4 h-4" />
-                      Extract Weight (KGS)
+                      Extract BL Data
                     </>
                   )}
                 </Button>
@@ -427,8 +528,11 @@ export default function InvoiceGenerator() {
                             <AlertCircle className="w-5 h-5 text-destructive" />
                           )}
                           <span className="font-semibold text-foreground">
-                            {blData.kgs ? `Weight Found: ${blData.kgs} KGS` : 'Weight not detected'}
+                            {blData.kgs ? `Weight: ${blData.kgs} KGS` : 'Weight not detected'}
                           </span>
+                          {blData.bales && (
+                            <span className="text-sm text-muted-foreground ml-2">| {blData.bales} Bales</span>
+                          )}
                         </div>
                         {blData.kgs && (
                           <div className="grid grid-cols-2 gap-2 text-sm">
@@ -447,13 +551,16 @@ export default function InvoiceGenerator() {
                             {blData.bl_number && (
                               <div><span className="text-muted-foreground">BL#:</span> <span className="text-foreground">{blData.bl_number}</span></div>
                             )}
+                            {blData.vessel_name && (
+                              <div><span className="text-muted-foreground">Vessel:</span> <span className="text-foreground">{blData.vessel_name}</span></div>
+                            )}
+                            {blData.container_numbers?.length > 0 && (
+                              <div><span className="text-muted-foreground">Container:</span> <span className="text-foreground">{blData.container_numbers.join(', ')}</span></div>
+                            )}
                             {blData.description && (
                               <div className="col-span-2"><span className="text-muted-foreground">Goods:</span> <span className="text-foreground">{blData.description}</span></div>
                             )}
                           </div>
-                        )}
-                        {blData.raw_weight_text && (
-                          <p className="text-xs text-muted-foreground mt-2 italic">Source: "{blData.raw_weight_text}"</p>
                         )}
                       </div>
                     </motion.div>
@@ -462,7 +569,7 @@ export default function InvoiceGenerator() {
               </CardContent>
             </Card>
 
-            {/* Step 2: Details & Template */}
+            {/* Step 2: Details */}
             <AnimatePresence>
               {step >= 2 && (
                 <motion.div
@@ -473,7 +580,7 @@ export default function InvoiceGenerator() {
                   <Card className="border-border/50 shadow-sm">
                     <CardHeader className="bg-gradient-to-r from-accent/5 to-transparent">
                       <CardTitle className="flex items-center gap-2 text-lg">
-                        <Calculator className="w-5 h-5 text-accent" />
+                        <Calculator className="w-5 h-5 text-primary" />
                         Step 2: Invoice Details
                       </CardTitle>
                     </CardHeader>
@@ -486,7 +593,7 @@ export default function InvoiceGenerator() {
                           </Label>
                           <Input
                             type="number"
-                            placeholder="e.g. 50000"
+                            placeholder="e.g. 7479"
                             value={companyPrice}
                             onChange={(e) => setCompanyPrice(e.target.value)}
                             className="text-lg"
@@ -498,33 +605,64 @@ export default function InvoiceGenerator() {
                             Invoice Number
                           </Label>
                           <Input
-                            placeholder="e.g. INV-2026-001"
+                            placeholder="e.g. FL-GR-1302"
                             value={invoiceNumber}
                             onChange={(e) => setInvoiceNumber(e.target.value)}
                           />
-                          <p className="text-xs text-muted-foreground">Leave empty to auto-generate</p>
                         </div>
                       </div>
 
-                      {/* Template upload (optional) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            <Package className="w-4 h-4 text-primary" />
+                            Number of Bales
+                          </Label>
+                          <Input
+                            type="number"
+                            placeholder="e.g. 32"
+                            value={balesCount}
+                            onChange={(e) => setBalesCount(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-primary" />
+                            Invoice Date
+                          </Label>
+                          <Input
+                            placeholder="DD-MM-YYYY"
+                            value={invoiceDate}
+                            onChange={(e) => setInvoiceDate(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Template upload */}
                       <div className="space-y-2">
                         <Label className="flex items-center gap-2">
                           <FileUp className="w-4 h-4 text-primary" />
-                          Invoice Template (Optional)
+                          Invoice Template PDF (Optional)
                         </Label>
-                        <input ref={templateInputRef} type="file" accept=".txt,.html" onChange={handleTemplateUpload} className="hidden" />
+                        <input ref={templateInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={handleTemplateUpload} className="hidden" />
                         <div
                           onClick={() => templateInputRef.current?.click()}
                           className="border border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all text-sm"
                         >
-                          {templateFile ? (
+                          {extractingTemplate ? (
+                            <div className="flex items-center justify-center gap-2">
+                              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                              <span className="text-muted-foreground">Analyzing template layout...</span>
+                            </div>
+                          ) : templateFile ? (
                             <div className="flex items-center justify-center gap-2">
                               <CheckCircle2 className="w-4 h-4 text-green-500" />
                               <span className="text-foreground">{templateFile.name}</span>
+                              {templateLayout && <span className="text-xs text-green-600">(Layout captured)</span>}
                             </div>
                           ) : (
                             <span className="text-muted-foreground">
-                              Upload .txt or .html template with placeholders like {'{kgs}'}, {'{unit_price}'}, {'{total_price}'}
+                              Upload a PDF template — invoice will be generated in same format
                             </span>
                           )}
                         </div>
@@ -541,18 +679,22 @@ export default function InvoiceGenerator() {
                             <Eye className="w-4 h-4 text-primary" />
                             Calculation Preview
                           </h4>
-                          <div className="grid grid-cols-3 gap-4 text-center">
+                          <div className="grid grid-cols-4 gap-3 text-center">
                             <div>
                               <p className="text-xs text-muted-foreground">Weight</p>
                               <p className="text-lg font-bold text-foreground">{calc.kgs} KG</p>
                             </div>
                             <div>
-                              <p className="text-xs text-muted-foreground">Unit Price</p>
-                              <p className="text-lg font-bold text-primary">${calc.unitPrice.toFixed(2)}</p>
+                              <p className="text-xs text-muted-foreground">Bales</p>
+                              <p className="text-lg font-bold text-foreground">{balesCount || '-'}</p>
                             </div>
                             <div>
-                              <p className="text-xs text-muted-foreground">Total Price</p>
-                              <p className="text-lg font-bold text-accent">${calc.totalPrice.toFixed(2)}</p>
+                              <p className="text-xs text-muted-foreground">Unit Price</p>
+                              <p className="text-lg font-bold text-primary">${calc.unitPrice.toFixed(2)}/KG</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Total</p>
+                              <p className="text-lg font-bold text-foreground">${calc.totalPrice.toLocaleString()}</p>
                             </div>
                           </div>
                         </motion.div>
@@ -561,7 +703,7 @@ export default function InvoiceGenerator() {
                       <Button
                         onClick={generateInvoice}
                         disabled={!calc || generating}
-                        className="w-full gap-2 bg-gradient-to-r from-primary to-primary/80 hover:opacity-90"
+                        className="w-full gap-2"
                         size="lg"
                       >
                         {generating ? (
@@ -594,11 +736,17 @@ export default function InvoiceGenerator() {
                     <CardContent className="p-6 text-center">
                       <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-3" />
                       <h3 className="text-lg font-bold text-foreground mb-1">Invoice Generated Successfully!</h3>
-                      <p className="text-sm text-muted-foreground mb-4">Your PDF has been downloaded.</p>
-                      <Button variant="outline" onClick={resetAll} className="gap-2">
-                        <FileText className="w-4 h-4" />
-                        Generate Another Invoice
-                      </Button>
+                      <p className="text-sm text-muted-foreground mb-4">Your invoice PDF has been downloaded.</p>
+                      <div className="flex gap-3 justify-center">
+                        <Button variant="outline" onClick={resetAll} className="gap-2">
+                          <RotateCcw className="w-4 h-4" />
+                          Generate Another
+                        </Button>
+                        <Button onClick={generateInvoice} className="gap-2">
+                          <Download className="w-4 h-4" />
+                          Download Again
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 </motion.div>
@@ -606,7 +754,7 @@ export default function InvoiceGenerator() {
             </AnimatePresence>
           </motion.div>
 
-          {/* Sidebar - How it works */}
+          {/* Sidebar */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -622,9 +770,9 @@ export default function InvoiceGenerator() {
               <CardContent className="space-y-4">
                 {[
                   { icon: Upload, title: 'Upload BL', desc: 'Upload your Bill of Lading (PDF or Image)' },
-                  { icon: Sparkles, title: 'AI Extracts KGS', desc: 'AI reads your BL and extracts the weight' },
-                  { icon: Calculator, title: 'Enter Price', desc: 'Enter your company total price' },
-                  { icon: Download, title: 'Get Invoice', desc: 'Download professional PDF invoice' },
+                  { icon: Sparkles, title: 'AI Extracts Data', desc: 'AI reads KGS, bales, shipper, consignee etc.' },
+                  { icon: Calculator, title: 'Enter Price', desc: 'Enter total price, bales count, date' },
+                  { icon: Download, title: 'Get Invoice', desc: 'Download invoice matching your template format' },
                 ].map((item, i) => (
                   <div key={i} className="flex gap-3">
                     <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -640,7 +788,7 @@ export default function InvoiceGenerator() {
                 <div className="border-t border-border pt-4 mt-4">
                   <h4 className="text-sm font-semibold text-foreground mb-2">Template Placeholders</h4>
                   <div className="space-y-1 text-xs font-mono bg-muted/50 rounded-lg p-3">
-                    {['{invoice_number}', '{kgs}', '{unit_price}', '{total_price}', '{date}', '{shipper}', '{consignee}', '{bl_number}'].map(p => (
+                    {['{invoice_number}', '{date}', '{kgs}', '{bales}', '{unit_price}', '{total_price}', '{shipper}', '{consignee}', '{bl_number}', '{container_number}', '{vessel}', '{port_of_loading}', '{port_of_discharge}'].map(p => (
                       <div key={p} className="text-muted-foreground">{p}</div>
                     ))}
                   </div>
