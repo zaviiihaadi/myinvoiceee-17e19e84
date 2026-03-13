@@ -26,39 +26,53 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    // Use Gemini with vision to extract KGS from the BL document
     const messages: any[] = [
       {
         role: 'system',
-        content: `You are a Bill of Lading (BL) document parser. Extract the total weight in KGS from the document.
+        content: `You are a Bill of Lading (BL) and Invoice document parser. Extract all data from the document.
 
-Look for keywords like: KGS, KG, WEIGHT, GROSS WEIGHT, TOTAL WEIGHT, NET WEIGHT, G.W., GROSS WT.
+Look for weight keywords: "KGS", "KG", "WEIGHT", "GROSS WEIGHT", "G.Weight", "GROSS WT".
+Look for bales/packages: "BALES", "PKGS", "No. & Kind of Pkgs".
 
-Also try to extract:
-- Shipper name
-- Consignee name  
+Extract ALL of these fields:
+- Shipper name and full address
+- Consignee name and full address  
+- Notify Party name and full address
 - Port of Loading
-- Port of Discharge
+- Port of Discharge / Destination
 - Description of goods
-- Number of packages
+- Number of bales/packages
 - Container number(s)
-- BL number
+- Container size (e.g. "1X 40' HC")
+- BL number or Invoice number
+- Vessel / Flight name
+- HS Code
+- Shipping Marks
 
 Return ONLY a JSON object (no markdown, no code blocks) with this exact structure:
 {
   "kgs": <number or null>,
   "shipper": "<string or null>",
+  "shipper_address": "<full address string or null>",
   "consignee": "<string or null>",
+  "consignee_address": "<full address string or null>",
+  "notify_party": "<string or null>",
+  "notify_party_address": "<full address string or null>",
   "port_of_loading": "<string or null>",
   "port_of_discharge": "<string or null>",
   "description": "<string or null>",
   "packages": "<string or null>",
+  "bales": <number or null>,
   "container_numbers": ["<string>"],
+  "container_size": "<string or null>",
   "bl_number": "<string or null>",
+  "vessel_name": "<string or null>",
+  "hs_code": "<string or null>",
+  "shipping_marks": "<string or null>",
   "raw_weight_text": "<the exact text where weight was found>"
 }
 
-If KGS cannot be found, set kgs to null.`
+If KGS cannot be found, set kgs to null. For bales, extract the number only (e.g. from "32 BALES" extract 32).`
       },
       {
         role: 'user',
@@ -71,7 +85,7 @@ If KGS cannot be found, set kgs to null.`
           },
           {
             type: 'text',
-            text: 'Extract the total weight (KGS) and other details from this Bill of Lading document.'
+            text: 'Extract all details from this Bill of Lading / Invoice document.'
           }
         ]
       }
@@ -99,10 +113,8 @@ If KGS cannot be found, set kgs to null.`
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || '';
 
-    // Parse the JSON response
     let parsed;
     try {
-      // Try to extract JSON from the response (handle markdown code blocks)
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(content);
     } catch {
