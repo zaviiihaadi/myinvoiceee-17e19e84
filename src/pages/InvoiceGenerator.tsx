@@ -137,6 +137,7 @@ export default function InvoiceGenerator() {
         setBlData(data);
         if (data.bales) setBalesCount(String(data.bales));
         if (data.bl_number) setInvoiceNumber(data.bl_number);
+        if (data.bl_date) setInvoiceDate(data.bl_date);
         setStep(2);
         toast.success(`KGS extracted: ${data.kgs} kg`);
       } else {
