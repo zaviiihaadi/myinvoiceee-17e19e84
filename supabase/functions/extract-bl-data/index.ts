@@ -48,6 +48,7 @@ Extract ALL of these fields:
 - Vessel / Flight name
 - HS Code
 - Shipping Marks
+- Date on the BL document (look for "DATE", "B/L DATE", "SHIPPED ON BOARD DATE", "ISSUE DATE")
 
 Return ONLY a JSON object (no markdown, no code blocks) with this exact structure:
 {
