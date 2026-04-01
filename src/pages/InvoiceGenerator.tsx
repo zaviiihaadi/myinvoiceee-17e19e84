@@ -163,198 +163,212 @@ export default function InvoiceGenerator() {
 
   const generateInvoicePDF = (calc: { unitPrice: number; totalPrice: number; kgs: number }) => {
     const doc = new jsPDF('p', 'mm', 'a4');
-    const pw = doc.internal.pageSize.getWidth(); // ~210
-    const ph = doc.internal.pageSize.getHeight(); // ~297
+    const pw = doc.internal.pageSize.getWidth();
     const invNum = invoiceNumber || `INV-${Date.now()}`;
     const bales = balesCount || blData?.bales || '';
     const date = invoiceDate;
 
-    const lm = 18; // left margin
-    const rm = pw - 18; // right margin
-    const midX = pw / 2; // center divider ~105
-    const rightCol = midX + 8;
-    const lineH = 4.5; // line height for 9pt text
+    const lm = 15;
+    const rm = pw - 15;
+    const midX = pw / 2;
+    const rightCol = midX + 5;
+    const lineH = 4.5;
 
-    let y = 20;
+    let y = 18;
 
     // ===== TITLE =====
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(16);
     doc.text('INVOICE/PACKING', midX + 15, y, { align: 'center' });
-    y += 8;
+    y += 10;
+
+    // ===== Horizontal line =====
+    doc.setDrawColor(0); doc.setLineWidth(0.3);
+    doc.line(lm, y, rm, y);
+    y += 2;
 
     // ===== ROW 1: Shipper (left) | Invoice No + Date + Notify Party (right) =====
     const row1Y = y;
 
     // LEFT: 1.Shipper
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.text('1.Shipper', lm, y);
-    y += 6;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    const shipperName = blData?.shipper || '';
-    if (shipperName) { doc.text(shipperName, lm, y); y += lineH + 1; }
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+    doc.text('1.Shipper', lm, y + 4);
+    let ly = y + 9;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+    if (blData?.shipper) { doc.text(blData.shipper, lm + 2, ly); ly += lineH + 1; }
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
     if (blData?.shipper_address) {
-      const lines = doc.splitTextToSize(blData.shipper_address, midX - lm - 5);
-      doc.setFontSize(9);
-      lines.forEach((line: string) => { doc.text(line, lm, y); y += lineH; });
+      const lines = doc.splitTextToSize(blData.shipper_address, midX - lm - 8);
+      lines.forEach((line: string) => { doc.text(line, lm + 2, ly); ly += lineH; });
     }
-    const shipperEndY = y;
 
-    // RIGHT: Invoice No. / Date labels
-    let ry = row1Y;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
+    // Vertical divider
+    doc.line(midX, y, midX, y + 40);
+
+    // RIGHT: Invoice No. / Date
+    let ry = row1Y + 4;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
     doc.text('Invoice No.', rightCol, ry);
-    doc.text('Date', rightCol + 55, ry);
-    ry += 6;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
+    doc.text('Date', rightCol + 50, ry);
+    ry += 5;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
     doc.text(invNum, rightCol, ry);
-    doc.setFontSize(10);
-    doc.text(date, rightCol + 55, ry);
-    ry += 7;
-
-    // NOTIFY PARTY
-    doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
+    doc.text(date, rightCol + 50, ry);
+    ry += 8;
+
+    // Horizontal line inside right col
+    doc.line(midX, ry, rm, ry);
+    ry += 4;
+
+    // NOTIFY PARTY = Consignee company
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
     doc.text('NOTIFY PARTY', rightCol, ry);
     ry += 5;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    const notifyName = blData?.notify_party || blData?.consignee || '';
-    if (notifyName) { doc.text(notifyName, rightCol, ry); ry += lineH + 0.5; }
-    const notifyAddr = blData?.notify_party_address || blData?.consignee_address || '';
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+    const notifyName = blData?.consignee || '';
+    if (notifyName) { doc.text(notifyName, rightCol, ry); ry += lineH + 1; }
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+    const notifyAddr = blData?.consignee_address || '';
     if (notifyAddr) {
-      const nLines = doc.splitTextToSize(notifyAddr, rm - rightCol);
+      const nLines = doc.splitTextToSize(notifyAddr, rm - rightCol - 5);
       nLines.forEach((line: string) => { doc.text(line, rightCol, ry); ry += lineH; });
     }
 
-    y = Math.max(shipperEndY, ry) + 6;
-
-    // ===== SEPARATOR =====
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(0.4);
+    y = row1Y + 40;
+    // Full horizontal line
     doc.line(lm, y, rm, y);
-    y += 6;
+    y += 2;
 
     // ===== ROW 2: Consignee (left) | Container size + number (right) =====
     const row2Y = y;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.text('2.Consignee', lm, y);
-    y += 5;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    const consName = blData?.consignee || '';
-    if (consName) { doc.text(consName, lm, y); y += lineH + 0.5; }
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+    doc.text('2.Consignee', lm, y + 4);
+    ly = y + 9;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+    if (blData?.consignee) { doc.text(blData.consignee, lm + 2, ly); ly += lineH + 1; }
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
     if (blData?.consignee_address) {
-      const cLines = doc.splitTextToSize(blData.consignee_address, midX - lm - 5);
-      cLines.forEach((line: string) => { doc.text(line, lm, y); y += lineH; });
+      const cLines = doc.splitTextToSize(blData.consignee_address, midX - lm - 8);
+      cLines.forEach((line: string) => { doc.text(line, lm + 2, ly); ly += lineH; });
     }
-    const consEndY = y;
+
+    // Vertical divider
+    doc.line(midX, y, midX, y + 30);
 
     // RIGHT: Container
-    ry = row2Y;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    const containerSize = blData?.container_size || '1X 40\' HC';
+    ry = row2Y + 4;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+    const containerSize = blData?.container_size || '';
     doc.text(containerSize, rightCol, ry);
     ry += 6;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
     doc.text('CONTAINER NO:', rightCol, ry);
     ry += 5;
-
-    y = Math.max(consEndY, ry) + 10;
-
-    // ===== VESSEL / FLIGHT =====
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.text('VESSEL / FLIGHT', lm, y);
-    y += 5;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(blData?.vessel_name || 'N/A', lm + 2, y);
-    y += 10;
-
-    // ===== Container Number(s) on right =====
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
     const containerNums = blData?.container_numbers?.join(', ') || '';
-    if (containerNums) {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.text(containerNums, rightCol, y - 5);
-    }
+    if (containerNums) { doc.text(containerNums, rightCol, ry); }
 
-    // ===== Port of Discharge (left) | HS CODE (right) =====
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(blData?.port_of_discharge || '', lm, y);
+    y = row2Y + 30;
+    doc.line(lm, y, rm, y);
+    y += 2;
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text('HS CODE: ' + (blData?.hs_code || ''), rightCol, y);
+    // ===== VESSEL / FLIGHT row =====
+    const vesselY = y;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+    doc.text('VESSEL / FLIGHT', lm, y + 4);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+    doc.text(blData?.vessel_name || '', lm + 2, y + 9);
+
+    // Vertical divider
+    doc.line(midX, y, midX, y + 12);
+
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+    doc.text('Port of Loading', rightCol, y + 4);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+    doc.text(blData?.port_of_loading || '', rightCol, y + 9);
+
+    y = vesselY + 12;
+    doc.line(lm, y, rm, y);
+    y += 2;
+
+    // ===== Port of Discharge row =====
+    const dischargeY = y;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+    doc.text('Port of Discharge', lm, y + 4);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+    doc.text(blData?.port_of_discharge || '', lm + 2, y + 9);
+
+    doc.line(midX, y, midX, y + 12);
+
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+    doc.text('HS CODE', rightCol, y + 4);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+    doc.text(blData?.hs_code || '', rightCol, y + 9);
+
+    y = dischargeY + 12;
+    doc.line(lm, y, rm, y);
+    y += 2;
+
+    // ===== Main content area: No.& Kind of Pkgs | Goods Description | G.Weight =====
+    const contentY = y;
+    const col2X = lm + 45;
+    const col3X = pw - 55;
+
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+    doc.text('No.& Kind of Pkgs', lm + 2, y + 4);
+    doc.text('Goods Description', col2X + 2, y + 4);
+    doc.text('G.Weight', col3X + 2, y + 4);
+
+    y += 8;
+    doc.line(lm, y, rm, y);
+    y += 6;
+
+    // Vertical dividers for content
+    doc.line(col2X, contentY, col2X, contentY + 80);
+    doc.line(col3X, contentY, col3X, contentY + 80);
+
+    // Bales
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+    doc.text(`${bales}  BALES`, lm + 4, y + 4);
+
+    // Goods Description
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+    const descLines = doc.splitTextToSize(blData?.description || '', col3X - col2X - 8);
+    let descY = y + 4;
+    descLines.forEach((line: string) => { doc.text(line, col2X + 4, descY); descY += 5; });
+
+    // Weight
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+    doc.text(`${calc.kgs.toFixed(2)} KGS`, col3X + 4, y + 4);
+
+    // Unit Price & Amount lower
+    y += 25;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+    doc.text('Unit Price', col3X + 2, y);
+    y += 5;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+    doc.text(`${calc.unitPrice.toFixed(2)} US$ Per KG`, col3X + 4, y);
     y += 8;
 
-    // ===== Port of Loading (left) | Goods Description (right) =====
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.text('Port   of   Loading', lm + 4, y);
-    
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.text('Goods Description', rightCol, y);
-    y += 6;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+    doc.text('Amount', col3X + 2, y);
+    y += 5;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+    doc.text(`US$ ${calc.totalPrice.toLocaleString()}`, col3X + 4, y);
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(blData?.port_of_loading || '', lm, y);
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.text(blData?.description || '', rightCol + 2, y);
-    y += 14;
-
-    // ===== Weight and Pricing (right side) =====
-    const weightY = y;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-
-    doc.text('G.Weight', rightCol, y);
-    doc.text(`${calc.kgs.toFixed(4)}KGS`, rightCol + 40, y);
-    y += 6;
-
-    doc.text('Unit Price', rightCol, y);
-    doc.text(`${calc.unitPrice.toFixed(2)}US$ Per KG`, rightCol + 40, y);
-    y += 6;
-
-    doc.text('Amount', rightCol, y);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`${calc.totalPrice.toLocaleString()}$`, rightCol + 40, y);
-    y += 12;
-
-    // ===== SHIPPING MARKS (left, aligned with weight section) =====
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.text('SHIPPING MARKS', lm, weightY);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(blData?.shipping_marks || 'NIL', lm + 4, weightY + 6);
-
-    // ===== No. & Kind of Pkgs (left, below shipping marks) =====
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.text('No.& Kind of Pkgs', lm + 4, weightY + 18);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(`${bales}  BALES`, lm + 8, weightY + 24);
+    // Bottom border of content area
+    const contentBottom = contentY + 80;
+    doc.line(lm, contentBottom, rm, contentBottom);
 
     // ===== Company name at bottom center =====
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
-    doc.text((blData?.shipper || 'COMPANY NAME') + '.', midX, y + 20, { align: 'center' });
+    doc.text((blData?.shipper || 'COMPANY NAME') + '.', midX, contentBottom + 15, { align: 'center' });
+
+    // Outer border
+    doc.setLineWidth(0.5);
+    doc.rect(lm, 28, rm - lm, contentBottom - 28);
 
     return doc;
   };
