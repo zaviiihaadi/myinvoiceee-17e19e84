@@ -35,6 +35,7 @@ interface BLData {
   vessel_name: string | null;
   hs_code: string | null;
   shipping_marks: string | null;
+  bl_date: string | null;
   raw_weight_text: string | null;
 }
 
