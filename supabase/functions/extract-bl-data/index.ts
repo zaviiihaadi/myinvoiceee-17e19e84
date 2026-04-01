@@ -70,6 +70,7 @@ Return ONLY a JSON object (no markdown, no code blocks) with this exact structur
   "vessel_name": "<string or null>",
   "hs_code": "<string or null>",
   "shipping_marks": "<string or null>",
+  "bl_date": "<date string as found on document, e.g. '15-03-2025' or null>",
   "raw_weight_text": "<the exact text where weight was found>"
 }
 
