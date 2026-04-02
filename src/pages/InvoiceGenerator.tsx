@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import {
   FileText, Upload, Calculator, Download, Loader2, CheckCircle2,
   AlertCircle, Scale, DollarSign, Hash, ArrowRight,
