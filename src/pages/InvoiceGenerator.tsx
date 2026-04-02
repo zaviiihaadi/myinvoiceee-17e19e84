@@ -305,7 +305,7 @@ export default function InvoiceGenerator() {
     setGenerating(true);
     try {
       const invNum = invoiceNumber || `INV-${Date.now()}`;
-      const doc = generateInvoicePDF(calc);
+      const doc = await generateInvoicePDF(calc);
       doc.save(`Invoice-${invNum}.pdf`);
       setStep(3);
       toast.success('Invoice generated and downloaded!');
