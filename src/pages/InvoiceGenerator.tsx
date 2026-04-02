@@ -156,7 +156,8 @@ export default function InvoiceGenerator() {
     if (!blData?.kgs || !companyPrice) return null;
     const price = parseFloat(companyPrice);
     if (isNaN(price)) return null;
-    const unitPrice = Math.round((price / blData.kgs) * 100) / 100;
+    let unitPrice = Math.round((price / blData.kgs) * 100) / 100;
+    if (unitPrice < 0.42) unitPrice = 0.42;
     const totalPrice = Math.round(unitPrice * blData.kgs * 100) / 100;
     return { unitPrice, totalPrice, kgs: blData.kgs };
   };
