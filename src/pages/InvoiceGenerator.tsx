@@ -163,150 +163,137 @@ export default function InvoiceGenerator() {
     return { unitPrice, totalPrice, kgs: blData.kgs };
   };
 
-  const generateInvoicePDF = (calc: { unitPrice: number; totalPrice: number; kgs: number }) => {
-    const doc = new jsPDF('p', 'mm', 'a4');
-    const pw = doc.internal.pageSize.getWidth();
+  const generateInvoicePDF = async (calc: { unitPrice: number; totalPrice: number; kgs: number }) => {
     const invNum = invoiceNumber || `INV-${Date.now()}`;
     const bales = balesCount || blData?.bales || '';
     const date = invoiceDate;
-
-    const lm = 20; // left margin
-    const midX = pw / 2;
-    const rightCol = midX + 10;
-
-    let y = 22;
-
-    // ===== TITLE (right side, large) =====
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.text('INVOICE/PACKING', rightCol + 20, y, { align: 'center' });
-    y += 8;
-
-    // Invoice No. and Date labels
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-    doc.text('Invoice No.', rightCol, y);
-    doc.text('Date', rightCol + 50, y);
-    y += 6;
-
-    // Invoice No. and Date values
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
-    doc.text(invNum, rightCol, y);
-    doc.text(date, rightCol + 50, y);
-    y += 7;
-
-    // NOTIFY PARTY
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-    doc.text('NOTIFY PARTY', rightCol, y);
-    y += 5;
-    const notifyName = blData?.consignee || '';
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    if (notifyName) { doc.text(notifyName, rightCol, y); y += 5; }
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-    const notifyAddr = blData?.consignee_address || '';
-    if (notifyAddr) {
-      const nLines = doc.splitTextToSize(notifyAddr, pw - rightCol - 15);
-      nLines.forEach((line: string) => { doc.text(line, rightCol, y); y += 4.5; });
-    }
-
-    // ===== 1.Shipper (left side, starts near top) =====
-    let shipY = 30;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-    doc.text('1.Shipper', lm, shipY);
-    shipY += 6;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    if (blData?.shipper) { doc.text(blData.shipper, lm, shipY); shipY += 5; }
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-    if (blData?.shipper_address) {
-      const sLines = doc.splitTextToSize(blData.shipper_address, midX - lm - 5);
-      sLines.forEach((line: string) => { doc.text(line, lm, shipY); shipY += 4.5; });
-    }
-
-    // ===== 2.Consignee (left side) =====
-    y = Math.max(y, shipY) + 15;
-    let consY = y;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-    doc.text('2.Consignee', lm, consY);
-    consY += 6;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    if (blData?.consignee) { doc.text(blData.consignee, lm, consY); consY += 5; }
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-    if (blData?.consignee_address) {
-      const cLines = doc.splitTextToSize(blData.consignee_address, midX - lm - 5);
-      cLines.forEach((line: string) => { doc.text(line, lm, consY); consY += 4.5; });
-    }
-
-    // Container info (right side, same height as consignee)
-    let contY = y + 5;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    const containerSize = blData?.container_size || '';
-    doc.text(containerSize, rightCol, contY);
-    contY += 5;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-    doc.text('CONTAINER NO:', rightCol, contY);
-
-    // ===== VESSEL / FLIGHT (left side) =====
-    y = Math.max(consY, contY) + 15;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-    doc.text('VESSEL / FLIGHT', lm + 2, y);
-    y += 5;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    doc.text(blData?.vessel_name || '', lm + 2, y);
-
-    // Container number (right side)
     const containerNums = blData?.container_numbers?.join(', ') || '';
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    doc.text(containerNums, rightCol, y);
+    const containerSize = blData?.container_size || '';
 
-    // ===== Port of Discharge (left) =====
-    y += 12;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-    doc.text(blData?.port_of_discharge || '', lm, y);
+    // Create hidden HTML element with exact invoice layout
+    const container = document.createElement('div');
+    container.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;height:1123px;background:white;font-family:Arial,Helvetica,sans-serif;color:#000;padding:0;margin:0;';
+    
+    container.innerHTML = `
+      <div style="display:flex;flex-direction:column;width:100%;height:100%;padding:40px 50px 40px 50px;box-sizing:border-box;">
+        
+        <!-- TOP ROW: Shipper (left) + Invoice Title & Info (right) -->
+        <div style="display:flex;width:100%;">
+          
+          <!-- LEFT: Shipper -->
+          <div style="flex:1;padding-right:20px;">
+            <div style="font-size:11px;margin-bottom:4px;">1.Shipper</div>
+            <div style="font-size:12px;">${blData?.shipper || ''}</div>
+            <div style="font-size:11px;line-height:1.5;margin-top:2px;">${(blData?.shipper_address || '').replace(/\n/g, '<br>')}</div>
+          </div>
+          
+          <!-- RIGHT: Title + Invoice No + Date + Notify -->
+          <div style="flex:1;padding-left:20px;">
+            <div style="font-size:20px;text-align:center;margin-bottom:12px;letter-spacing:1px;">INVOICE/PACKING</div>
+            
+            <div style="display:flex;gap:30px;margin-bottom:4px;">
+              <div style="font-size:10px;">Invoice No.</div>
+              <div style="font-size:10px;">Date</div>
+            </div>
+            <div style="display:flex;gap:30px;margin-bottom:14px;">
+              <div style="font-size:12px;">${invNum}</div>
+              <div style="font-size:12px;">${date}</div>
+            </div>
+            
+            <div style="font-size:10px;margin-bottom:4px;">NOTIFY PARTY</div>
+            <div style="font-size:12px;">${blData?.consignee || ''}</div>
+            <div style="font-size:11px;line-height:1.5;margin-top:2px;">${(blData?.consignee_address || '').replace(/\n/g, '<br>')}</div>
+          </div>
+        </div>
+        
+        <!-- CONSIGNEE ROW -->
+        <div style="display:flex;width:100%;margin-top:20px;">
+          <div style="flex:1;padding-right:20px;">
+            <div style="font-size:11px;margin-bottom:4px;">2.Consignee</div>
+            <div style="font-size:12px;">${blData?.consignee || ''}</div>
+            <div style="font-size:11px;line-height:1.5;margin-top:2px;">${(blData?.consignee_address || '').replace(/\n/g, '<br>')}</div>
+          </div>
+          <div style="flex:1;padding-left:20px;">
+            <div style="font-size:12px;margin-bottom:4px;">${containerSize}</div>
+            <div style="font-size:10px;">CONTAINER NO:</div>
+            <div style="font-size:12px;margin-top:4px;">${containerNums}</div>
+          </div>
+        </div>
+        
+        <!-- VESSEL + PORT ROW -->
+        <div style="display:flex;width:100%;margin-top:20px;">
+          <div style="flex:1;padding-right:20px;">
+            <div style="font-size:10px;margin-bottom:4px;">VESSEL / FLIGHT</div>
+            <div style="font-size:12px;">${blData?.vessel_name || ''}</div>
+          </div>
+          <div style="flex:1;padding-left:20px;">
+            <div style="font-size:10px;">HS CODE: ${blData?.hs_code || ''}</div>
+          </div>
+        </div>
+        
+        <!-- PORT OF LOADING + GOODS -->
+        <div style="display:flex;width:100%;margin-top:16px;">
+          <div style="flex:1;padding-right:20px;">
+            <div style="font-size:10px;margin-bottom:4px;">Port of Loading</div>
+            <div style="font-size:12px;">${blData?.port_of_loading || ''}</div>
+            <div style="font-size:10px;margin-top:10px;">${blData?.port_of_discharge || ''}</div>
+          </div>
+          <div style="flex:1;padding-left:20px;">
+            <div style="font-size:10px;margin-bottom:4px;">Goods Description</div>
+            <div style="font-size:12px;">${blData?.description || ''}</div>
+          </div>
+        </div>
+        
+        <!-- WEIGHT + PRICE SECTION -->
+        <div style="display:flex;width:100%;margin-top:20px;">
+          <div style="flex:1;padding-right:20px;">
+            <div style="font-size:10px;margin-bottom:6px;">No.& Kind of Pkgs</div>
+            <div style="font-size:12px;text-align:center;">${bales}   BALES</div>
+          </div>
+          <div style="flex:1;padding-left:20px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <span style="font-size:10px;">G.Weight</span>
+              <span style="font-size:11px;">${calc.kgs.toFixed(4)}KGS</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <span style="font-size:10px;">Unit Price</span>
+              <span style="font-size:11px;">${calc.unitPrice.toFixed(2)}US$  Per KG</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;">
+              <span style="font-size:10px;">Amount</span>
+              <span style="font-size:11px;">${calc.totalPrice.toLocaleString()}$</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- COMPANY FOOTER -->
+        <div style="margin-top:auto;text-align:center;padding-top:40px;">
+          <div style="font-size:13px;">${(blData?.shipper || 'COMPANY NAME')}.</div>
+        </div>
+        
+      </div>
+    `;
 
-    // HS CODE (right)
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-    doc.text('HS CODE: ' + (blData?.hs_code || ''), rightCol, y);
+    document.body.appendChild(container);
 
-    // ===== Port of Loading (left) =====
-    y += 10;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-    doc.text('Port   of   Loading', lm, y);
-    y += 5;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    doc.text(blData?.port_of_loading || '', lm, y);
+    try {
+      const canvas = await html2canvas(container, {
+        scale: 3,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        width: 794,
+        height: 1123,
+      });
 
-    // Goods Description (right)
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-    doc.text('Goods Description', rightCol, y - 5);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    doc.text(blData?.description || '', rightCol, y + 2);
-
-    // ===== G.Weight, Unit Price, Amount (right) =====
-    y += 12;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-    doc.text('G.Weight', rightCol, y);
-    doc.text(`${calc.kgs.toFixed(4)}KGS`, rightCol + 30, y);
-    y += 5;
-    doc.text('Unit Price', rightCol, y);
-    doc.text(`${calc.unitPrice.toFixed(2)}US$  Per KG`, rightCol + 30, y);
-    y += 5;
-    doc.text('Amount', rightCol, y);
-    doc.text(`${calc.totalPrice.toLocaleString()}$`, rightCol + 30, y);
-
-    // ===== No.& Kind of Pkgs (left, lower) =====
-    y += 20;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-    doc.text('No.& Kind of Pkgs', lm + 15, y, { align: 'center' });
-    y += 6;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    doc.text(`${bales}   BALES`, lm + 15, y, { align: 'center' });
-
-    // ===== Company name at bottom center =====
-    y += 25;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(11);
-    doc.text((blData?.shipper || 'COMPANY NAME') + '.', midX, y, { align: 'center' });
-
-    return doc;
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const pw = doc.internal.pageSize.getWidth();
+      const ph = doc.internal.pageSize.getHeight();
+      doc.addImage(imgData, 'JPEG', 0, 0, pw, ph);
+      return doc;
+    } finally {
+      document.body.removeChild(container);
+    }
   };
 
   const generateInvoice = async () => {
