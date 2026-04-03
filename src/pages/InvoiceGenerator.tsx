@@ -11,6 +11,8 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
   FileText, Upload, Calculator, Download, Loader2, CheckCircle2,
   AlertCircle, Scale, DollarSign, Hash, ArrowRight,
@@ -39,6 +41,78 @@ interface BLData {
   bl_date: string | null;
   raw_weight_text: string | null;
 }
+
+GlobalWorkerOptions.workerSrc = pdfWorker;
+
+const DEFAULT_PAGE_WIDTH = 1240;
+const DEFAULT_PAGE_HEIGHT = 1754;
+const PDF_TEMPLATE_SCALE = 2.4;
+const PDF_FONT_FAMILY = 'Arial, Helvetica, sans-serif';
+
+const readFileAsDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(reader.result as string);
+  reader.onerror = reject;
+  reader.readAsDataURL(file);
+});
+
+const readFileAsBase64 = async (file: File) => {
+  const dataUrl = await readFileAsDataUrl(file);
+  return dataUrl.split(',')[1];
+};
+
+const escapeHtml = (value: string | number | null | undefined) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const formatMultiline = (value: string | number | null | undefined) => escapeHtml(value).replace(/\n/g, '<br />');
+
+const loadImage = (src: string) => new Promise<HTMLImageElement>((resolve, reject) => {
+  const image = new Image();
+  image.onload = () => resolve(image);
+  image.onerror = reject;
+  image.src = src;
+});
+
+const getTemplateBackground = async (file: File | null) => {
+  if (!file) return null;
+
+  if (file.type === 'application/pdf') {
+    const pdf = await getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: PDF_TEMPLATE_SCALE });
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+      throw new Error('Template render context not available');
+    }
+
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+
+    await page.render({ canvas, canvasContext: context, viewport }).promise;
+    pdf.destroy();
+
+    return {
+      src: canvas.toDataURL('image/png', 1),
+      width: canvas.width,
+      height: canvas.height,
+    };
+  }
+
+  const src = await readFileAsDataUrl(file);
+  const image = await loadImage(src);
+
+  return {
+    src,
+    width: image.naturalWidth || DEFAULT_PAGE_WIDTH,
+    height: image.naturalHeight || DEFAULT_PAGE_HEIGHT,
+  };
+};
 
 export default function InvoiceGenerator() {
   const { user, loading: authLoading } = useAuth();
@@ -88,15 +162,7 @@ export default function InvoiceGenerator() {
     // Extract template layout using AI
     setExtractingTemplate(true);
     try {
-      const reader = new FileReader();
-      const base64 = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => {
-          const result = reader.result as string;
-          resolve(result.split(',')[1]);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      const base64 = await readFileAsBase64(file);
 
       const { data, error } = await supabase.functions.invoke('extract-template-layout', {
         body: { fileBase64: base64, mimeType: file.type },
@@ -104,10 +170,10 @@ export default function InvoiceGenerator() {
 
       if (error) throw error;
       setTemplateLayout(data);
-      toast.success('Template layout extracted! Invoice will match this format.');
+      toast.success('Template ready! Invoice will keep the same background, logo, stamp, and spacing.');
     } catch (err: any) {
       console.error('Template extraction error:', err);
-      toast.warning('Could not extract template layout. Will use default format.');
+      toast.warning('Template uploaded. Original template background will still be used for exact visual matching.');
       setTemplateLayout(null);
     } finally {
       setExtractingTemplate(false);
@@ -118,15 +184,7 @@ export default function InvoiceGenerator() {
     if (!blFile) return;
     setExtracting(true);
     try {
-      const reader = new FileReader();
-      const base64 = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => {
-          const result = reader.result as string;
-          resolve(result.split(',')[1]);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blFile);
-      });
+      const base64 = await readFileAsBase64(blFile);
 
       const { data, error } = await supabase.functions.invoke('extract-bl-data', {
         body: { fileBase64: base64, mimeType: blFile.type },
@@ -169,127 +227,145 @@ export default function InvoiceGenerator() {
     const date = invoiceDate;
     const containerNums = blData?.container_numbers?.join(', ') || '';
     const containerSize = blData?.container_size || '';
+    const templateBackground = await getTemplateBackground(templateFile);
+    const pageWidth = templateBackground?.width || DEFAULT_PAGE_WIDTH;
+    const pageHeight = templateBackground?.height || DEFAULT_PAGE_HEIGHT;
+    const bodyFont = Math.max(18, Math.round(pageWidth * 0.0142));
+    const compactFont = Math.max(17, Math.round(pageWidth * 0.0134));
+    const largeFont = Math.max(20, Math.round(pageWidth * 0.0155));
+    const amountFont = Math.max(21, Math.round(pageWidth * 0.0164));
+    const shipperBlock = [blData?.shipper, blData?.shipper_address].filter(Boolean).join('\n');
+    const consigneeBlock = [blData?.consignee, blData?.consignee_address].filter(Boolean).join('\n');
+    const notifyBlock = [blData?.consignee || blData?.notify_party, blData?.consignee_address || blData?.notify_party_address].filter(Boolean).join('\n');
 
-    // Create hidden HTML element with exact invoice layout
-    const container = document.createElement('div');
-    container.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;height:1123px;background:white;font-family:Arial,Helvetica,sans-serif;color:#000;padding:0;margin:0;';
-    
-    container.innerHTML = `
-      <div style="display:flex;flex-direction:column;width:100%;height:100%;padding:40px 50px 40px 50px;box-sizing:border-box;">
-        
-        <!-- TOP ROW: Shipper (left) + Invoice Title & Info (right) -->
+    const createDefaultMarkup = () => `
+      <div style="display:flex;flex-direction:column;width:100%;height:100%;padding:40px 50px 40px 50px;box-sizing:border-box;font-family:${PDF_FONT_FAMILY};font-weight:700;color:#000;">
         <div style="display:flex;width:100%;">
-          
-          <!-- LEFT: Shipper -->
           <div style="flex:1;padding-right:20px;">
-            <div style="font-size:11px;margin-bottom:4px;">1.Shipper</div>
-            <div style="font-size:12px;">${blData?.shipper || ''}</div>
-            <div style="font-size:11px;line-height:1.5;margin-top:2px;">${(blData?.shipper_address || '').replace(/\n/g, '<br>')}</div>
+            <div style="font-size:11px;margin-bottom:4px;font-weight:700;">1.Shipper</div>
+            <div style="font-size:12px;font-weight:700;">${escapeHtml(blData?.shipper || '')}</div>
+            <div style="font-size:11px;line-height:1.5;margin-top:2px;font-weight:700;">${formatMultiline(blData?.shipper_address || '')}</div>
           </div>
-          
-          <!-- RIGHT: Title + Invoice No + Date + Notify -->
           <div style="flex:1;padding-left:20px;">
-            <div style="font-size:20px;text-align:center;margin-bottom:12px;letter-spacing:1px;">INVOICE/PACKING</div>
-            
+            <div style="font-size:20px;text-align:center;margin-bottom:12px;letter-spacing:1px;font-weight:700;">INVOICE/PACKING</div>
             <div style="display:flex;gap:30px;margin-bottom:4px;">
-              <div style="font-size:10px;">Invoice No.</div>
-              <div style="font-size:10px;">Date</div>
+              <div style="font-size:10px;font-weight:700;">Invoice No.</div>
+              <div style="font-size:10px;font-weight:700;">Date</div>
             </div>
             <div style="display:flex;gap:30px;margin-bottom:14px;">
-              <div style="font-size:12px;">${invNum}</div>
-              <div style="font-size:12px;">${date}</div>
+              <div style="font-size:12px;font-weight:700;">${escapeHtml(invNum)}</div>
+              <div style="font-size:12px;font-weight:700;">${escapeHtml(date)}</div>
             </div>
-            
-            <div style="font-size:10px;margin-bottom:4px;">NOTIFY PARTY</div>
-            <div style="font-size:12px;">${blData?.consignee || ''}</div>
-            <div style="font-size:11px;line-height:1.5;margin-top:2px;">${(blData?.consignee_address || '').replace(/\n/g, '<br>')}</div>
+            <div style="font-size:10px;margin-bottom:4px;font-weight:700;">NOTIFY PARTY</div>
+            <div style="font-size:12px;font-weight:700;">${escapeHtml(blData?.consignee || '')}</div>
+            <div style="font-size:11px;line-height:1.5;margin-top:2px;font-weight:700;">${formatMultiline(blData?.consignee_address || '')}</div>
           </div>
         </div>
-        
-        <!-- CONSIGNEE ROW -->
         <div style="display:flex;width:100%;margin-top:20px;">
           <div style="flex:1;padding-right:20px;">
-            <div style="font-size:11px;margin-bottom:4px;">2.Consignee</div>
-            <div style="font-size:12px;">${blData?.consignee || ''}</div>
-            <div style="font-size:11px;line-height:1.5;margin-top:2px;">${(blData?.consignee_address || '').replace(/\n/g, '<br>')}</div>
+            <div style="font-size:11px;margin-bottom:4px;font-weight:700;">2.Consignee</div>
+            <div style="font-size:12px;font-weight:700;">${escapeHtml(blData?.consignee || '')}</div>
+            <div style="font-size:11px;line-height:1.5;margin-top:2px;font-weight:700;">${formatMultiline(blData?.consignee_address || '')}</div>
           </div>
           <div style="flex:1;padding-left:20px;">
-            <div style="font-size:12px;margin-bottom:4px;">${containerSize}</div>
-            <div style="font-size:10px;">CONTAINER NO:</div>
-            <div style="font-size:12px;margin-top:4px;">${containerNums}</div>
+            <div style="font-size:12px;margin-bottom:4px;font-weight:700;">${escapeHtml(containerSize)}</div>
+            <div style="font-size:10px;font-weight:700;">CONTAINER NO:</div>
+            <div style="font-size:12px;margin-top:4px;font-weight:700;">${escapeHtml(containerNums)}</div>
           </div>
         </div>
-        
-        <!-- VESSEL + PORT ROW -->
         <div style="display:flex;width:100%;margin-top:20px;">
           <div style="flex:1;padding-right:20px;">
-            <div style="font-size:10px;margin-bottom:4px;">VESSEL / FLIGHT</div>
-            <div style="font-size:12px;">${blData?.vessel_name || ''}</div>
+            <div style="font-size:10px;margin-bottom:4px;font-weight:700;">VESSEL / FLIGHT</div>
+            <div style="font-size:12px;font-weight:700;">${escapeHtml(blData?.vessel_name || '')}</div>
           </div>
           <div style="flex:1;padding-left:20px;">
-            <div style="font-size:10px;">HS CODE: ${blData?.hs_code || ''}</div>
+            <div style="font-size:10px;font-weight:700;">HS CODE: ${escapeHtml(blData?.hs_code || '')}</div>
           </div>
         </div>
-        
-        <!-- PORT OF LOADING + GOODS -->
         <div style="display:flex;width:100%;margin-top:16px;">
           <div style="flex:1;padding-right:20px;">
-            <div style="font-size:10px;margin-bottom:4px;">Port of Loading</div>
-            <div style="font-size:12px;">${blData?.port_of_loading || ''}</div>
-            <div style="font-size:10px;margin-top:10px;">${blData?.port_of_discharge || ''}</div>
+            <div style="font-size:10px;margin-bottom:4px;font-weight:700;">Port of Loading</div>
+            <div style="font-size:12px;font-weight:700;">${escapeHtml(blData?.port_of_loading || '')}</div>
+            <div style="font-size:10px;margin-top:10px;font-weight:700;">${escapeHtml(blData?.port_of_discharge || '')}</div>
           </div>
           <div style="flex:1;padding-left:20px;">
-            <div style="font-size:10px;margin-bottom:4px;">Goods Description</div>
-            <div style="font-size:12px;">${blData?.description || ''}</div>
+            <div style="font-size:10px;margin-bottom:4px;font-weight:700;">Goods Description</div>
+            <div style="font-size:12px;font-weight:700;">${escapeHtml(blData?.description || '')}</div>
           </div>
         </div>
-        
-        <!-- WEIGHT + PRICE SECTION -->
         <div style="display:flex;width:100%;margin-top:20px;">
           <div style="flex:1;padding-right:20px;">
-            <div style="font-size:10px;margin-bottom:6px;">No.& Kind of Pkgs</div>
-            <div style="font-size:12px;text-align:center;">${bales}   BALES</div>
+            <div style="font-size:10px;margin-bottom:6px;font-weight:700;">No.& Kind of Pkgs</div>
+            <div style="font-size:12px;text-align:center;font-weight:700;">${escapeHtml(String(bales))}${bales ? ' BALES' : ''}</div>
           </div>
           <div style="flex:1;padding-left:20px;">
             <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-              <span style="font-size:10px;">G.Weight</span>
-              <span style="font-size:11px;">${calc.kgs.toFixed(4)}KGS</span>
+              <span style="font-size:10px;font-weight:700;">G.Weight</span>
+              <span style="font-size:11px;font-weight:700;">${escapeHtml(calc.kgs.toFixed(4))} KGS</span>
             </div>
             <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-              <span style="font-size:10px;">Unit Price</span>
-              <span style="font-size:11px;">${calc.unitPrice.toFixed(2)}US$  Per KG</span>
+              <span style="font-size:10px;font-weight:700;">Unit Price</span>
+              <span style="font-size:11px;font-weight:700;">${escapeHtml(calc.unitPrice.toFixed(2))} US$ Per KG</span>
             </div>
             <div style="display:flex;justify-content:space-between;">
-              <span style="font-size:10px;">Amount</span>
-              <span style="font-size:11px;">${calc.totalPrice.toLocaleString()}$</span>
+              <span style="font-size:10px;font-weight:700;">Amount</span>
+              <span style="font-size:11px;font-weight:700;">${escapeHtml(calc.totalPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))} US$</span>
             </div>
           </div>
         </div>
-        
-        <!-- COMPANY FOOTER -->
         <div style="margin-top:auto;text-align:center;padding-top:40px;">
-          <div style="font-size:13px;">${(blData?.shipper || 'COMPANY NAME')}.</div>
+          <div style="font-size:13px;font-weight:700;">${escapeHtml(blData?.shipper || 'COMPANY NAME')}</div>
         </div>
-        
       </div>
     `;
+
+    const createTemplateMarkup = () => `
+      <div style="position:relative;width:100%;height:100%;background:#fff;font-family:${PDF_FONT_FAMILY};overflow:hidden;">
+        <img src="${templateBackground?.src}" alt="Invoice Template" style="position:absolute;inset:0;width:100%;height:100%;object-fit:fill;display:block;" />
+        <div style="position:absolute;inset:0;color:#000;font-family:${PDF_FONT_FAMILY};font-weight:700;">
+          <div style="position:absolute;left:6.8%;top:12.2%;width:38.5%;font-size:${compactFont}px;line-height:1.36;word-break:break-word;">${formatMultiline(shipperBlock)}</div>
+          <div style="position:absolute;left:68.2%;top:10.35%;width:11.2%;font-size:${bodyFont}px;line-height:1.2;">${escapeHtml(invNum)}</div>
+          <div style="position:absolute;left:81.9%;top:10.35%;width:11.4%;font-size:${bodyFont}px;line-height:1.2;">${escapeHtml(date)}</div>
+          <div style="position:absolute;left:56.3%;top:18.4%;width:36.2%;font-size:${compactFont}px;line-height:1.36;word-break:break-word;">${formatMultiline(notifyBlock)}</div>
+          <div style="position:absolute;left:6.8%;top:36.8%;width:38.5%;font-size:${compactFont}px;line-height:1.36;word-break:break-word;">${formatMultiline(consigneeBlock)}</div>
+          <div style="position:absolute;left:56.3%;top:39.2%;width:36.2%;font-size:${bodyFont}px;line-height:1.25;word-break:break-word;">${escapeHtml(containerSize)}</div>
+          <div style="position:absolute;left:56.3%;top:43.15%;width:36.8%;font-size:${bodyFont}px;line-height:1.3;word-break:break-word;">${escapeHtml(containerNums)}</div>
+          <div style="position:absolute;left:6.8%;top:53.55%;width:38.5%;font-size:${bodyFont}px;line-height:1.28;word-break:break-word;">${escapeHtml(blData?.vessel_name || '')}</div>
+          <div style="position:absolute;left:74.6%;top:53.55%;width:16.8%;font-size:${bodyFont}px;line-height:1.2;word-break:break-word;">${escapeHtml(blData?.hs_code || '')}</div>
+          <div style="position:absolute;left:6.8%;top:62.0%;width:37.2%;font-size:${bodyFont}px;line-height:1.3;word-break:break-word;">${escapeHtml(blData?.port_of_loading || '')}</div>
+          <div style="position:absolute;left:6.8%;top:68.0%;width:37.2%;font-size:${bodyFont}px;line-height:1.3;word-break:break-word;">${escapeHtml(blData?.port_of_discharge || '')}</div>
+          <div style="position:absolute;left:56.3%;top:61.9%;width:36.6%;font-size:${compactFont}px;line-height:1.34;word-break:break-word;">${formatMultiline(blData?.description || '')}</div>
+          <div style="position:absolute;left:17.4%;top:79.15%;width:23.2%;font-size:${largeFont}px;line-height:1.15;text-align:center;">${escapeHtml(String(bales))}${bales ? ' BALES' : ''}</div>
+          <div style="position:absolute;left:69.8%;top:78.95%;width:21.2%;font-size:${bodyFont}px;line-height:1.15;text-align:right;">${escapeHtml(calc.kgs.toFixed(4))} KGS</div>
+          <div style="position:absolute;left:64.8%;top:82.35%;width:26.2%;font-size:${bodyFont}px;line-height:1.15;text-align:right;">${escapeHtml(calc.unitPrice.toFixed(2))} US$ PER KG</div>
+          <div style="position:absolute;left:66.2%;top:85.75%;width:24.8%;font-size:${amountFont}px;line-height:1.1;text-align:right;">${escapeHtml(calc.totalPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))} US$</div>
+        </div>
+      </div>
+    `;
+
+    const container = document.createElement('div');
+    container.style.cssText = `position:fixed;left:-9999px;top:0;width:${pageWidth}px;height:${pageHeight}px;background:white;font-family:${PDF_FONT_FAMILY};color:#000;padding:0;margin:0;overflow:hidden;`;
+    container.innerHTML = templateBackground ? createTemplateMarkup() : createDefaultMarkup();
 
     document.body.appendChild(container);
 
     try {
       const canvas = await html2canvas(container, {
-        scale: 3,
+        scale: templateBackground ? 2 : 3,
         useCORS: true,
         backgroundColor: '#ffffff',
-        width: 794,
-        height: 1123,
+        width: pageWidth,
+        height: pageHeight,
       });
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      const doc = new jsPDF('p', 'mm', 'a4');
-      const pw = doc.internal.pageSize.getWidth();
-      const ph = doc.internal.pageSize.getHeight();
-      doc.addImage(imgData, 'JPEG', 0, 0, pw, ph);
+      const imgData = canvas.toDataURL(templateBackground ? 'image/png' : 'image/jpeg', templateBackground ? 1 : 0.97);
+      const doc = new jsPDF({
+        orientation: pageWidth > pageHeight ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [pageWidth, pageHeight],
+        compress: true,
+      });
+      doc.addImage(imgData, templateBackground ? 'PNG' : 'JPEG', 0, 0, pageWidth, pageHeight);
       return doc;
     } finally {
       document.body.removeChild(container);
@@ -565,9 +641,9 @@ export default function InvoiceGenerator() {
                       <div className="space-y-2">
                         <Label className="flex items-center gap-2">
                           <FileUp className="w-4 h-4 text-primary" />
-                          Invoice Template PDF (Optional)
+                            Original Invoice Template (Exact Same Output)
                         </Label>
-                        <input ref={templateInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={handleTemplateUpload} className="hidden" />
+                         <input ref={templateInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={handleTemplateUpload} className="hidden" />
                         <div
                           onClick={() => templateInputRef.current?.click()}
                           className="border border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all text-sm"
@@ -581,11 +657,11 @@ export default function InvoiceGenerator() {
                             <div className="flex items-center justify-center gap-2">
                               <CheckCircle2 className="w-4 h-4 text-green-500" />
                               <span className="text-foreground">{templateFile.name}</span>
-                              {templateLayout && <span className="text-xs text-green-600">(Layout captured)</span>}
+                               <span className="text-xs text-green-600">(Exact template mode)</span>
                             </div>
                           ) : (
                             <span className="text-muted-foreground">
-                              Upload a PDF template — invoice will be generated in same format
+                               Upload original template with logo/stamp — generated invoice will use the same paper layout exactly
                             </span>
                           )}
                         </div>
