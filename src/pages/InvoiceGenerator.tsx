@@ -94,7 +94,7 @@ const getTemplateBackground = async (file: File | null) => {
     canvas.width = Math.ceil(viewport.width);
     canvas.height = Math.ceil(viewport.height);
 
-    await page.render({ canvasContext: context, viewport }).promise;
+    await page.render({ canvas, canvasContext: context, viewport }).promise;
     pdf.destroy();
 
     return {
