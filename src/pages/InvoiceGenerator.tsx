@@ -10,7 +10,6 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
@@ -42,12 +41,30 @@ interface BLData {
   raw_weight_text: string | null;
 }
 
+interface TemplateLayout {
+  title?: string | null;
+  has_shipper_section?: boolean;
+  has_consignee_section?: boolean;
+  has_notify_party?: boolean;
+  has_container_info?: boolean;
+  has_vessel_section?: boolean;
+  has_port_section?: boolean;
+  has_hs_code?: boolean;
+  has_goods_description?: boolean;
+  has_shipping_marks?: boolean;
+  has_weight_pricing?: boolean;
+  has_bales_packages?: boolean;
+  has_stamp_area?: boolean;
+  company_name_position?: 'bottom' | 'top' | null;
+  layout_style?: 'two-column' | 'single-column' | null;
+  sections_order?: string[] | null;
+}
+
 GlobalWorkerOptions.workerSrc = pdfWorker;
 
-const DEFAULT_PAGE_WIDTH = 1240;
-const DEFAULT_PAGE_HEIGHT = 1754;
-const PDF_TEMPLATE_SCALE = 2.4;
-const PDF_FONT_FAMILY = 'Arial, Helvetica, sans-serif';
+const DEFAULT_TEMPLATE_PIXELS = { width: 1240, height: 1754 };
+const DEFAULT_PAGE_FORMAT: [number, number] = [210, 297];
+const PDF_FONT_FAMILY = 'helvetica';
 
 const readFileAsDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
   const reader = new FileReader();
@@ -77,30 +94,18 @@ const loadImage = (src: string) => new Promise<HTMLImageElement>((resolve, rejec
   image.src = src;
 });
 
-const getTemplateBackground = async (file: File | null) => {
+const getTemplatePageMetrics = async (file: File | null) => {
   if (!file) return null;
 
   if (file.type === 'application/pdf') {
     const pdf = await getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
     const page = await pdf.getPage(1);
-    const viewport = page.getViewport({ scale: PDF_TEMPLATE_SCALE });
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-
-    if (!context) {
-      throw new Error('Template render context not available');
-    }
-
-    canvas.width = Math.ceil(viewport.width);
-    canvas.height = Math.ceil(viewport.height);
-
-    await page.render({ canvas, canvasContext: context, viewport }).promise;
+    const viewport = page.getViewport({ scale: 1 });
     pdf.destroy();
 
     return {
-      src: canvas.toDataURL('image/png', 1),
-      width: canvas.width,
-      height: canvas.height,
+      width: viewport.width,
+      height: viewport.height,
     };
   }
 
@@ -108,11 +113,84 @@ const getTemplateBackground = async (file: File | null) => {
   const image = await loadImage(src);
 
   return {
-    src,
-    width: image.naturalWidth || DEFAULT_PAGE_WIDTH,
-    height: image.naturalHeight || DEFAULT_PAGE_HEIGHT,
+    width: image.naturalWidth || DEFAULT_TEMPLATE_PIXELS.width,
+    height: image.naturalHeight || DEFAULT_TEMPLATE_PIXELS.height,
   };
 };
+
+const getPdfPageFormat = (width: number, height: number): [number, number] => {
+  if (!width || !height) return DEFAULT_PAGE_FORMAT;
+
+  if (width > height) {
+    const landscapeHeight = DEFAULT_PAGE_FORMAT[0];
+    return [Number(((width / height) * landscapeHeight).toFixed(2)), landscapeHeight];
+  }
+
+  return [DEFAULT_PAGE_FORMAT[0], Number(((height / width) * DEFAULT_PAGE_FORMAT[0]).toFixed(2))];
+};
+
+type PdfTextAlign = 'left' | 'center' | 'right';
+
+const normalizePdfText = (value: string | number | null | undefined) => String(value ?? '')
+  .replace(/\r\n/g, '\n')
+  .replace(/\r/g, '\n')
+  .split('\n')
+  .map((line) => line.replace(/\s+/g, ' ').trim())
+  .filter(Boolean)
+  .join('\n');
+
+const wrapPdfText = (doc: jsPDF, text: string, width: number) => {
+  if (!text) return [] as string[];
+
+  return text
+    .split('\n')
+    .flatMap((line) => {
+      const wrapped = doc.splitTextToSize(line, width);
+      return Array.isArray(wrapped) ? wrapped : [wrapped];
+    })
+    .filter(Boolean);
+};
+
+const drawTextBlock = (
+  doc: jsPDF,
+  {
+    text,
+    x,
+    y,
+    width,
+    fontSize,
+    lineHeight,
+    align = 'left',
+    bold = false,
+    maxLines,
+  }: {
+    text: string;
+    x: number;
+    y: number;
+    width: number;
+    fontSize: number;
+    lineHeight: number;
+    align?: PdfTextAlign;
+    bold?: boolean;
+    maxLines?: number;
+  },
+) => {
+  const lines = wrapPdfText(doc, normalizePdfText(text), width);
+  const renderedLines = typeof maxLines === 'number' ? lines.slice(0, maxLines) : lines;
+
+  doc.setFont(PDF_FONT_FAMILY, bold ? 'bold' : 'normal');
+  doc.setFontSize(fontSize);
+
+  renderedLines.forEach((line, index) => {
+    const lineX = align === 'left' ? x : align === 'center' ? x + width / 2 : x + width;
+    doc.text(line, lineX, y + index * lineHeight, { align });
+  });
+};
+
+const formatCurrency = (value: number) => value.toLocaleString(undefined, {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 export default function InvoiceGenerator() {
   const { user, loading: authLoading } = useAuth();
@@ -133,7 +211,7 @@ export default function InvoiceGenerator() {
   const [generating, setGenerating] = useState(false);
   const [blData, setBlData] = useState<BLData | null>(null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [templateLayout, setTemplateLayout] = useState<any>(null);
+  const [templateLayout, setTemplateLayout] = useState<TemplateLayout | null>(null);
   const [extractingTemplate, setExtractingTemplate] = useState(false);
 
   if (authLoading) return <div className="min-h-screen bg-background" />;
@@ -170,10 +248,10 @@ export default function InvoiceGenerator() {
 
       if (error) throw error;
       setTemplateLayout(data);
-      toast.success('Template ready! Invoice will keep the same background, logo, stamp, and spacing.');
+      toast.success('Template analyzed. Invoice will now be drawn directly without using a background image.');
     } catch (err: any) {
       console.error('Template extraction error:', err);
-      toast.warning('Template uploaded. Original template background will still be used for exact visual matching.');
+      toast.warning('Template uploaded. Invoice will still be generated with direct PDF drawing and no background image.');
       setTemplateLayout(null);
     } finally {
       setExtractingTemplate(false);
@@ -227,149 +305,462 @@ export default function InvoiceGenerator() {
     const date = invoiceDate;
     const containerNums = blData?.container_numbers?.join(', ') || '';
     const containerSize = blData?.container_size || '';
-    const templateBackground = await getTemplateBackground(templateFile);
-    const pageWidth = templateBackground?.width || DEFAULT_PAGE_WIDTH;
-    const pageHeight = templateBackground?.height || DEFAULT_PAGE_HEIGHT;
-    const bodyFont = Math.max(18, Math.round(pageWidth * 0.0142));
-    const compactFont = Math.max(17, Math.round(pageWidth * 0.0134));
-    const largeFont = Math.max(20, Math.round(pageWidth * 0.0155));
-    const amountFont = Math.max(21, Math.round(pageWidth * 0.0164));
+    const templateMetrics = await getTemplatePageMetrics(templateFile);
+    const pageFormat = templateMetrics
+      ? getPdfPageFormat(templateMetrics.width, templateMetrics.height)
+      : DEFAULT_PAGE_FORMAT;
+    const doc = new jsPDF({
+      orientation: pageFormat[0] > pageFormat[1] ? 'landscape' : 'portrait',
+      unit: 'mm',
+      format: pageFormat,
+      compress: true,
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const scaleX = pageWidth / DEFAULT_PAGE_FORMAT[0];
+    const scaleY = pageHeight / DEFAULT_PAGE_FORMAT[1];
+    const sx = (value: number) => Number((value * scaleX).toFixed(2));
+    const sy = (value: number) => Number((value * scaleY).toFixed(2));
+    const fontScale = Math.min(scaleX, scaleY);
+
+    const outerLeft = sx(10);
+    const outerTop = sy(10);
+    const outerRight = pageWidth - sx(10);
+    const outerBottom = pageHeight - sy(10);
+    const outerWidth = outerRight - outerLeft;
+    const outerHeight = outerBottom - outerTop;
+    const midX = outerLeft + outerWidth / 2;
+    const cellPaddingX = sx(3);
+    const cellPaddingY = sy(5);
+    const leftCellWidth = midX - outerLeft;
+    const rightCellWidth = outerRight - midX;
+    const headerBottom = sy(26);
+    const shipperBottom = sy(72);
+    const consigneeBottom = sy(118);
+    const vesselBottom = sy(136);
+    const portsBottom = sy(190);
+    const totalsBottom = sy(222);
+    const goodsMarksDivider = sy(174);
+    const totalsDividerOne = sy(200);
+    const totalsDividerTwo = sy(211);
+    const stampBoxTop = sy(236);
+    const labelFont = Math.max(7, 8 * fontScale);
+    const bodyFont = Math.max(8, 9 * fontScale);
+    const compactFont = Math.max(7.5, 8.5 * fontScale);
+    const titleFont = Math.max(14, 16 * fontScale);
+    const amountFont = Math.max(10, 11 * fontScale);
+    const lineHeight = sy(4.1);
+    const titleText = normalizePdfText(templateLayout?.title || 'INVOICE/PACKING') || 'INVOICE/PACKING';
     const shipperBlock = [blData?.shipper, blData?.shipper_address].filter(Boolean).join('\n');
     const consigneeBlock = [blData?.consignee, blData?.consignee_address].filter(Boolean).join('\n');
     const notifyBlock = [blData?.consignee || blData?.notify_party, blData?.consignee_address || blData?.notify_party_address].filter(Boolean).join('\n');
+    const referenceBlock = [
+      blData?.bl_number ? `BL NO: ${blData.bl_number}` : '',
+      containerNums ? `CONTAINER: ${containerNums}` : '',
+      blData?.shipping_marks ? `MARKS: ${blData.shipping_marks}` : '',
+    ].filter(Boolean).join('\n');
 
-    const createDefaultMarkup = () => `
-      <div style="display:flex;flex-direction:column;width:100%;height:100%;padding:40px 50px 40px 50px;box-sizing:border-box;font-family:${PDF_FONT_FAMILY};font-weight:700;color:#000;">
-        <div style="display:flex;width:100%;">
-          <div style="flex:1;padding-right:20px;">
-            <div style="font-size:11px;margin-bottom:4px;font-weight:700;">1.Shipper</div>
-            <div style="font-size:12px;font-weight:700;">${escapeHtml(blData?.shipper || '')}</div>
-            <div style="font-size:11px;line-height:1.5;margin-top:2px;font-weight:700;">${formatMultiline(blData?.shipper_address || '')}</div>
-          </div>
-          <div style="flex:1;padding-left:20px;">
-            <div style="font-size:20px;text-align:center;margin-bottom:12px;letter-spacing:1px;font-weight:700;">INVOICE/PACKING</div>
-            <div style="display:flex;gap:30px;margin-bottom:4px;">
-              <div style="font-size:10px;font-weight:700;">Invoice No.</div>
-              <div style="font-size:10px;font-weight:700;">Date</div>
-            </div>
-            <div style="display:flex;gap:30px;margin-bottom:14px;">
-              <div style="font-size:12px;font-weight:700;">${escapeHtml(invNum)}</div>
-              <div style="font-size:12px;font-weight:700;">${escapeHtml(date)}</div>
-            </div>
-            <div style="font-size:10px;margin-bottom:4px;font-weight:700;">NOTIFY PARTY</div>
-            <div style="font-size:12px;font-weight:700;">${escapeHtml(blData?.consignee || '')}</div>
-            <div style="font-size:11px;line-height:1.5;margin-top:2px;font-weight:700;">${formatMultiline(blData?.consignee_address || '')}</div>
-          </div>
-        </div>
-        <div style="display:flex;width:100%;margin-top:20px;">
-          <div style="flex:1;padding-right:20px;">
-            <div style="font-size:11px;margin-bottom:4px;font-weight:700;">2.Consignee</div>
-            <div style="font-size:12px;font-weight:700;">${escapeHtml(blData?.consignee || '')}</div>
-            <div style="font-size:11px;line-height:1.5;margin-top:2px;font-weight:700;">${formatMultiline(blData?.consignee_address || '')}</div>
-          </div>
-          <div style="flex:1;padding-left:20px;">
-            <div style="font-size:12px;margin-bottom:4px;font-weight:700;">${escapeHtml(containerSize)}</div>
-            <div style="font-size:10px;font-weight:700;">CONTAINER NO:</div>
-            <div style="font-size:12px;margin-top:4px;font-weight:700;">${escapeHtml(containerNums)}</div>
-          </div>
-        </div>
-        <div style="display:flex;width:100%;margin-top:20px;">
-          <div style="flex:1;padding-right:20px;">
-            <div style="font-size:10px;margin-bottom:4px;font-weight:700;">VESSEL / FLIGHT</div>
-            <div style="font-size:12px;font-weight:700;">${escapeHtml(blData?.vessel_name || '')}</div>
-          </div>
-          <div style="flex:1;padding-left:20px;">
-            <div style="font-size:10px;font-weight:700;">HS CODE: ${escapeHtml(blData?.hs_code || '')}</div>
-          </div>
-        </div>
-        <div style="display:flex;width:100%;margin-top:16px;">
-          <div style="flex:1;padding-right:20px;">
-            <div style="font-size:10px;margin-bottom:4px;font-weight:700;">Port of Loading</div>
-            <div style="font-size:12px;font-weight:700;">${escapeHtml(blData?.port_of_loading || '')}</div>
-            <div style="font-size:10px;margin-top:10px;font-weight:700;">${escapeHtml(blData?.port_of_discharge || '')}</div>
-          </div>
-          <div style="flex:1;padding-left:20px;">
-            <div style="font-size:10px;margin-bottom:4px;font-weight:700;">Goods Description</div>
-            <div style="font-size:12px;font-weight:700;">${escapeHtml(blData?.description || '')}</div>
-          </div>
-        </div>
-        <div style="display:flex;width:100%;margin-top:20px;">
-          <div style="flex:1;padding-right:20px;">
-            <div style="font-size:10px;margin-bottom:6px;font-weight:700;">No.& Kind of Pkgs</div>
-            <div style="font-size:12px;text-align:center;font-weight:700;">${escapeHtml(String(bales))}${bales ? ' BALES' : ''}</div>
-          </div>
-          <div style="flex:1;padding-left:20px;">
-            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-              <span style="font-size:10px;font-weight:700;">G.Weight</span>
-              <span style="font-size:11px;font-weight:700;">${escapeHtml(calc.kgs.toFixed(4))} KGS</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-              <span style="font-size:10px;font-weight:700;">Unit Price</span>
-              <span style="font-size:11px;font-weight:700;">${escapeHtml(calc.unitPrice.toFixed(2))} US$ Per KG</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;">
-              <span style="font-size:10px;font-weight:700;">Amount</span>
-              <span style="font-size:11px;font-weight:700;">${escapeHtml(calc.totalPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))} US$</span>
-            </div>
-          </div>
-        </div>
-        <div style="margin-top:auto;text-align:center;padding-top:40px;">
-          <div style="font-size:13px;font-weight:700;">${escapeHtml(blData?.shipper || 'COMPANY NAME')}</div>
-        </div>
-      </div>
-    `;
+    doc.setDrawColor(0);
+    doc.setTextColor(0);
+    doc.setLineWidth(Math.max(0.2, 0.25 * fontScale));
+    doc.rect(outerLeft, outerTop, outerWidth, outerHeight);
 
-    const createTemplateMarkup = () => `
-      <div style="position:relative;width:100%;height:100%;background:#fff;font-family:${PDF_FONT_FAMILY};overflow:hidden;">
-        <img src="${templateBackground?.src}" alt="Invoice Template" style="position:absolute;inset:0;width:100%;height:100%;object-fit:fill;display:block;" />
-        <div style="position:absolute;inset:0;color:#000;font-family:${PDF_FONT_FAMILY};font-weight:700;">
-          <div style="position:absolute;left:6.8%;top:12.2%;width:38.5%;font-size:${compactFont}px;line-height:1.36;word-break:break-word;">${formatMultiline(shipperBlock)}</div>
-          <div style="position:absolute;left:68.2%;top:10.35%;width:11.2%;font-size:${bodyFont}px;line-height:1.2;">${escapeHtml(invNum)}</div>
-          <div style="position:absolute;left:81.9%;top:10.35%;width:11.4%;font-size:${bodyFont}px;line-height:1.2;">${escapeHtml(date)}</div>
-          <div style="position:absolute;left:56.3%;top:18.4%;width:36.2%;font-size:${compactFont}px;line-height:1.36;word-break:break-word;">${formatMultiline(notifyBlock)}</div>
-          <div style="position:absolute;left:6.8%;top:36.8%;width:38.5%;font-size:${compactFont}px;line-height:1.36;word-break:break-word;">${formatMultiline(consigneeBlock)}</div>
-          <div style="position:absolute;left:56.3%;top:39.2%;width:36.2%;font-size:${bodyFont}px;line-height:1.25;word-break:break-word;">${escapeHtml(containerSize)}</div>
-          <div style="position:absolute;left:56.3%;top:43.15%;width:36.8%;font-size:${bodyFont}px;line-height:1.3;word-break:break-word;">${escapeHtml(containerNums)}</div>
-          <div style="position:absolute;left:6.8%;top:53.55%;width:38.5%;font-size:${bodyFont}px;line-height:1.28;word-break:break-word;">${escapeHtml(blData?.vessel_name || '')}</div>
-          <div style="position:absolute;left:74.6%;top:53.55%;width:16.8%;font-size:${bodyFont}px;line-height:1.2;word-break:break-word;">${escapeHtml(blData?.hs_code || '')}</div>
-          <div style="position:absolute;left:6.8%;top:62.0%;width:37.2%;font-size:${bodyFont}px;line-height:1.3;word-break:break-word;">${escapeHtml(blData?.port_of_loading || '')}</div>
-          <div style="position:absolute;left:6.8%;top:68.0%;width:37.2%;font-size:${bodyFont}px;line-height:1.3;word-break:break-word;">${escapeHtml(blData?.port_of_discharge || '')}</div>
-          <div style="position:absolute;left:56.3%;top:61.9%;width:36.6%;font-size:${compactFont}px;line-height:1.34;word-break:break-word;">${formatMultiline(blData?.description || '')}</div>
-          <div style="position:absolute;left:17.4%;top:79.15%;width:23.2%;font-size:${largeFont}px;line-height:1.15;text-align:center;">${escapeHtml(String(bales))}${bales ? ' BALES' : ''}</div>
-          <div style="position:absolute;left:69.8%;top:78.95%;width:21.2%;font-size:${bodyFont}px;line-height:1.15;text-align:right;">${escapeHtml(calc.kgs.toFixed(4))} KGS</div>
-          <div style="position:absolute;left:64.8%;top:82.35%;width:26.2%;font-size:${bodyFont}px;line-height:1.15;text-align:right;">${escapeHtml(calc.unitPrice.toFixed(2))} US$ PER KG</div>
-          <div style="position:absolute;left:66.2%;top:85.75%;width:24.8%;font-size:${amountFont}px;line-height:1.1;text-align:right;">${escapeHtml(calc.totalPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))} US$</div>
-        </div>
-      </div>
-    `;
+    [headerBottom, shipperBottom, consigneeBottom, vesselBottom, portsBottom, totalsBottom].forEach((lineY) => {
+      doc.line(outerLeft, lineY, outerRight, lineY);
+    });
 
-    const container = document.createElement('div');
-    container.style.cssText = `position:fixed;left:-9999px;top:0;width:${pageWidth}px;height:${pageHeight}px;background:white;font-family:${PDF_FONT_FAMILY};color:#000;padding:0;margin:0;overflow:hidden;`;
-    container.innerHTML = templateBackground ? createTemplateMarkup() : createDefaultMarkup();
+    doc.line(midX, headerBottom, midX, totalsBottom);
+    doc.line(midX, totalsDividerOne, outerRight, totalsDividerOne);
+    doc.line(midX, totalsDividerTwo, outerRight, totalsDividerTwo);
 
-    document.body.appendChild(container);
-
-    try {
-      const canvas = await html2canvas(container, {
-        scale: templateBackground ? 2 : 3,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        width: pageWidth,
-        height: pageHeight,
-      });
-
-      const imgData = canvas.toDataURL(templateBackground ? 'image/png' : 'image/jpeg', templateBackground ? 1 : 0.97);
-      const doc = new jsPDF({
-        orientation: pageWidth > pageHeight ? 'landscape' : 'portrait',
-        unit: 'px',
-        format: [pageWidth, pageHeight],
-        compress: true,
-      });
-      doc.addImage(imgData, templateBackground ? 'PNG' : 'JPEG', 0, 0, pageWidth, pageHeight);
-      return doc;
-    } finally {
-      document.body.removeChild(container);
+    if (templateLayout?.has_shipping_marks && blData?.shipping_marks) {
+      doc.line(midX, goodsMarksDivider, outerRight, goodsMarksDivider);
     }
+
+    if (templateLayout?.company_name_position === 'top' && blData?.shipper) {
+      drawTextBlock(doc, {
+        text: blData.shipper,
+        x: outerLeft + cellPaddingX,
+        y: sy(17),
+        width: sx(66),
+        fontSize: bodyFont,
+        lineHeight,
+        bold: true,
+        maxLines: 1,
+      });
+    }
+
+    doc.setFont(PDF_FONT_FAMILY, 'bold');
+    doc.setFontSize(titleFont);
+    doc.text(titleText, outerLeft + outerWidth / 2, sy(18), { align: 'center' });
+
+    drawTextBlock(doc, {
+      text: 'Invoice No.',
+      x: midX + sx(16),
+      y: sy(16.5),
+      width: sx(28),
+      fontSize: labelFont,
+      lineHeight,
+      bold: true,
+      maxLines: 1,
+    });
+    drawTextBlock(doc, {
+      text: 'Date',
+      x: midX + sx(52),
+      y: sy(16.5),
+      width: sx(22),
+      fontSize: labelFont,
+      lineHeight,
+      bold: true,
+      maxLines: 1,
+    });
+    drawTextBlock(doc, {
+      text: invNum,
+      x: midX + sx(16),
+      y: sy(22),
+      width: sx(32),
+      fontSize: bodyFont,
+      lineHeight,
+      maxLines: 1,
+    });
+    drawTextBlock(doc, {
+      text: date,
+      x: midX + sx(52),
+      y: sy(22),
+      width: sx(24),
+      fontSize: bodyFont,
+      lineHeight,
+      maxLines: 1,
+    });
+
+    drawTextBlock(doc, {
+      text: '1. SHIPPER',
+      x: outerLeft + cellPaddingX,
+      y: headerBottom + cellPaddingY,
+      width: leftCellWidth - cellPaddingX * 2,
+      fontSize: labelFont,
+      lineHeight,
+      bold: true,
+      maxLines: 1,
+    });
+    drawTextBlock(doc, {
+      text: shipperBlock,
+      x: outerLeft + cellPaddingX,
+      y: headerBottom + sy(11),
+      width: leftCellWidth - cellPaddingX * 2,
+      fontSize: compactFont,
+      lineHeight,
+      maxLines: 7,
+    });
+
+    drawTextBlock(doc, {
+      text: 'NOTIFY PARTY',
+      x: midX + cellPaddingX,
+      y: headerBottom + cellPaddingY,
+      width: rightCellWidth - cellPaddingX * 2,
+      fontSize: labelFont,
+      lineHeight,
+      bold: true,
+      maxLines: 1,
+    });
+    drawTextBlock(doc, {
+      text: notifyBlock,
+      x: midX + cellPaddingX,
+      y: headerBottom + sy(11),
+      width: rightCellWidth - cellPaddingX * 2,
+      fontSize: compactFont,
+      lineHeight,
+      maxLines: 7,
+    });
+
+    drawTextBlock(doc, {
+      text: '2. CONSIGNEE',
+      x: outerLeft + cellPaddingX,
+      y: shipperBottom + cellPaddingY,
+      width: leftCellWidth - cellPaddingX * 2,
+      fontSize: labelFont,
+      lineHeight,
+      bold: true,
+      maxLines: 1,
+    });
+    drawTextBlock(doc, {
+      text: consigneeBlock,
+      x: outerLeft + cellPaddingX,
+      y: shipperBottom + sy(11),
+      width: leftCellWidth - cellPaddingX * 2,
+      fontSize: compactFont,
+      lineHeight,
+      maxLines: 7,
+    });
+
+    drawTextBlock(doc, {
+      text: 'CONTAINER / SIZE',
+      x: midX + cellPaddingX,
+      y: shipperBottom + cellPaddingY,
+      width: rightCellWidth - cellPaddingX * 2,
+      fontSize: labelFont,
+      lineHeight,
+      bold: true,
+      maxLines: 1,
+    });
+    drawTextBlock(doc, {
+      text: [containerSize, containerNums].filter(Boolean).join('\n'),
+      x: midX + cellPaddingX,
+      y: shipperBottom + sy(11),
+      width: rightCellWidth - cellPaddingX * 2,
+      fontSize: bodyFont,
+      lineHeight,
+      maxLines: 5,
+    });
+
+    drawTextBlock(doc, {
+      text: 'VESSEL / FLIGHT',
+      x: outerLeft + cellPaddingX,
+      y: consigneeBottom + cellPaddingY,
+      width: leftCellWidth - cellPaddingX * 2,
+      fontSize: labelFont,
+      lineHeight,
+      bold: true,
+      maxLines: 1,
+    });
+    drawTextBlock(doc, {
+      text: blData?.vessel_name || '',
+      x: outerLeft + cellPaddingX,
+      y: consigneeBottom + sy(11),
+      width: leftCellWidth - cellPaddingX * 2,
+      fontSize: bodyFont,
+      lineHeight,
+      maxLines: 2,
+    });
+
+    drawTextBlock(doc, {
+      text: 'HS CODE',
+      x: midX + cellPaddingX,
+      y: consigneeBottom + cellPaddingY,
+      width: rightCellWidth - cellPaddingX * 2,
+      fontSize: labelFont,
+      lineHeight,
+      bold: true,
+      maxLines: 1,
+    });
+    drawTextBlock(doc, {
+      text: blData?.hs_code || '',
+      x: midX + cellPaddingX,
+      y: consigneeBottom + sy(11),
+      width: rightCellWidth - cellPaddingX * 2,
+      fontSize: bodyFont,
+      lineHeight,
+      maxLines: 2,
+    });
+
+    drawTextBlock(doc, {
+      text: 'PORT OF LOADING',
+      x: outerLeft + cellPaddingX,
+      y: vesselBottom + cellPaddingY,
+      width: leftCellWidth - cellPaddingX * 2,
+      fontSize: labelFont,
+      lineHeight,
+      bold: true,
+      maxLines: 1,
+    });
+    drawTextBlock(doc, {
+      text: blData?.port_of_loading || '',
+      x: outerLeft + cellPaddingX,
+      y: vesselBottom + sy(11),
+      width: leftCellWidth - cellPaddingX * 2,
+      fontSize: bodyFont,
+      lineHeight,
+      maxLines: 3,
+    });
+    drawTextBlock(doc, {
+      text: 'PORT OF DISCHARGE / DESTINATION',
+      x: outerLeft + cellPaddingX,
+      y: sy(164),
+      width: leftCellWidth - cellPaddingX * 2,
+      fontSize: labelFont,
+      lineHeight,
+      bold: true,
+      maxLines: 2,
+    });
+    drawTextBlock(doc, {
+      text: blData?.port_of_discharge || '',
+      x: outerLeft + cellPaddingX,
+      y: sy(171),
+      width: leftCellWidth - cellPaddingX * 2,
+      fontSize: bodyFont,
+      lineHeight,
+      maxLines: 3,
+    });
+
+    drawTextBlock(doc, {
+      text: 'GOODS DESCRIPTION',
+      x: midX + cellPaddingX,
+      y: vesselBottom + cellPaddingY,
+      width: rightCellWidth - cellPaddingX * 2,
+      fontSize: labelFont,
+      lineHeight,
+      bold: true,
+      maxLines: 1,
+    });
+    drawTextBlock(doc, {
+      text: blData?.description || '',
+      x: midX + cellPaddingX,
+      y: vesselBottom + sy(11),
+      width: rightCellWidth - cellPaddingX * 2,
+      fontSize: compactFont,
+      lineHeight,
+      maxLines: templateLayout?.has_shipping_marks && blData?.shipping_marks ? 5 : 8,
+    });
+
+    if (templateLayout?.has_shipping_marks && blData?.shipping_marks) {
+      drawTextBlock(doc, {
+        text: 'SHIPPING MARKS',
+        x: midX + cellPaddingX,
+        y: goodsMarksDivider + cellPaddingY,
+        width: rightCellWidth - cellPaddingX * 2,
+        fontSize: labelFont,
+        lineHeight,
+        bold: true,
+        maxLines: 1,
+      });
+      drawTextBlock(doc, {
+        text: blData.shipping_marks,
+        x: midX + cellPaddingX,
+        y: goodsMarksDivider + sy(11),
+        width: rightCellWidth - cellPaddingX * 2,
+        fontSize: compactFont,
+        lineHeight,
+        maxLines: 3,
+      });
+    }
+
+    drawTextBlock(doc, {
+      text: templateLayout?.has_bales_packages === false ? 'PACKAGES' : 'NO. & KIND OF PKGS',
+      x: outerLeft + cellPaddingX,
+      y: portsBottom + cellPaddingY,
+      width: leftCellWidth - cellPaddingX * 2,
+      fontSize: labelFont,
+      lineHeight,
+      bold: true,
+      maxLines: 1,
+    });
+
+    doc.setFont(PDF_FONT_FAMILY, 'normal');
+    doc.setFontSize(bodyFont + 1);
+    doc.text(bales ? `${bales} BALES` : '', outerLeft + leftCellWidth / 2, sy(207), { align: 'center' });
+
+    drawTextBlock(doc, {
+      text: templateLayout?.has_weight_pricing === false ? 'WEIGHT' : 'G.WEIGHT',
+      x: midX + cellPaddingX,
+      y: portsBottom + sy(8),
+      width: sx(24),
+      fontSize: labelFont,
+      lineHeight,
+      bold: true,
+      maxLines: 1,
+    });
+    drawTextBlock(doc, {
+      text: `${calc.kgs.toFixed(4)} KGS`,
+      x: midX + sx(30),
+      y: portsBottom + sy(8),
+      width: rightCellWidth - sx(34),
+      fontSize: bodyFont,
+      lineHeight,
+      align: 'right',
+      maxLines: 1,
+    });
+    drawTextBlock(doc, {
+      text: 'UNIT PRICE',
+      x: midX + cellPaddingX,
+      y: totalsDividerOne + sy(8),
+      width: sx(24),
+      fontSize: labelFont,
+      lineHeight,
+      bold: true,
+      maxLines: 1,
+    });
+    drawTextBlock(doc, {
+      text: `${calc.unitPrice.toFixed(2)} US$ PER KG`,
+      x: midX + sx(28),
+      y: totalsDividerOne + sy(8),
+      width: rightCellWidth - sx(32),
+      fontSize: bodyFont,
+      lineHeight,
+      align: 'right',
+      maxLines: 1,
+    });
+    drawTextBlock(doc, {
+      text: 'AMOUNT',
+      x: midX + cellPaddingX,
+      y: totalsDividerTwo + sy(7.5),
+      width: sx(24),
+      fontSize: labelFont,
+      lineHeight,
+      bold: true,
+      maxLines: 1,
+    });
+    drawTextBlock(doc, {
+      text: `${formatCurrency(calc.totalPrice)} US$`,
+      x: midX + sx(26),
+      y: totalsDividerTwo + sy(8),
+      width: rightCellWidth - sx(30),
+      fontSize: amountFont,
+      lineHeight,
+      align: 'right',
+      maxLines: 1,
+    });
+
+    drawTextBlock(doc, {
+      text: 'REFERENCE',
+      x: outerLeft + cellPaddingX,
+      y: sy(236),
+      width: leftCellWidth - cellPaddingX * 2,
+      fontSize: labelFont,
+      lineHeight,
+      bold: true,
+      maxLines: 1,
+    });
+    drawTextBlock(doc, {
+      text: referenceBlock,
+      x: outerLeft + cellPaddingX,
+      y: sy(243),
+      width: leftCellWidth - cellPaddingX * 2,
+      fontSize: compactFont,
+      lineHeight,
+      maxLines: 5,
+    });
+
+    if (templateLayout?.has_stamp_area !== false) {
+      doc.rect(midX + sx(18), stampBoxTop, sx(68), sy(30));
+      drawTextBlock(doc, {
+        text: 'AUTHORIZED SIGNATURE / STAMP',
+        x: midX + sx(21),
+        y: stampBoxTop + sy(24),
+        width: sx(62),
+        fontSize: labelFont,
+        lineHeight,
+        align: 'center',
+        bold: true,
+        maxLines: 1,
+      });
+    }
+
+    if (templateLayout?.company_name_position !== 'top') {
+      drawTextBlock(doc, {
+        text: blData?.shipper || 'COMPANY NAME',
+        x: outerLeft,
+        y: pageHeight - sy(16),
+        width: outerWidth,
+        fontSize: bodyFont,
+        lineHeight,
+        align: 'center',
+        bold: true,
+        maxLines: 1,
+      });
+    }
+
+    return doc;
   };
 
   const generateInvoice = async () => {
@@ -428,7 +819,7 @@ export default function InvoiceGenerator() {
             Generate Invoice from <span className="text-primary">Bill of Lading</span>
           </h1>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            Upload your BL, extract data automatically, and generate invoices matching your exact template.
+            Upload your BL, extract data automatically, and generate a clean invoice PDF drawn to match your template layout.
           </p>
         </motion.div>
 
@@ -641,7 +1032,7 @@ export default function InvoiceGenerator() {
                       <div className="space-y-2">
                         <Label className="flex items-center gap-2">
                           <FileUp className="w-4 h-4 text-primary" />
-                            Original Invoice Template (Exact Same Output)
+                            Original Invoice Template (Reference Only)
                         </Label>
                          <input ref={templateInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={handleTemplateUpload} className="hidden" />
                         <div
@@ -657,11 +1048,11 @@ export default function InvoiceGenerator() {
                             <div className="flex items-center justify-center gap-2">
                               <CheckCircle2 className="w-4 h-4 text-green-500" />
                               <span className="text-foreground">{templateFile.name}</span>
-                               <span className="text-xs text-green-600">(Exact template mode)</span>
+                               <span className="text-xs text-green-600">(Direct PDF mode)</span>
                             </div>
                           ) : (
                             <span className="text-muted-foreground">
-                               Upload original template with logo/stamp — generated invoice will use the same paper layout exactly
+                               Upload original template as reference — invoice will be drawn directly, not as a background image
                             </span>
                           )}
                         </div>
@@ -771,7 +1162,7 @@ export default function InvoiceGenerator() {
                   { icon: Upload, title: 'Upload BL', desc: 'Upload your Bill of Lading (PDF or Image)' },
                   { icon: Sparkles, title: 'AI Extracts Data', desc: 'AI reads KGS, bales, shipper, consignee etc.' },
                   { icon: Calculator, title: 'Enter Price', desc: 'Enter total price, bales count, date' },
-                  { icon: Download, title: 'Get Invoice', desc: 'Download invoice matching your template format' },
+                  { icon: Download, title: 'Get Invoice', desc: 'Download a directly drawn invoice matching your template format' },
                 ].map((item, i) => (
                   <div key={i} className="flex gap-3">
                     <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
