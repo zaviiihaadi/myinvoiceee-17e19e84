@@ -335,7 +335,7 @@ const renderTemplateFileToCanvas = async (file: File, scale = 2) => {
         throw new Error('Canvas context not available');
       }
 
-      await page.render({ canvasContext: context, viewport }).promise;
+      await page.render({ canvasContext: context, viewport, canvas }).promise;
       return canvas;
     } finally {
       pdf.destroy();
@@ -803,6 +803,8 @@ const generateInvoicePDF = async (calc: { unitPrice: number; totalPrice: number;
       return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
     });
   };
+
+  const calc = calculateValues();
 
   return (
     <div className="min-h-screen bg-background">
