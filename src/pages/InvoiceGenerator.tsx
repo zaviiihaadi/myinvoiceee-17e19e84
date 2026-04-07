@@ -553,7 +553,7 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
   }
 };
 
-  const extractBLData = async () => {  const extractBLData = async () => {
+  const extractBLData = async () => {
     if (!blFile) return;
     setExtracting(true);
     try {
