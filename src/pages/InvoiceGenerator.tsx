@@ -646,7 +646,7 @@ const generateInvoicePDF = async (calc: { unitPrice: number; totalPrice: number;
     if (!normalizedText || !normalizedBox) return;
 
     const fontSize = Math.max(6.5, (normalizedBox.font_size ?? fallbackFontSize) * fontScale);
-    const lineHeight = Math.max(3.4 * fontScale, fontSize * 0.42);
+    const lineHeight = Math.max(3.8 * fontScale, fontSize * 0.50);
     const maxLines = normalizedBox.max_lines ?? options.maxLines ?? Math.max(1, Math.floor((normalizedBox.h * pageHeight) / lineHeight));
 
     drawTextBlock(doc, {
