@@ -486,7 +486,7 @@ const formatCurrency = (value: number) => value.toLocaleString(undefined, {
   maximumFractionDigits: 2,
 });
 
-export default function InvoiceGenerator() {export default function InvoiceGenerator() {
+export default function InvoiceGenerator() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const blInputRef = useRef<HTMLInputElement>(null);
