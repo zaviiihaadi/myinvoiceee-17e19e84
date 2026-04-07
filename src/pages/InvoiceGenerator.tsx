@@ -768,7 +768,6 @@ const generateInvoicePDF = async (calc: { unitPrice: number; totalPrice: number;
   return doc;
 };
 
-const generateInvoice = async () => {
   const generateInvoice = async () => {
     const calc = calculateValues();
     if (!calc) {
@@ -789,8 +788,6 @@ const generateInvoice = async () => {
       setGenerating(false);
     }
   };
-
-  const calc = calculateValues();
 
   const resetAll = () => {
     setBlFile(null);
