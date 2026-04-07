@@ -335,7 +335,7 @@ const renderTemplateFileToCanvas = async (file: File, scale = 2) => {
         throw new Error('Canvas context not available');
       }
 
-      await page.render({ canvasContext: context, viewport }).promise;
+      await page.render({ canvasContext: context, viewport, canvas }).promise;
       return canvas;
     } finally {
       pdf.destroy();
@@ -486,7 +486,7 @@ const formatCurrency = (value: number) => value.toLocaleString(undefined, {
   maximumFractionDigits: 2,
 });
 
-export default function InvoiceGenerator() {export default function InvoiceGenerator() {
+export default function InvoiceGenerator() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const blInputRef = useRef<HTMLInputElement>(null);
@@ -553,7 +553,7 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
   }
 };
 
-  const extractBLData = async () => {  const extractBLData = async () => {
+  const extractBLData = async () => {
     if (!blFile) return;
     setExtracting(true);
     try {
@@ -768,7 +768,6 @@ const generateInvoicePDF = async (calc: { unitPrice: number; totalPrice: number;
   return doc;
 };
 
-const generateInvoice = async () => {
   const generateInvoice = async () => {
     const calc = calculateValues();
     if (!calc) {
@@ -790,8 +789,6 @@ const generateInvoice = async () => {
     }
   };
 
-  const calc = calculateValues();
-
   const resetAll = () => {
     setBlFile(null);
     setTemplateFile(null);
@@ -806,6 +803,8 @@ const generateInvoice = async () => {
       return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
     });
   };
+
+  const calc = calculateValues();
 
   return (
     <div className="min-h-screen bg-background">
