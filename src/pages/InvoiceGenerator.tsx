@@ -469,11 +469,12 @@ const drawTextBlock = (
     maxLines?: number;
   },
 ) => {
-  const lines = wrapPdfText(doc, normalizePdfText(text), width);
-  const renderedLines = typeof maxLines === 'number' ? lines.slice(0, maxLines) : lines;
-
+  // CRITICAL: Set font BEFORE wrapping so splitTextToSize uses correct metrics
   doc.setFont(PDF_FONT_FAMILY, bold ? 'bold' : 'normal');
   doc.setFontSize(fontSize);
+
+  const lines = wrapPdfText(doc, normalizePdfText(text), width);
+  const renderedLines = typeof maxLines === 'number' ? lines.slice(0, maxLines) : lines;
 
   renderedLines.forEach((line, index) => {
     const lineX = align === 'left' ? x : align === 'center' ? x + width / 2 : x + width;
