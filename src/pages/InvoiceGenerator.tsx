@@ -209,30 +209,30 @@ const DEFAULT_TEMPLATE_LAYOUT: TemplateLayout = {
   show_lines: false,
   use_exact_positions: true,
   static_texts: [
-    {
-      text: 'INVOICE/PACKING',
-      box: createNormalizedBox(45, 10, 120, 12, { align: 'center', font_size: 16, max_lines: 2, bold: true }),
-    },
+    { text: 'INVOICE/PACKING', box: createNormalizedBox(50, 8, 110, 10, { align: 'center', font_size: 16, max_lines: 1, bold: true }) },
+    { text: 'Invoice', box: createNormalizedBox(119, 278, 25, 5, { font_size: 8 }) },
+    { text: 'No.', box: createNormalizedBox(119, 282, 15, 5, { font_size: 8 }) },
+    { text: 'Date', box: createNormalizedBox(160, 278, 20, 5, { font_size: 8 }) },
   ],
   fields: [
-    { key: 'invoice_number', label: 'Invoice No.', label_box: createNormalizedBox(118, 14, 28, 6, { font_size: 8, bold: true }), value_box: createNormalizedBox(118, 20, 34, 6, { font_size: 9, max_lines: 1 }) },
-    { key: 'date', label: 'Date', label_box: createNormalizedBox(155, 14, 20, 6, { font_size: 8, bold: true }), value_box: createNormalizedBox(155, 20, 24, 6, { font_size: 9, max_lines: 1 }) },
-    { key: 'shipper', label: '1.Shipper', label_box: createNormalizedBox(13, 29, 87, 6, { font_size: 8, bold: true }), value_box: createNormalizedBox(13, 36, 87, 24, { font_size: 8.5, max_lines: 5 }) },
-    { key: 'notify_party', label: 'NOTIFY PARTY', label_box: createNormalizedBox(110, 29, 87, 6, { font_size: 8, bold: true }), value_box: createNormalizedBox(110, 36, 87, 24, { font_size: 8.5, max_lines: 5 }) },
-    { key: 'consignee', label: '2.Consignee', label_box: createNormalizedBox(13, 68, 87, 6, { font_size: 8, bold: true }), value_box: createNormalizedBox(13, 75, 87, 24, { font_size: 8.5, max_lines: 5 }) },
-    { key: 'container_info', label: 'CONTAINER NO:', label_box: createNormalizedBox(110, 80, 87, 6, { font_size: 8, bold: true }), value_box: createNormalizedBox(110, 68, 87, 18, { font_size: 9, max_lines: 3 }) },
-    { key: 'vessel', label: 'VESSEL / FLIGHT', label_box: createNormalizedBox(13, 110, 87, 6, { font_size: 8, bold: true }), value_box: createNormalizedBox(13, 117, 87, 10, { font_size: 9, max_lines: 2 }) },
-    { key: 'port_of_discharge', label: 'PORT', label_box: createNormalizedBox(13, 136, 30, 6, { font_size: 8, bold: true }), value_box: createNormalizedBox(13, 143, 87, 10, { font_size: 9, max_lines: 2 }) },
-    { key: 'hs_code', label: 'HS CODE:', label_box: createNormalizedBox(110, 136, 30, 6, { font_size: 8, bold: true }), value_box: createNormalizedBox(140, 136, 57, 6, { font_size: 9, max_lines: 1 }) },
-    { key: 'goods_description', label: 'Goods Description', label_box: createNormalizedBox(110, 145, 87, 6, { font_size: 8, bold: true }), value_box: createNormalizedBox(110, 152, 87, 10, { font_size: 8.5, max_lines: 3 }) },
-    { key: 'port_of_loading', label: 'Port of Loading', label_box: createNormalizedBox(13, 160, 87, 6, { font_size: 8, bold: true }), value_box: createNormalizedBox(13, 167, 87, 10, { font_size: 9, max_lines: 2 }) },
-    { key: 'gross_weight', label: 'G.Weight', label_box: createNormalizedBox(110, 170, 30, 6, { font_size: 8, bold: true }), value_box: createNormalizedBox(140, 170, 57, 6, { font_size: 9.5, max_lines: 1, align: 'right' }) },
-    { key: 'unit_price', label: 'Unit Price', label_box: createNormalizedBox(110, 180, 30, 6, { font_size: 8, bold: true }), value_box: createNormalizedBox(140, 180, 57, 6, { font_size: 9.5, max_lines: 1, align: 'right' }) },
-    { key: 'amount', label: 'Amount', label_box: createNormalizedBox(110, 190, 30, 6, { font_size: 8, bold: true }), value_box: createNormalizedBox(140, 190, 57, 7, { font_size: 11, max_lines: 1, align: 'right', bold: true }) },
-    { key: 'shipping_marks', label: 'SHIPPING MARKS', label_box: createNormalizedBox(13, 200, 87, 6, { font_size: 8, bold: true }), value_box: createNormalizedBox(13, 207, 87, 10, { font_size: 8.5, max_lines: 2 }) },
-    { key: 'packages', label: 'No.& Kind of Pkgs', label_box: createNormalizedBox(13, 222, 87, 6, { font_size: 8, bold: true }), value_box: createNormalizedBox(13, 229, 87, 8, { font_size: 10, max_lines: 1, bold: true }) },
-    { key: 'reference', label: 'REFERENCE', label_box: createNormalizedBox(13, 244, 87, 6, { font_size: 8, bold: true }), value_box: createNormalizedBox(13, 251, 87, 18, { font_size: 8.5, max_lines: 4 }) },
-    { key: 'company_name', value_box: createNormalizedBox(110, 250, 87, 8, { font_size: 10, max_lines: 1, align: 'center', bold: true }) },
+    { key: 'invoice_number', label: '', value_box: createNormalizedBox(119, 28, 45, 6, { font_size: 9, max_lines: 1 }) },
+    { key: 'date', label: '', value_box: createNormalizedBox(168, 28, 30, 6, { font_size: 9, max_lines: 1 }) },
+    { key: 'shipper', label: '1.Shipper', label_box: createNormalizedBox(10, 28, 95, 5, { font_size: 8, bold: true }), value_box: createNormalizedBox(10, 35, 95, 28, { font_size: 8.5, max_lines: 6 }) },
+    { key: 'notify_party', label: 'NOTIFY PARTY', label_box: createNormalizedBox(119, 36, 80, 5, { font_size: 8, bold: true }), value_box: createNormalizedBox(119, 43, 80, 24, { font_size: 8.5, max_lines: 5 }) },
+    { key: 'consignee', label: '2.Consignee', label_box: createNormalizedBox(10, 92, 95, 5, { font_size: 8, bold: true }), value_box: createNormalizedBox(10, 99, 95, 24, { font_size: 8.5, max_lines: 5 }) },
+    { key: 'container_info', label: 'CONTAINER NO:', label_box: createNormalizedBox(119, 113, 80, 5, { font_size: 8, bold: true }), value_box: createNormalizedBox(119, 92, 80, 18, { font_size: 9, max_lines: 3 }) },
+    { key: 'vessel', label: 'VESSEL / FLIGHT', label_box: createNormalizedBox(10, 140, 95, 5, { font_size: 8, bold: true }), value_box: createNormalizedBox(10, 148, 95, 10, { font_size: 9, max_lines: 2 }) },
+    { key: 'port_of_discharge', label: '', value_box: createNormalizedBox(10, 162, 95, 10, { font_size: 9, max_lines: 2 }) },
+    { key: 'hs_code', label: 'HS CODE:', label_box: createNormalizedBox(119, 150, 25, 5, { font_size: 8, bold: true }), value_box: createNormalizedBox(146, 150, 52, 6, { font_size: 9, max_lines: 1 }) },
+    { key: 'goods_description', label: 'Goods Description', label_box: createNormalizedBox(119, 160, 80, 5, { font_size: 8, bold: true }), value_box: createNormalizedBox(119, 168, 80, 10, { font_size: 8.5, max_lines: 3 }) },
+    { key: 'port_of_loading', label: 'Port of Loading', label_box: createNormalizedBox(10, 178, 95, 5, { font_size: 8, bold: true }), value_box: createNormalizedBox(10, 186, 95, 10, { font_size: 9, max_lines: 2 }) },
+    { key: 'gross_weight', label: 'G.Weight', label_box: createNormalizedBox(119, 184, 30, 5, { font_size: 8, bold: true }), value_box: createNormalizedBox(150, 184, 48, 6, { font_size: 9.5, max_lines: 1, align: 'right' }) },
+    { key: 'unit_price', label: 'Unit Price', label_box: createNormalizedBox(119, 193, 30, 5, { font_size: 8, bold: true }), value_box: createNormalizedBox(150, 193, 48, 6, { font_size: 9.5, max_lines: 1, align: 'right' }) },
+    { key: 'amount', label: 'Amount', label_box: createNormalizedBox(119, 202, 30, 5, { font_size: 8, bold: true }), value_box: createNormalizedBox(150, 202, 48, 7, { font_size: 11, max_lines: 1, align: 'right', bold: true }) },
+    { key: 'shipping_marks', label: 'SHIPPING MARKS', label_box: createNormalizedBox(10, 215, 95, 5, { font_size: 8, bold: true }), value_box: createNormalizedBox(15, 223, 90, 10, { font_size: 8.5, max_lines: 2 }) },
+    { key: 'packages', label: 'No.& Kind of Pkgs', label_box: createNormalizedBox(25, 243, 75, 5, { font_size: 8, bold: true }), value_box: createNormalizedBox(25, 251, 75, 8, { font_size: 10, max_lines: 1, bold: true, align: 'center' }) },
+    { key: 'reference', label: 'REFERENCE', label_box: createNormalizedBox(10, 262, 95, 5, { font_size: 8, bold: true }), value_box: createNormalizedBox(10, 270, 95, 18, { font_size: 8.5, max_lines: 4 }) },
+    { key: 'company_name', value_box: createNormalizedBox(119, 267, 80, 8, { font_size: 10, max_lines: 1, align: 'center', bold: true }) },
   ],
   image_regions: [],
 };
@@ -646,7 +646,7 @@ const generateInvoicePDF = async (calc: { unitPrice: number; totalPrice: number;
     if (!normalizedText || !normalizedBox) return;
 
     const fontSize = Math.max(6.5, (normalizedBox.font_size ?? fallbackFontSize) * fontScale);
-    const lineHeight = Math.max(3.8 * fontScale, fontSize * 0.50);
+    const lineHeight = Math.max(4.0 * fontScale, fontSize * 0.55);
     const maxLines = normalizedBox.max_lines ?? options.maxLines ?? Math.max(1, Math.floor((normalizedBox.h * pageHeight) / lineHeight));
 
     drawTextBlock(doc, {
