@@ -209,10 +209,10 @@ const DEFAULT_TEMPLATE_LAYOUT: TemplateLayout = {
   show_lines: false,
   use_exact_positions: true,
   static_texts: [
-    {
-      text: 'INVOICE/PACKING',
-      box: createNormalizedBox(45, 10, 120, 12, { align: 'center', font_size: 16, max_lines: 2, bold: true }),
-    },
+    { text: 'INVOICE/PACKING', box: createNormalizedBox(50, 8, 110, 10, { align: 'center', font_size: 16, max_lines: 1, bold: true }) },
+    { text: 'Invoice', box: createNormalizedBox(119, 278, 25, 5, { font_size: 8 }) },
+    { text: 'No.', box: createNormalizedBox(119, 282, 15, 5, { font_size: 8 }) },
+    { text: 'Date', box: createNormalizedBox(160, 278, 20, 5, { font_size: 8 }) },
   ],
   fields: [
     { key: 'invoice_number', label: '', value_box: createNormalizedBox(119, 28, 45, 6, { font_size: 9, max_lines: 1 }) },
