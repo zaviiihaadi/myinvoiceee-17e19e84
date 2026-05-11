@@ -645,20 +645,52 @@ const generateInvoicePDF = async (calc: { unitPrice: number; totalPrice: number;
     const normalizedBox = normalizeTemplateBox(box);
     if (!normalizedText || !normalizedBox) return;
 
-    const fontSize = Math.max(6.5, (normalizedBox.font_size ?? fallbackFontSize) * fontScale);
-    const lineHeight = Math.max(4.0 * fontScale, fontSize * 0.55);
-    const maxLines = normalizedBox.max_lines ?? options.maxLines ?? Math.max(1, Math.floor((normalizedBox.h * pageHeight) / lineHeight));
+    const boxWidthMm = normalizedBox.w * pageWidth;
+    const boxHeightMm = normalizedBox.h * pageHeight;
+    const align = options.align ?? normalizedBox.align ?? 'left';
+    const bold = options.bold ?? normalizedBox.bold ?? false;
+    const requestedFontSize = Math.max(6, (normalizedBox.font_size ?? fallbackFontSize) * fontScale);
+    const hardCapLines = normalizedBox.max_lines ?? options.maxLines;
 
-    drawTextBlock(doc, {
-      text: normalizedText,
-      x: normalizedBox.x * pageWidth,
-      y: (normalizedBox.y * pageHeight) + lineHeight,
-      width: normalizedBox.w * pageWidth,
-      fontSize,
-      lineHeight,
-      align: options.align ?? normalizedBox.align ?? 'left',
-      bold: options.bold ?? normalizedBox.bold ?? false,
-      maxLines,
+    // Auto-shrink: try requested size, then step down to fit within box height & max_lines
+    const MIN_FONT = 5.5;
+    let chosenFontSize = requestedFontSize;
+    let chosenLineHeight = chosenFontSize * 0.42 + 0.6; // mm, conservative line spacing
+    let chosenLines: string[] = [];
+
+    for (let fs = requestedFontSize; fs >= MIN_FONT; fs -= 0.5) {
+      doc.setFont(PDF_FONT_FAMILY, bold ? 'bold' : 'normal');
+      doc.setFontSize(fs);
+      const lh = fs * 0.42 + 0.6;
+      const fitLinesByHeight = Math.max(1, Math.floor(boxHeightMm / lh));
+      const lineCap = Math.min(
+        typeof hardCapLines === 'number' ? hardCapLines : Infinity,
+        fitLinesByHeight,
+      );
+      const wrapped = wrapPdfText(doc, normalizedText, boxWidthMm);
+      if (wrapped.length <= lineCap || fs - 0.5 < MIN_FONT) {
+        chosenFontSize = fs;
+        chosenLineHeight = lh;
+        chosenLines = wrapped.slice(0, lineCap);
+        break;
+      }
+    }
+
+    // Vertically center if there's spare room
+    const usedHeight = chosenLines.length * chosenLineHeight;
+    const topPad = Math.max(0, (boxHeightMm - usedHeight) / 2);
+    const baselineY = (normalizedBox.y * pageHeight) + topPad + chosenFontSize * 0.35 + 0.5;
+
+    doc.setFont(PDF_FONT_FAMILY, bold ? 'bold' : 'normal');
+    doc.setFontSize(chosenFontSize);
+    chosenLines.forEach((line, index) => {
+      const lineX =
+        align === 'left'
+          ? normalizedBox.x * pageWidth
+          : align === 'center'
+            ? normalizedBox.x * pageWidth + boxWidthMm / 2
+            : normalizedBox.x * pageWidth + boxWidthMm;
+      doc.text(line, lineX, baselineY + index * chosenLineHeight, { align });
     });
   };
 
