@@ -1034,6 +1034,94 @@ const generateInvoicePDF = async (calc: { unitPrice: number; totalPrice: number;
                         </div>
                       </div>
 
+                      {/* Editable BL fields — full PDF editor */}
+                      {blData && (
+                        <div className="space-y-3 rounded-xl border border-border/50 bg-muted/30 p-4">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-primary" />
+                            <h4 className="text-sm font-semibold text-foreground">Edit Invoice Fields</h4>
+                            <span className="text-xs text-muted-foreground">— ye sab fields PDF me same dikhayenge</span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Shipper</Label>
+                              <Input value={blData.shipper ?? ''} onChange={(e) => setBlData({ ...blData, shipper: e.target.value })} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Shipper Address</Label>
+                              <Input value={blData.shipper_address ?? ''} onChange={(e) => setBlData({ ...blData, shipper_address: e.target.value })} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Consignee</Label>
+                              <Input value={blData.consignee ?? ''} onChange={(e) => setBlData({ ...blData, consignee: e.target.value })} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Consignee Address</Label>
+                              <Input value={blData.consignee_address ?? ''} onChange={(e) => setBlData({ ...blData, consignee_address: e.target.value })} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Notify Party</Label>
+                              <Input value={blData.notify_party ?? ''} onChange={(e) => setBlData({ ...blData, notify_party: e.target.value })} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Notify Address</Label>
+                              <Input value={blData.notify_party_address ?? ''} onChange={(e) => setBlData({ ...blData, notify_party_address: e.target.value })} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Port of Loading</Label>
+                              <Input value={blData.port_of_loading ?? ''} onChange={(e) => setBlData({ ...blData, port_of_loading: e.target.value })} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Port of Discharge</Label>
+                              <Input value={blData.port_of_discharge ?? ''} onChange={(e) => setBlData({ ...blData, port_of_discharge: e.target.value })} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Vessel / Flight</Label>
+                              <Input value={blData.vessel_name ?? ''} onChange={(e) => setBlData({ ...blData, vessel_name: e.target.value })} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">HS Code</Label>
+                              <Input value={blData.hs_code ?? ''} onChange={(e) => setBlData({ ...blData, hs_code: e.target.value })} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">BL Number</Label>
+                              <Input value={blData.bl_number ?? ''} onChange={(e) => setBlData({ ...blData, bl_number: e.target.value })} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Container Size</Label>
+                              <Input value={blData.container_size ?? ''} onChange={(e) => setBlData({ ...blData, container_size: e.target.value })} />
+                            </div>
+                            <div className="space-y-1 sm:col-span-2">
+                              <Label className="text-xs">Container Numbers (comma separated)</Label>
+                              <Input
+                                value={blData.container_numbers?.join(', ') ?? ''}
+                                onChange={(e) => setBlData({ ...blData, container_numbers: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                              />
+                            </div>
+                            <div className="space-y-1 sm:col-span-2">
+                              <Label className="text-xs">Goods Description</Label>
+                              <Input value={blData.description ?? ''} onChange={(e) => setBlData({ ...blData, description: e.target.value })} />
+                            </div>
+                            <div className="space-y-1 sm:col-span-2">
+                              <Label className="text-xs">Shipping Marks</Label>
+                              <Input value={blData.shipping_marks ?? ''} onChange={(e) => setBlData({ ...blData, shipping_marks: e.target.value })} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Weight (KGS)</Label>
+                              <Input
+                                type="number"
+                                value={blData.kgs ?? ''}
+                                onChange={(e) => setBlData({ ...blData, kgs: e.target.value ? parseFloat(e.target.value) : null })}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Packages Text</Label>
+                              <Input value={blData.packages ?? ''} onChange={(e) => setBlData({ ...blData, packages: e.target.value })} />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Template upload */}
                       <div className="space-y-2">
                         <Label className="flex items-center gap-2">
