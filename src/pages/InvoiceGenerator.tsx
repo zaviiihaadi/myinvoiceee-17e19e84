@@ -445,6 +445,28 @@ const wrapPdfText = (doc: jsPDF, text: string, width: number) => {
     .filter(Boolean);
 };
 
+const truncatePdfLine = (doc: jsPDF, text: string, maxWidth: number) => {
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+  if (doc.getTextWidth(trimmed) <= maxWidth) return trimmed;
+
+  let candidate = trimmed;
+  while (candidate.length > 1 && doc.getTextWidth(`${candidate}…`) > maxWidth) {
+    candidate = candidate.slice(0, -1).trimEnd();
+  }
+
+  return candidate ? `${candidate}…` : '…';
+};
+
+const clampPdfLines = (doc: jsPDF, lines: string[], maxLines: number, maxWidth: number) => {
+  if (lines.length <= maxLines) return lines;
+  if (maxLines <= 0) return [] as string[];
+
+  const trimmed = lines.slice(0, maxLines);
+  trimmed[maxLines - 1] = truncatePdfLine(doc, trimmed[maxLines - 1] || '', maxWidth);
+  return trimmed;
+};
+
 const drawTextBlock = (
   doc: jsPDF,
   {
@@ -647,49 +669,54 @@ const generateInvoicePDF = async (calc: { unitPrice: number; totalPrice: number;
 
     const boxWidthMm = normalizedBox.w * pageWidth;
     const boxHeightMm = normalizedBox.h * pageHeight;
+    const paddingX = Math.min(Math.max(boxWidthMm * 0.025, 0.7), 1.8);
+    const paddingY = Math.min(Math.max(boxHeightMm * 0.08, 0.45), 1.4);
+    const contentWidthMm = Math.max(1, boxWidthMm - paddingX * 2);
+    const contentHeightMm = Math.max(1, boxHeightMm - paddingY * 2);
     const align = options.align ?? normalizedBox.align ?? 'left';
     const bold = options.bold ?? normalizedBox.bold ?? false;
     const requestedFontSize = Math.max(6, (normalizedBox.font_size ?? fallbackFontSize) * fontScale);
     const hardCapLines = normalizedBox.max_lines ?? options.maxLines;
 
-    // Auto-shrink: try requested size, then step down to fit within box height & max_lines
+    // Auto-shrink: use inner padding + ellipsis fallback so text never bleeds into adjacent cells.
     const MIN_FONT = 5.5;
     let chosenFontSize = requestedFontSize;
-    let chosenLineHeight = chosenFontSize * 0.42 + 0.6; // mm, conservative line spacing
+    let chosenLineHeight = chosenFontSize * 0.38 + 0.55;
     let chosenLines: string[] = [];
 
     for (let fs = requestedFontSize; fs >= MIN_FONT; fs -= 0.5) {
       doc.setFont(PDF_FONT_FAMILY, bold ? 'bold' : 'normal');
       doc.setFontSize(fs);
-      const lh = fs * 0.42 + 0.6;
-      const fitLinesByHeight = Math.max(1, Math.floor(boxHeightMm / lh));
+      const lh = fs * 0.38 + 0.55;
+      const fitLinesByHeight = Math.max(1, Math.floor(contentHeightMm / lh));
       const lineCap = Math.min(
         typeof hardCapLines === 'number' ? hardCapLines : Infinity,
         fitLinesByHeight,
       );
-      const wrapped = wrapPdfText(doc, normalizedText, boxWidthMm);
+      const wrapped = wrapPdfText(doc, normalizedText, contentWidthMm);
       if (wrapped.length <= lineCap || fs - 0.5 < MIN_FONT) {
         chosenFontSize = fs;
         chosenLineHeight = lh;
-        chosenLines = wrapped.slice(0, lineCap);
+        chosenLines = clampPdfLines(doc, wrapped, lineCap, contentWidthMm);
         break;
       }
     }
 
-    // Vertically center if there's spare room
     const usedHeight = chosenLines.length * chosenLineHeight;
-    const topPad = Math.max(0, (boxHeightMm - usedHeight) / 2);
-    const baselineY = (normalizedBox.y * pageHeight) + topPad + chosenFontSize * 0.35 + 0.5;
+    const topPad = Math.max(0, (contentHeightMm - usedHeight) / 2);
+    const startX = normalizedBox.x * pageWidth + paddingX;
+    const startY = normalizedBox.y * pageHeight + paddingY;
+    const baselineY = startY + topPad + chosenFontSize * 0.32 + 0.35;
 
     doc.setFont(PDF_FONT_FAMILY, bold ? 'bold' : 'normal');
     doc.setFontSize(chosenFontSize);
     chosenLines.forEach((line, index) => {
       const lineX =
         align === 'left'
-          ? normalizedBox.x * pageWidth
+          ? startX
           : align === 'center'
-            ? normalizedBox.x * pageWidth + boxWidthMm / 2
-            : normalizedBox.x * pageWidth + boxWidthMm;
+            ? startX + contentWidthMm / 2
+            : startX + contentWidthMm;
       doc.text(line, lineX, baselineY + index * chosenLineHeight, { align });
     });
   };
