@@ -210,13 +210,12 @@ const DEFAULT_TEMPLATE_LAYOUT: TemplateLayout = {
   use_exact_positions: true,
   static_texts: [
     { text: 'INVOICE/PACKING', box: createNormalizedBox(50, 8, 110, 10, { align: 'center', font_size: 16, max_lines: 1, bold: true }) },
-    { text: 'Invoice', box: createNormalizedBox(119, 278, 25, 5, { font_size: 8 }) },
-    { text: 'No.', box: createNormalizedBox(119, 282, 15, 5, { font_size: 8 }) },
-    { text: 'Date', box: createNormalizedBox(160, 278, 20, 5, { font_size: 8 }) },
+    { text: 'Invoice No.', box: createNormalizedBox(119, 22, 25, 5, { font_size: 8, bold: true }) },
+    { text: 'Date', box: createNormalizedBox(168, 22, 15, 5, { font_size: 8, bold: true }) },
   ],
   fields: [
-    { key: 'invoice_number', label: '', value_box: createNormalizedBox(119, 28, 45, 6, { font_size: 9, max_lines: 1 }) },
-    { key: 'date', label: '', value_box: createNormalizedBox(168, 28, 30, 6, { font_size: 9, max_lines: 1 }) },
+    { key: 'invoice_number', label: '', value_box: createNormalizedBox(144, 22, 22, 5, { font_size: 9, max_lines: 1 }) },
+    { key: 'date', label: '', value_box: createNormalizedBox(183, 22, 22, 5, { font_size: 9, max_lines: 1 }) },
     { key: 'shipper', label: '1.Shipper', label_box: createNormalizedBox(10, 28, 95, 5, { font_size: 8, bold: true }), value_box: createNormalizedBox(10, 35, 95, 28, { font_size: 8.5, max_lines: 6 }) },
     { key: 'notify_party', label: 'NOTIFY PARTY', label_box: createNormalizedBox(119, 36, 80, 5, { font_size: 8, bold: true }), value_box: createNormalizedBox(119, 43, 80, 24, { font_size: 8.5, max_lines: 5 }) },
     { key: 'consignee', label: '2.Consignee', label_box: createNormalizedBox(10, 92, 95, 5, { font_size: 8, bold: true }), value_box: createNormalizedBox(10, 99, 95, 24, { font_size: 8.5, max_lines: 5 }) },
