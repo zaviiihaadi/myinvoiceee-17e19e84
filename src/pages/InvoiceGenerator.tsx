@@ -836,13 +836,65 @@ const generateInvoicePDF = async (calc: { unitPrice: number; totalPrice: number;
     setGenerating(true);
     try {
       const invNum = invoiceNumber || `INV-${Date.now()}`;
-      const doc = await generateInvoicePDF(calc);
-      doc.save(`Invoice-${invNum}.pdf`);
+      const containerNums = blData?.container_numbers?.join(', ') || '';
+      const firstContainer = blData?.container_numbers?.[0] || '';
+      const containerSize = blData?.container_size || '';
+      const bales = balesCount || blData?.bales || '';
+
+      // Adobe Document Generation merge tags
+      const adobeData = {
+        invoice_number: invNum,
+        date: invoiceDate,
+        shipper: blData?.shipper || '',
+        shipper_address: blData?.shipper_address || '',
+        consignee: blData?.consignee || '',
+        consignee_address: blData?.consignee_address || '',
+        notify_party: blData?.notify_party || blData?.consignee || '',
+        notify_party_address: blData?.notify_party_address || blData?.consignee_address || '',
+        container_size: containerSize,
+        container_numbers: containerNums,
+        container_numbers_one: firstContainer,
+        vessel: blData?.vessel_name || '',
+        port_of_loading: blData?.port_of_loading || '',
+        port_of_discharge: blData?.port_of_discharge || '',
+        hs_code: blData?.hs_code || '',
+        goods_description: blData?.description || '',
+        gross_weight: `${calc.kgs}KGS`,
+        unit_price: `${calc.unitPrice.toFixed(2)}US$ Per KG`,
+        amount: `${calc.totalPrice.toFixed(3)}$`,
+        shipping_marks: blData?.shipping_marks || 'NIL',
+        packages: bales ? `${bales} BALES` : (blData?.packages || ''),
+        company_name: blData?.shipper || '',
+      };
+
+      const { data, error } = await supabase.functions.invoke('generate-invoice-adobe', {
+        body: { data: adobeData },
+      });
+
+      if (error) throw error;
+      if (!data?.success || !data?.pdfBase64) {
+        throw new Error(data?.error || 'Adobe generation failed');
+      }
+
+      // Decode base64 and download
+      const bin = atob(data.pdfBase64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Invoice-${invNum}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
       setStep(3);
-      toast.success('Invoice generated and downloaded!');
+      toast.success('Invoice generated via Adobe!');
     } catch (err: any) {
       console.error('Invoice generation error:', err);
-      toast.error('Failed to generate invoice');
+      toast.error(`Failed: ${err?.message || 'Unknown error'}`);
     } finally {
       setGenerating(false);
     }
