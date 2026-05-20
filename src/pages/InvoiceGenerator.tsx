@@ -1289,7 +1289,7 @@ const generateInvoicePDF = async (calc: { unitPrice: number; totalPrice: number;
                             </div>
                           ) : (
                             <span className="text-muted-foreground">
-                               Upload original template for AI exact matching — no background image and no extra lines
+                               Upload PDF ya Word (.docx) template — PDF me text overlay hoga, DOCX me Adobe merge tags
                             </span>
                           )}
                         </div>
