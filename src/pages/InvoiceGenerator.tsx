@@ -554,6 +554,17 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
   if (!file) return;
   setTemplateFile(file);
 
+  const name = file.name.toLowerCase();
+  const isDocx = name.endsWith('.docx') || name.endsWith('.doc') ||
+    file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+  if (isDocx) {
+    // DOCX -> Adobe handles merge tags inside the document. Skip AI layout extraction.
+    setTemplateLayout(null);
+    toast.success('Word template ready. Adobe API merge tags ({{invoice_number}} etc.) ka use karega — spacing & stamp 100% same.');
+    return;
+  }
+
   setExtractingTemplate(true);
   try {
     const base64 = await readFileAsBase64(file);
@@ -565,7 +576,7 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (error) throw error;
 
     setTemplateLayout(data);
-    toast.success('AI template mapping ready. Invoice ab without lines aur exact positions ke saath generate hogi.');
+    toast.success('PDF template mapped. Original PDF ke upar text overlay hoga — stamp & spacing 100% same.');
   } catch (err: any) {
     console.error('Template extraction error:', err);
     setTemplateLayout(null);
@@ -574,6 +585,7 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setExtractingTemplate(false);
   }
 };
+
 
   const extractBLData = async () => {
     if (!blFile) return;
