@@ -138,7 +138,9 @@ Deno.serve(async (req) => {
 
     const token = await getAdobeToken(ADOBE_CLIENT_ID, ADOBE_CLIENT_SECRET);
 
-    const templateBytes = b64ToBytes(INVOICE_TEMPLATE_BASE64);
+    // User-uploaded DOCX template (preferred), else fallback to built-in
+    const userTemplateB64: string | undefined = payload?.templateBase64;
+    const templateBytes = userTemplateB64 ? b64ToBytes(userTemplateB64) : b64ToBytes(INVOICE_TEMPLATE_BASE64);
     const templateAssetID = await uploadAsset(
       token,
       ADOBE_CLIENT_ID,

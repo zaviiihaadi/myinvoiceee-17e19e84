@@ -554,6 +554,17 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
   if (!file) return;
   setTemplateFile(file);
 
+  const name = file.name.toLowerCase();
+  const isDocx = name.endsWith('.docx') || name.endsWith('.doc') ||
+    file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+  if (isDocx) {
+    // DOCX -> Adobe handles merge tags inside the document. Skip AI layout extraction.
+    setTemplateLayout(null);
+    toast.success('Word template ready. Adobe API merge tags ({{invoice_number}} etc.) ka use karega — spacing & stamp 100% same.');
+    return;
+  }
+
   setExtractingTemplate(true);
   try {
     const base64 = await readFileAsBase64(file);
@@ -565,7 +576,7 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (error) throw error;
 
     setTemplateLayout(data);
-    toast.success('AI template mapping ready. Invoice ab without lines aur exact positions ke saath generate hogi.');
+    toast.success('PDF template mapped. Original PDF ke upar text overlay hoga — stamp & spacing 100% same.');
   } catch (err: any) {
     console.error('Template extraction error:', err);
     setTemplateLayout(null);
@@ -574,6 +585,7 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setExtractingTemplate(false);
   }
 };
+
 
   const extractBLData = async () => {
     if (!blFile) return;
@@ -867,17 +879,38 @@ const generateInvoicePDF = async (calc: { unitPrice: number; totalPrice: number;
         company_name: blData?.shipper || '',
       };
 
-      const { data, error } = await supabase.functions.invoke('generate-invoice-adobe', {
-        body: { data: adobeData },
-      });
+      // Determine route: user PDF template -> overlay; user DOCX -> Adobe with their template; else built-in Adobe
+      const tplName = (templateFile?.name || '').toLowerCase();
+      const isUserPdf = templateFile && (templateFile.type === 'application/pdf' || tplName.endsWith('.pdf'));
+      const isUserDocx = templateFile && (
+        tplName.endsWith('.docx') || tplName.endsWith('.doc') ||
+        templateFile.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      );
 
-      if (error) throw error;
-      if (!data?.success || !data?.pdfBase64) {
-        throw new Error(data?.error || 'Adobe generation failed');
+      let pdfBase64: string | undefined;
+
+      if (isUserPdf) {
+        // Overlay text on user's PDF (stamp + lines + spacing preserved)
+        const templateBase64 = await readFileAsBase64(templateFile!);
+        const resolved = resolveTemplateLayout(templateLayout);
+        const { data, error } = await supabase.functions.invoke('generate-invoice-overlay', {
+          body: { templateBase64, data: adobeData, fields: resolved.fields ?? [] },
+        });
+        if (error) throw error;
+        if (!data?.success) throw new Error(data?.error || 'PDF overlay failed');
+        pdfBase64 = data.pdfBase64;
+      } else {
+        // Adobe Document Generation (DOCX template — user's or built-in)
+        const templateBase64 = isUserDocx ? await readFileAsBase64(templateFile!) : undefined;
+        const { data, error } = await supabase.functions.invoke('generate-invoice-adobe', {
+          body: { data: adobeData, templateBase64 },
+        });
+        if (error) throw error;
+        if (!data?.success || !data?.pdfBase64) throw new Error(data?.error || 'Adobe generation failed');
+        pdfBase64 = data.pdfBase64;
       }
 
-      // Decode base64 and download
-      const bin = atob(data.pdfBase64);
+      const bin = atob(pdfBase64!);
       const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
       const blob = new Blob([bytes], { type: 'application/pdf' });
@@ -1238,7 +1271,7 @@ const generateInvoicePDF = async (calc: { unitPrice: number; totalPrice: number;
                           <FileUp className="w-4 h-4 text-primary" />
                             Original Invoice Template (AI Exact Match)
                         </Label>
-                         <input ref={templateInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={handleTemplateUpload} className="hidden" />
+                         <input ref={templateInputRef} type="file" accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp" onChange={handleTemplateUpload} className="hidden" />
                         <div
                           onClick={() => templateInputRef.current?.click()}
                           className="border border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all text-sm"
@@ -1256,7 +1289,7 @@ const generateInvoicePDF = async (calc: { unitPrice: number; totalPrice: number;
                             </div>
                           ) : (
                             <span className="text-muted-foreground">
-                               Upload original template for AI exact matching — no background image and no extra lines
+                               Upload PDF ya Word (.docx) template — PDF me text overlay hoga, DOCX me Adobe merge tags
                             </span>
                           )}
                         </div>
