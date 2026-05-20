@@ -879,17 +879,37 @@ const generateInvoicePDF = async (calc: { unitPrice: number; totalPrice: number;
         company_name: blData?.shipper || '',
       };
 
-      const { data, error } = await supabase.functions.invoke('generate-invoice-adobe', {
-        body: { data: adobeData },
-      });
+      // Determine route: user PDF template -> overlay; user DOCX -> Adobe with their template; else built-in Adobe
+      const tplName = (templateFile?.name || '').toLowerCase();
+      const isUserPdf = templateFile && (templateFile.type === 'application/pdf' || tplName.endsWith('.pdf'));
+      const isUserDocx = templateFile && (
+        tplName.endsWith('.docx') || tplName.endsWith('.doc') ||
+        templateFile.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      );
 
-      if (error) throw error;
-      if (!data?.success || !data?.pdfBase64) {
-        throw new Error(data?.error || 'Adobe generation failed');
+      let pdfBase64: string | undefined;
+
+      if (isUserPdf) {
+        // Overlay text on user's PDF (stamp + lines + spacing preserved)
+        const templateBase64 = await readFileAsBase64(templateFile!);
+        const resolved = resolveTemplateLayout(templateLayout);
+        const { data, error } = await supabase.functions.invoke('generate-invoice-overlay', {
+          body: { templateBase64, data: adobeData, fields: resolved.fields ?? [] },
+        });
+        if (error) throw error;
+        if (!data?.success) throw new Error(data?.error || 'PDF overlay failed');
+        pdfBase64 = data.pdfBase64;
+      } else {
+        // Adobe Document Generation (DOCX template — user's or built-in)
+        const templateBase64 = isUserDocx ? await readFileAsBase64(templateFile!) : undefined;
+        const { data, error } = await supabase.functions.invoke('generate-invoice-adobe', {
+          body: { data: adobeData, templateBase64 },
+        });
+        if (error) throw error;
+        if (!data?.success || !data?.pdfBase64) throw new Error(data?.error || 'Adobe generation failed');
+        pdfBase64 = data.pdfBase64;
       }
 
-      // Decode base64 and download
-      const bin = atob(data.pdfBase64);
       const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
       const blob = new Blob([bytes], { type: 'application/pdf' });
