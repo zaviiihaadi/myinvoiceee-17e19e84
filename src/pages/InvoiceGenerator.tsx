@@ -1271,7 +1271,7 @@ const generateInvoicePDF = async (calc: { unitPrice: number; totalPrice: number;
                           <FileUp className="w-4 h-4 text-primary" />
                             Original Invoice Template (AI Exact Match)
                         </Label>
-                         <input ref={templateInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={handleTemplateUpload} className="hidden" />
+                         <input ref={templateInputRef} type="file" accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp" onChange={handleTemplateUpload} className="hidden" />
                         <div
                           onClick={() => templateInputRef.current?.click()}
                           className="border border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all text-sm"
