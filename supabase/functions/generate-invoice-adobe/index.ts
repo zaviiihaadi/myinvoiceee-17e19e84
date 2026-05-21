@@ -24,7 +24,7 @@ function bytesToB64(bytes: Uint8Array): string {
 function withTagAliases(baseTags: Record<string, string>): Record<string, string> {
   const tags: Record<string, string> = { ...baseTags };
 
-  const separators = ['_', ' ', '  ', '\u00A0', '\u00A0 ', ' \u00A0', ' \u00A0 ', '-'];
+  const separators = ['_', ' ', '  ', '\u00A0'.replace('\\u00A0', '\u00A0'), `${'\u00A0'.replace('\\u00A0', '\u00A0')} `, ` ${'\u00A0'.replace('\\u00A0', '\u00A0')}`, ` ${'\u00A0'.replace('\\u00A0', '\u00A0')} `, '-'];
 
   for (const [key, value] of Object.entries(baseTags)) {
     tags[key] = value;
