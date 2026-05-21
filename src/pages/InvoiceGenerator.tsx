@@ -891,10 +891,20 @@ const generateInvoicePDF = async (calc: { unitPrice: number; totalPrice: number;
 
       if (isUserPdf) {
         // Overlay text on user's PDF (stamp + lines + spacing preserved)
+        // Combine name + address into single block for layout fields that hold both
+        const overlayData = {
+          ...adobeData,
+          shipper: [blData?.shipper, blData?.shipper_address].filter(Boolean).join('\n'),
+          consignee: [blData?.consignee, blData?.consignee_address].filter(Boolean).join('\n'),
+          notify_party: [
+            blData?.notify_party || blData?.consignee,
+            blData?.notify_party_address || blData?.consignee_address,
+          ].filter(Boolean).join('\n'),
+        };
         const templateBase64 = await readFileAsBase64(templateFile!);
         const resolved = resolveTemplateLayout(templateLayout);
         const { data, error } = await supabase.functions.invoke('generate-invoice-overlay', {
-          body: { templateBase64, data: adobeData, fields: resolved.fields ?? [] },
+          body: { templateBase64, data: overlayData, fields: resolved.fields ?? [] },
         });
         if (error) throw error;
         if (!data?.success) throw new Error(data?.error || 'PDF overlay failed');
