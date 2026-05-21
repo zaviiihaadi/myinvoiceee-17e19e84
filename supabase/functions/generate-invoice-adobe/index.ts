@@ -21,6 +21,29 @@ function bytesToB64(bytes: Uint8Array): string {
   return btoa(s);
 }
 
+function withTagAliases(baseTags: Record<string, string>): Record<string, string> {
+  const tags: Record<string, string> = { ...baseTags };
+
+  const separators = ['_', ' ', '  ', '\u00A0', '-'];
+
+  for (const [key, value] of Object.entries(baseTags)) {
+    tags[key] = value;
+
+    if (!key.includes('_')) continue;
+
+    const parts = key.split('_').filter(Boolean);
+    if (parts.length < 2) continue;
+
+    for (const separator of separators) {
+      tags[parts.join(separator)] = value;
+    }
+
+    tags[key.replace(/_/g, '')] = value;
+  }
+
+  return tags;
+}
+
 async function getAdobeToken(clientId: string, clientSecret: string): Promise<string> {
   const body = new URLSearchParams({
     client_id: clientId,
@@ -111,7 +134,7 @@ Deno.serve(async (req) => {
     const data = payload?.data ?? {};
 
     // Normalize tag values to strings
-    const tags: Record<string, string> = {
+    const baseTags: Record<string, string> = {
       invoice_number: String(data.invoice_number ?? ''),
       date: String(data.date ?? ''),
       shipper: String(data.shipper ?? ''),
@@ -135,6 +158,7 @@ Deno.serve(async (req) => {
       packages: String(data.packages ?? ''),
       company_name: String(data.company_name ?? ''),
     };
+    const tags = withTagAliases(baseTags);
 
     const token = await getAdobeToken(ADOBE_CLIENT_ID, ADOBE_CLIENT_SECRET);
 
