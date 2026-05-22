@@ -1451,7 +1451,7 @@ const generateInvoicePDF = async (calc: {
                         </Label>
                          <input ref={templateInputRef} type="file" accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp" onChange={handleTemplateUpload} className="hidden" />
                         <div
-                          onClick={() => templateInputRef.current?.click()}
+                          onClick={() => !templateFile && templateInputRef.current?.click()}
                           className="border border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all text-sm"
                         >
                           {extractingTemplate ? (
@@ -1460,10 +1460,25 @@ const generateInvoicePDF = async (calc: {
                               <span className="text-muted-foreground">Analyzing template layout...</span>
                             </div>
                           ) : templateFile ? (
-                            <div className="flex items-center justify-center gap-2">
-                              <CheckCircle2 className="w-4 h-4 text-green-500" />
-                              <span className="text-foreground">{templateFile.name}</span>
-                               <span className="text-xs text-green-600">(AI exact-match mode)</span>
+                            <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+                              <div className="flex items-center justify-center gap-2">
+                                <CheckCircle2 className="w-4 h-4 text-green-500" />
+                                <span className="text-foreground">{templateFile.name}</span>
+                                 <span className="text-xs text-green-600">(AI exact-match mode)</span>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="gap-2"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void removeSavedTemplate();
+                                }}
+                              >
+                                <RotateCcw className="w-4 h-4" />
+                                Remove template
+                              </Button>
                             </div>
                           ) : (
                             <span className="text-muted-foreground">
@@ -1499,7 +1514,7 @@ const generateInvoicePDF = async (calc: {
                             </div>
                             <div>
                               <p className="text-xs text-muted-foreground">Total</p>
-                              <p className="text-lg font-bold text-foreground">${calc.totalPrice.toLocaleString()}</p>
+                              <p className="text-lg font-bold text-foreground">${calc.totalPriceDisplay}</p>
                             </div>
                           </div>
                         </motion.div>
