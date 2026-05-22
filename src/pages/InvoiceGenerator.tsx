@@ -1309,7 +1309,8 @@ const generateInvoicePDF = async (calc: {
                             Company Total Price ($)
                           </Label>
                           <Input
-                            type="number"
+                            type="text"
+                            inputMode="decimal"
                             placeholder="e.g. 7479"
                             value={companyPrice}
                             onChange={(e) => setCompanyPrice(e.target.value)}
