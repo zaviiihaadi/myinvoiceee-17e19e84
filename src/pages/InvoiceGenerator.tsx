@@ -678,12 +678,16 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     // DOCX -> Adobe handles merge tags inside the document. Skip AI layout extraction.
     setTemplateLayout(null);
     if (templateStorageKey) {
-      await savePersistedInvoiceTemplate(templateStorageKey, {
-        blob: file,
-        layout: null,
-        name: file.name,
-        type: file.type,
-      });
+      try {
+        await savePersistedInvoiceTemplate(templateStorageKey, {
+          blob: file,
+          layout: null,
+          name: file.name,
+          type: file.type,
+        });
+      } catch (storageError) {
+        console.error('Failed to persist invoice template:', storageError);
+      }
     }
     toast.success('Word template ready. Adobe API merge tags ({{invoice_number}} etc.) ka use karega — spacing & stamp 100% same.');
     return;
