@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/button';
@@ -503,10 +503,94 @@ const drawTextBlock = (
   });
 };
 
-const formatCurrency = (value: number) => value.toLocaleString(undefined, {
-  minimumFractionDigits: 3,
-  maximumFractionDigits: 3,
+interface PersistedInvoiceTemplate {
+  blob: Blob;
+  layout: TemplateLayout | null;
+  name: string;
+  type: string;
+}
+
+const INVOICE_TEMPLATE_DB_NAME = 'shipahead-invoice-generator';
+const INVOICE_TEMPLATE_STORE = 'invoice-template-store';
+
+const openInvoiceTemplateDb = () => new Promise<IDBDatabase>((resolve, reject) => {
+  const request = window.indexedDB.open(INVOICE_TEMPLATE_DB_NAME, 1);
+
+  request.onupgradeneeded = () => {
+    const db = request.result;
+    if (!db.objectStoreNames.contains(INVOICE_TEMPLATE_STORE)) {
+      db.createObjectStore(INVOICE_TEMPLATE_STORE);
+    }
+  };
+
+  request.onsuccess = () => resolve(request.result);
+  request.onerror = () => reject(request.error ?? new Error('Failed to open template storage'));
 });
+
+const loadPersistedInvoiceTemplate = async (storageKey: string): Promise<PersistedInvoiceTemplate | null> => {
+  const db = await openInvoiceTemplateDb();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(INVOICE_TEMPLATE_STORE, 'readonly');
+    const request = transaction.objectStore(INVOICE_TEMPLATE_STORE).get(storageKey);
+
+    request.onsuccess = () => resolve((request.result as PersistedInvoiceTemplate | undefined) ?? null);
+    request.onerror = () => reject(request.error ?? new Error('Failed to load saved template'));
+    transaction.oncomplete = () => db.close();
+    transaction.onerror = () => reject(transaction.error ?? new Error('Failed to load saved template'));
+  });
+};
+
+const savePersistedInvoiceTemplate = async (storageKey: string, template: PersistedInvoiceTemplate) => {
+  const db = await openInvoiceTemplateDb();
+
+  return new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(INVOICE_TEMPLATE_STORE, 'readwrite');
+    transaction.objectStore(INVOICE_TEMPLATE_STORE).put(template, storageKey);
+
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    transaction.onerror = () => reject(transaction.error ?? new Error('Failed to save template'));
+  });
+};
+
+const removePersistedInvoiceTemplate = async (storageKey: string) => {
+  const db = await openInvoiceTemplateDb();
+
+  return new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(INVOICE_TEMPLATE_STORE, 'readwrite');
+    transaction.objectStore(INVOICE_TEMPLATE_STORE).delete(storageKey);
+
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    transaction.onerror = () => reject(transaction.error ?? new Error('Failed to remove template'));
+  });
+};
+
+const normalizeAmountInput = (value: string) => value.replace(/,/g, '').trim();
+
+const parseExactAmountInput = (value: string) => {
+  const normalized = normalizeAmountInput(value);
+  if (!normalized || !/^(?:\d+|\d*\.\d+)$/.test(normalized)) return null;
+
+  const amount = Number(normalized);
+  if (!Number.isFinite(amount)) return null;
+
+  return { amount, normalized };
+};
+
+const formatExactAmount = (normalized: string) => {
+  const [integerPart = '0', decimalPart] = normalized.split('.');
+  const groupedInteger = Number(integerPart || '0').toLocaleString(undefined, {
+    maximumFractionDigits: 0,
+  });
+
+  return decimalPart !== undefined ? `${groupedInteger}.${decimalPart}` : groupedInteger;
+};
 
 export default function InvoiceGenerator() {
   const { user, loading: authLoading } = useAuth();
@@ -530,6 +614,8 @@ export default function InvoiceGenerator() {
   const [templateLayout, setTemplateLayout] = useState<TemplateLayout | null>(null);
   const [extractingTemplate, setExtractingTemplate] = useState(false);
 
+  const templateStorageKey = user?.id ? `invoice-template:${user.id}` : null;
+
   if (authLoading) return <div className="min-h-screen bg-background" />;
   if (!user) {
     navigate('/auth');
@@ -549,6 +635,36 @@ export default function InvoiceGenerator() {
   };
 
 
+  useEffect(() => {
+    if (!templateStorageKey) return;
+
+    let cancelled = false;
+
+    const restoreTemplate = async () => {
+      try {
+        const savedTemplate = await loadPersistedInvoiceTemplate(templateStorageKey);
+        if (!savedTemplate || cancelled) return;
+
+        const restoredFile = new File([savedTemplate.blob], savedTemplate.name, {
+          type: savedTemplate.type,
+          lastModified: Date.now(),
+        });
+
+        setTemplateFile(restoredFile);
+        setTemplateLayout(savedTemplate.layout ?? null);
+      } catch (error) {
+        console.error('Failed to restore saved invoice template:', error);
+      }
+    };
+
+    void restoreTemplate();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [templateStorageKey]);
+
+
 const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
   const file = e.target.files?.[0];
   if (!file) return;
@@ -561,11 +677,20 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
   if (isDocx) {
     // DOCX -> Adobe handles merge tags inside the document. Skip AI layout extraction.
     setTemplateLayout(null);
+    if (templateStorageKey) {
+      await savePersistedInvoiceTemplate(templateStorageKey, {
+        blob: file,
+        layout: null,
+        name: file.name,
+        type: file.type,
+      });
+    }
     toast.success('Word template ready. Adobe API merge tags ({{invoice_number}} etc.) ka use karega — spacing & stamp 100% same.');
     return;
   }
 
   setExtractingTemplate(true);
+  let extractedLayout: TemplateLayout | null = null;
   try {
     const base64 = await readFileAsBase64(file);
 
@@ -575,6 +700,7 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
     if (error) throw error;
 
+    extractedLayout = data;
     setTemplateLayout(data);
     toast.success('PDF template mapped. Original PDF ke upar text overlay hoga — stamp & spacing 100% same.');
   } catch (err: any) {
@@ -582,6 +708,18 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setTemplateLayout(null);
     toast.warning(err.message || 'Template AI mapping fail hua. Fallback line-free layout use hoga.');
   } finally {
+    if (templateStorageKey) {
+      try {
+        await savePersistedInvoiceTemplate(templateStorageKey, {
+          blob: file,
+          layout: extractedLayout,
+          name: file.name,
+          type: file.type,
+        });
+      } catch (storageError) {
+        console.error('Failed to persist invoice template:', storageError);
+      }
+    }
     setExtractingTemplate(false);
   }
 };
@@ -620,19 +758,19 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
   const calculateValues = () => {
     if (!blData?.kgs || !companyPrice) return null;
-    const price = parseFloat(companyPrice);
-    if (isNaN(price)) return null;
+    const parsedAmount = parseExactAmountInput(companyPrice);
+    if (!parsedAmount) return null;
     const MIN_UNIT_PRICE = 0.42;
-    // Total amount must exactly equal the entered company price (no rounding drift)
-    let totalPrice = price;
-    // Unit price derived from exact total / kgs (kept at higher precision to avoid mismatch)
-    let unitPrice = Math.round((totalPrice / blData.kgs) * 10000) / 10000;
-    // Enforce minimum unit price; recompute total exactly from min unit price
-    if (unitPrice < MIN_UNIT_PRICE) {
-      unitPrice = MIN_UNIT_PRICE;
-      totalPrice = Math.round(unitPrice * blData.kgs * 1000) / 1000;
-    }
-    return { unitPrice, totalPrice, kgs: blData.kgs };
+    const rawUnitPrice = parsedAmount.amount / blData.kgs;
+    const unitPrice = Math.max(MIN_UNIT_PRICE, Math.round(rawUnitPrice * 100) / 100);
+
+    return {
+      unitPrice,
+      totalPrice: parsedAmount.amount,
+      totalPriceDisplay: formatExactAmount(parsedAmount.normalized),
+      totalPriceText: parsedAmount.normalized,
+      kgs: blData.kgs,
+    };
   };
 
 
