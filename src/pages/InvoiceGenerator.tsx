@@ -977,7 +977,7 @@ const generateInvoicePDF = async (calc: { unitPrice: number; totalPrice: number;
     { valueAlign: 'right' },
   );
   drawField('unit_price', `${calc.unitPrice.toFixed(2)} US$ PER KG`, 'UNIT PRICE', 9.5, { valueAlign: 'right' });
-  drawField('amount', `${formatCurrency(calc.totalPrice)} US$`, 'AMOUNT', 11, { valueBold: true, valueAlign: 'right' });
+  drawField('amount', `${calc.totalPriceDisplay} US$`, 'AMOUNT', 11, { valueBold: true, valueAlign: 'right' });
   drawField('reference', referenceBlock, 'REFERENCE', 8.5, { maxLines: 5 });
   drawField('company_name', blData?.shipper || 'COMPANY NAME', '', 10, { valueBold: true, valueAlign: 'center', maxLines: 1 });
 
@@ -1018,7 +1018,7 @@ const generateInvoicePDF = async (calc: { unitPrice: number; totalPrice: number;
         goods_description: blData?.description || '',
         gross_weight: `${calc.kgs}KGS`,
         unit_price: `${calc.unitPrice.toFixed(2)}US$ Per KG`,
-        amount: `${calc.totalPrice.toFixed(3)}$`,
+        amount: `${calc.totalPriceText}$`,
         shipping_marks: blData?.shipping_marks || 'NIL',
         packages: bales ? `${bales} BALES` : (blData?.packages || ''),
         company_name: blData?.shipper || '',
@@ -1088,15 +1088,28 @@ const generateInvoicePDF = async (calc: { unitPrice: number; totalPrice: number;
     }
   };
 
+  const removeSavedTemplate = async () => {
+    try {
+      if (templateStorageKey) {
+        await removePersistedInvoiceTemplate(templateStorageKey);
+      }
+      setTemplateFile(null);
+      setTemplateLayout(null);
+      if (templateInputRef.current) templateInputRef.current.value = '';
+      toast.success('Saved template removed.');
+    } catch (error) {
+      console.error('Failed to remove saved template:', error);
+      toast.error('Template remove nahi hua. Dobara try karein.');
+    }
+  };
+
   const resetAll = () => {
     setBlFile(null);
-    setTemplateFile(null);
     setCompanyPrice('');
     setInvoiceNumber('');
     setBalesCount('');
     setBlData(null);
     setStep(1);
-    setTemplateLayout(null);
     setInvoiceDate(() => {
       const d = new Date();
       return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
