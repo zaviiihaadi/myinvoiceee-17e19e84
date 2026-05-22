@@ -622,10 +622,16 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!blData?.kgs || !companyPrice) return null;
     const price = parseFloat(companyPrice);
     if (isNaN(price)) return null;
+    const MIN_UNIT_PRICE = 0.42;
     // Total amount must exactly equal the entered company price (no rounding drift)
-    const totalPrice = price;
+    let totalPrice = price;
     // Unit price derived from exact total / kgs (kept at higher precision to avoid mismatch)
-    const unitPrice = Math.round((totalPrice / blData.kgs) * 10000) / 10000;
+    let unitPrice = Math.round((totalPrice / blData.kgs) * 10000) / 10000;
+    // Enforce minimum unit price; recompute total exactly from min unit price
+    if (unitPrice < MIN_UNIT_PRICE) {
+      unitPrice = MIN_UNIT_PRICE;
+      totalPrice = Math.round(unitPrice * blData.kgs * 100) / 100;
+    }
     return { unitPrice, totalPrice, kgs: blData.kgs };
   };
 
