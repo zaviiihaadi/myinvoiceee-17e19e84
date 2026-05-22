@@ -774,7 +774,13 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
   };
 
 
-const generateInvoicePDF = async (calc: { unitPrice: number; totalPrice: number; kgs: number }) => {
+const generateInvoicePDF = async (calc: {
+  unitPrice: number;
+  totalPrice: number;
+  totalPriceDisplay: string;
+  totalPriceText: string;
+  kgs: number;
+}) => {
   const invNum = invoiceNumber || `INV-${Date.now()}`;
   const bales = balesCount || blData?.bales || '';
   const date = invoiceDate;
