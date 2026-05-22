@@ -630,7 +630,7 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     // Enforce minimum unit price; recompute total exactly from min unit price
     if (unitPrice < MIN_UNIT_PRICE) {
       unitPrice = MIN_UNIT_PRICE;
-      totalPrice = Math.round(unitPrice * blData.kgs * 100) / 100;
+      totalPrice = Math.round(unitPrice * blData.kgs * 1000) / 1000;
     }
     return { unitPrice, totalPrice, kgs: blData.kgs };
   };
