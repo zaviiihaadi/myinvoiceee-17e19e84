@@ -504,8 +504,8 @@ const drawTextBlock = (
 };
 
 const formatCurrency = (value: number) => value.toLocaleString(undefined, {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
+  minimumFractionDigits: 3,
+  maximumFractionDigits: 3,
 });
 
 export default function InvoiceGenerator() {
