@@ -573,6 +573,74 @@ const removePersistedInvoiceTemplate = async (storageKey: string) => {
 
 const normalizeAmountInput = (value: string) => value.replace(/,/g, '').trim();
 
+const normalizeDecimalForMath = (value: string) => {
+  const normalized = normalizeAmountInput(value);
+  if (!/^(?:\d+|\d*\.\d+)$/.test(normalized)) return null;
+
+  const [integerRaw = '0', decimalRaw = ''] = normalized.split('.');
+  const integerPart = integerRaw.replace(/^0+(?=\d)/, '') || '0';
+  const decimalPart = decimalRaw.replace(/0+$/, '');
+
+  return decimalPart ? `${integerPart}.${decimalPart}` : integerPart;
+};
+
+const parseDecimalParts = (value: string) => {
+  const normalized = normalizeDecimalForMath(value);
+  if (!normalized) return null;
+
+  const [integerPart = '0', decimalPart = ''] = normalized.split('.');
+  return {
+    normalized,
+    scale: decimalPart.length,
+    value: BigInt(`${integerPart}${decimalPart}` || '0'),
+  };
+};
+
+const compareDecimalStrings = (left: string, right: string) => {
+  const leftParts = parseDecimalParts(left);
+  const rightParts = parseDecimalParts(right);
+  if (!leftParts || !rightParts) return 0;
+
+  const scale = Math.max(leftParts.scale, rightParts.scale);
+  const leftValue = leftParts.value * (10n ** BigInt(scale - leftParts.scale));
+  const rightValue = rightParts.value * (10n ** BigInt(scale - rightParts.scale));
+
+  if (leftValue === rightValue) return 0;
+  return leftValue > rightValue ? 1 : -1;
+};
+
+const divideDecimalStrings = (numerator: string, denominator: string, precision = 6) => {
+  const numeratorParts = parseDecimalParts(numerator);
+  const denominatorParts = parseDecimalParts(denominator);
+  if (!numeratorParts || !denominatorParts || denominatorParts.value === 0n) return null;
+
+  const precisionFactor = 10n ** BigInt(precision);
+  const scaledNumerator = numeratorParts.value * precisionFactor * (10n ** BigInt(denominatorParts.scale));
+  const scaledDenominator = denominatorParts.value * (10n ** BigInt(numeratorParts.scale));
+  const quotient = scaledNumerator / scaledDenominator;
+  const remainder = scaledNumerator % scaledDenominator;
+  const roundedQuotient = remainder * 2n >= scaledDenominator ? quotient + 1n : quotient;
+
+  const integerPart = roundedQuotient / precisionFactor;
+  const decimalPart = (roundedQuotient % precisionFactor).toString().padStart(precision, '0').replace(/0+$/, '');
+
+  return decimalPart ? `${integerPart.toString()}.${decimalPart}` : integerPart.toString();
+};
+
+const formatCalculatedDecimal = (normalized: string, minimumFractionDigits = 2) => {
+  const [integerPart = '0', decimalPart = ''] = normalized.split('.');
+  const trimmedDecimal = decimalPart.replace(/0+$/, '');
+  const finalDecimal = trimmedDecimal.length
+    ? trimmedDecimal.length < minimumFractionDigits
+      ? trimmedDecimal.padEnd(minimumFractionDigits, '0')
+      : trimmedDecimal
+    : minimumFractionDigits
+      ? ''.padEnd(minimumFractionDigits, '0')
+      : '';
+
+  return finalDecimal ? `${integerPart}.${finalDecimal}` : integerPart;
+};
+
 const parseExactAmountInput = (value: string) => {
   const normalized = normalizeAmountInput(value);
   if (!normalized || !/^(?:\d+|\d*\.\d+)$/.test(normalized)) return null;
@@ -580,7 +648,7 @@ const parseExactAmountInput = (value: string) => {
   const amount = Number(normalized);
   if (!Number.isFinite(amount)) return null;
 
-  return { amount, normalized };
+  return { amount, normalized, normalizedForMath: normalizeDecimalForMath(normalized) ?? normalized };
 };
 
 const formatExactAmount = (normalized: string) => {
@@ -768,11 +836,17 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const parsedAmount = parseExactAmountInput(companyPrice);
     if (!parsedAmount) return null;
     const MIN_UNIT_PRICE = 0.42;
-    const rawUnitPrice = parsedAmount.amount / blData.kgs;
-    const unitPrice = Math.max(MIN_UNIT_PRICE, Math.round(rawUnitPrice * 100) / 100);
+    const normalizedWeight = normalizeDecimalForMath(String(blData.kgs));
+    if (!normalizedWeight) return null;
+
+    const calculatedUnitPrice = divideDecimalStrings(parsedAmount.normalizedForMath, normalizedWeight, 6);
+    if (!calculatedUnitPrice) return null;
+
+    const enforcedUnitPrice = compareDecimalStrings(calculatedUnitPrice, '0.42') < 0 ? '0.42' : calculatedUnitPrice;
 
     return {
-      unitPrice,
+      unitPrice: Number(enforcedUnitPrice),
+      unitPriceText: formatCalculatedDecimal(enforcedUnitPrice, 2),
       totalPrice: parsedAmount.amount,
       totalPriceDisplay: formatExactAmount(parsedAmount.normalized),
       totalPriceText: parsedAmount.normalized,
@@ -783,6 +857,7 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
 const generateInvoicePDF = async (calc: {
   unitPrice: number;
+  unitPriceText: string;
   totalPrice: number;
   totalPriceDisplay: string;
   totalPriceText: string;
@@ -989,7 +1064,7 @@ const generateInvoicePDF = async (calc: {
     9.5,
     { valueAlign: 'right' },
   );
-  drawField('unit_price', `${calc.unitPrice.toFixed(2)} US$ PER KG`, 'UNIT PRICE', 9.5, { valueAlign: 'right' });
+  drawField('unit_price', `${calc.unitPriceText} US$ PER KG`, 'UNIT PRICE', 9.5, { valueAlign: 'right' });
   drawField('amount', `${calc.totalPriceDisplay} US$`, 'AMOUNT', 11, { valueBold: true, valueAlign: 'right' });
   drawField('reference', referenceBlock, 'REFERENCE', 8.5, { maxLines: 5 });
   drawField('company_name', blData?.shipper || 'COMPANY NAME', '', 10, { valueBold: true, valueAlign: 'center', maxLines: 1 });
@@ -1030,7 +1105,7 @@ const generateInvoicePDF = async (calc: {
         hs_code: blData?.hs_code || '',
         goods_description: blData?.description || '',
         gross_weight: `${calc.kgs}KGS`,
-        unit_price: `${calc.unitPrice.toFixed(2)}US$ Per KG`,
+        unit_price: `${calc.unitPriceText}US$ Per KG`,
         amount: `${calc.totalPriceText}$`,
         shipping_marks: blData?.shipping_marks || 'NIL',
         packages: bales ? `${bales} BALES` : (blData?.packages || ''),
@@ -1514,7 +1589,7 @@ const generateInvoicePDF = async (calc: {
                             </div>
                             <div>
                               <p className="text-xs text-muted-foreground">Unit Price</p>
-                              <p className="text-lg font-bold text-primary">${calc.unitPrice.toFixed(2)}/KG</p>
+                              <p className="text-lg font-bold text-primary">${calc.unitPriceText}/KG</p>
                             </div>
                             <div>
                               <p className="text-xs text-muted-foreground">Total</p>
