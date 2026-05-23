@@ -616,25 +616,6 @@ export default function InvoiceGenerator() {
 
   const templateStorageKey = user?.id ? `invoice-template:${user.id}` : null;
 
-  if (authLoading) return <div className="min-h-screen bg-background" />;
-  if (!user) {
-    navigate('/auth');
-    return <div className="min-h-screen bg-background" />;
-  }
-
-  const handleBLUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const valid = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
-    if (!valid.includes(file.type)) {
-      toast.error('Please upload a PDF or Image file');
-      return;
-    }
-    setBlFile(file);
-    setBlData(null);
-  };
-
-
   useEffect(() => {
     if (!templateStorageKey) return;
 
@@ -663,6 +644,28 @@ export default function InvoiceGenerator() {
       cancelled = true;
     };
   }, [templateStorageKey]);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/auth');
+    }
+  }, [authLoading, user, navigate]);
+
+  if (authLoading || !user) return <div className="min-h-screen bg-background" />;
+
+  const handleBLUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const valid = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+    if (!valid.includes(file.type)) {
+      toast.error('Please upload a PDF or Image file');
+      return;
+    }
+    setBlFile(file);
+    setBlData(null);
+  };
+
+
 
 
 const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
