@@ -1105,7 +1105,7 @@ const generateInvoicePDF = async (calc: {
         hs_code: blData?.hs_code || '',
         goods_description: blData?.description || '',
         gross_weight: `${calc.kgs}KGS`,
-        unit_price: `${calc.unitPrice.toFixed(2)}US$ Per KG`,
+        unit_price: `${calc.unitPriceText}US$ Per KG`,
         amount: `${calc.totalPriceText}$`,
         shipping_marks: blData?.shipping_marks || 'NIL',
         packages: bales ? `${bales} BALES` : (blData?.packages || ''),
@@ -1589,7 +1589,7 @@ const generateInvoicePDF = async (calc: {
                             </div>
                             <div>
                               <p className="text-xs text-muted-foreground">Unit Price</p>
-                              <p className="text-lg font-bold text-primary">${calc.unitPrice.toFixed(2)}/KG</p>
+                              <p className="text-lg font-bold text-primary">${calc.unitPriceText}/KG</p>
                             </div>
                             <div>
                               <p className="text-xs text-muted-foreground">Total</p>
