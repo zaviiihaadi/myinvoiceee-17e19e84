@@ -836,11 +836,17 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const parsedAmount = parseExactAmountInput(companyPrice);
     if (!parsedAmount) return null;
     const MIN_UNIT_PRICE = 0.42;
-    const rawUnitPrice = parsedAmount.amount / blData.kgs;
-    const unitPrice = Math.max(MIN_UNIT_PRICE, Math.round(rawUnitPrice * 100) / 100);
+    const normalizedWeight = normalizeDecimalForMath(String(blData.kgs));
+    if (!normalizedWeight) return null;
+
+    const calculatedUnitPrice = divideDecimalStrings(parsedAmount.normalizedForMath, normalizedWeight, 6);
+    if (!calculatedUnitPrice) return null;
+
+    const enforcedUnitPrice = compareDecimalStrings(calculatedUnitPrice, '0.42') < 0 ? '0.42' : calculatedUnitPrice;
 
     return {
-      unitPrice,
+      unitPrice: Number(enforcedUnitPrice),
+      unitPriceText: formatCalculatedDecimal(enforcedUnitPrice, 2),
       totalPrice: parsedAmount.amount,
       totalPriceDisplay: formatExactAmount(parsedAmount.normalized),
       totalPriceText: parsedAmount.normalized,
@@ -851,6 +857,7 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
 const generateInvoicePDF = async (calc: {
   unitPrice: number;
+  unitPriceText: string;
   totalPrice: number;
   totalPriceDisplay: string;
   totalPriceText: string;
@@ -1057,7 +1064,7 @@ const generateInvoicePDF = async (calc: {
     9.5,
     { valueAlign: 'right' },
   );
-  drawField('unit_price', `${calc.unitPrice.toFixed(2)} US$ PER KG`, 'UNIT PRICE', 9.5, { valueAlign: 'right' });
+  drawField('unit_price', `${calc.unitPriceText} US$ PER KG`, 'UNIT PRICE', 9.5, { valueAlign: 'right' });
   drawField('amount', `${calc.totalPriceDisplay} US$`, 'AMOUNT', 11, { valueBold: true, valueAlign: 'right' });
   drawField('reference', referenceBlock, 'REFERENCE', 8.5, { maxLines: 5 });
   drawField('company_name', blData?.shipper || 'COMPANY NAME', '', 10, { valueBold: true, valueAlign: 'center', maxLines: 1 });
