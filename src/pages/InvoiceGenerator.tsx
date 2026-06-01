@@ -1517,10 +1517,6 @@ const generateInvoicePDF = async (calc: {
                               <Label className="text-xs">BL Number</Label>
                               <Input value={blData.bl_number ?? ''} onChange={(e) => setBlData({ ...blData, bl_number: e.target.value })} />
                             </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">Container Size</Label>
-                              <Input value={blData.container_size ?? ''} onChange={(e) => setBlData({ ...blData, container_size: e.target.value })} />
-                            </div>
                             <div className="space-y-1 sm:col-span-2">
                               <Label className="text-xs">Container Numbers (comma separated)</Label>
                               <Input
