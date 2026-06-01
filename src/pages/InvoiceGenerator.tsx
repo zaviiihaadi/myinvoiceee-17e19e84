@@ -627,6 +627,29 @@ const divideDecimalStrings = (numerator: string, denominator: string, precision 
   return decimalPart ? `${integerPart.toString()}.${decimalPart}` : integerPart.toString();
 };
 
+const multiplyDecimalStrings = (a: string, b: string, maxDecimals = 3) => {
+  const aParts = parseDecimalParts(a);
+  const bParts = parseDecimalParts(b);
+  if (!aParts || !bParts) return null;
+  const product = aParts.value * bParts.value;
+  const totalScale = aParts.scale + bParts.scale;
+  let str = product.toString().padStart(totalScale + 1, '0');
+  let intPart = totalScale ? str.slice(0, -totalScale) : str;
+  let decPart = totalScale ? str.slice(-totalScale) : '';
+  if (decPart.length > maxDecimals) {
+    // round half up
+    const roundDigit = decPart[maxDecimals];
+    decPart = decPart.slice(0, maxDecimals);
+    if (roundDigit >= '5') {
+      const bumped = (BigInt(intPart + decPart) + 1n).toString().padStart(intPart.length + decPart.length, '0');
+      intPart = maxDecimals ? bumped.slice(0, -maxDecimals) : bumped;
+      decPart = maxDecimals ? bumped.slice(-maxDecimals) : '';
+    }
+  }
+  return decPart ? `${intPart}.${decPart}` : intPart;
+};
+
+
 const formatCalculatedDecimal = (normalized: string, minimumFractionDigits = 2) => {
   const [integerPart = '0', decimalPart = ''] = normalized.split('.');
   const trimmedDecimal = decimalPart.replace(/0+$/, '');
@@ -846,15 +869,20 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     // Enforce minimum unit price of 0.42 — never go below
     const enforcedUnitPrice = compareDecimalStrings(calculatedUnitPrice, '0.42') < 0 ? '0.42' : calculatedUnitPrice;
 
+    // Total = unit price × weight, max 3 decimals
+    const computedTotalRaw = multiplyDecimalStrings(enforcedUnitPrice, normalizedWeight, 3) ?? parsedAmount.normalized;
+    const computedTotalText = formatCalculatedDecimal(computedTotalRaw, 2);
+
     return {
       unitPrice: Number(enforcedUnitPrice),
       unitPriceText: formatCalculatedDecimal(enforcedUnitPrice, 2),
-      totalPrice: parsedAmount.amount,
-      totalPriceDisplay: formatExactAmount(parsedAmount.normalized),
-      totalPriceText: parsedAmount.normalized,
+      totalPrice: Number(computedTotalRaw),
+      totalPriceDisplay: formatExactAmount(computedTotalText),
+      totalPriceText: computedTotalText,
       kgs: blData.kgs,
     };
   };
+
 
 
 const generateInvoicePDF = async (calc: {
