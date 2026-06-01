@@ -627,6 +627,29 @@ const divideDecimalStrings = (numerator: string, denominator: string, precision 
   return decimalPart ? `${integerPart.toString()}.${decimalPart}` : integerPart.toString();
 };
 
+const multiplyDecimalStrings = (a: string, b: string, maxDecimals = 3) => {
+  const aParts = parseDecimalParts(a);
+  const bParts = parseDecimalParts(b);
+  if (!aParts || !bParts) return null;
+  const product = aParts.value * bParts.value;
+  const totalScale = aParts.scale + bParts.scale;
+  let str = product.toString().padStart(totalScale + 1, '0');
+  let intPart = totalScale ? str.slice(0, -totalScale) : str;
+  let decPart = totalScale ? str.slice(-totalScale) : '';
+  if (decPart.length > maxDecimals) {
+    // round half up
+    const roundDigit = decPart[maxDecimals];
+    decPart = decPart.slice(0, maxDecimals);
+    if (roundDigit >= '5') {
+      const bumped = (BigInt(intPart + decPart) + 1n).toString().padStart(intPart.length + decPart.length, '0');
+      intPart = maxDecimals ? bumped.slice(0, -maxDecimals) : bumped;
+      decPart = maxDecimals ? bumped.slice(-maxDecimals) : '';
+    }
+  }
+  return decPart ? `${intPart}.${decPart}` : intPart;
+};
+
+
 const formatCalculatedDecimal = (normalized: string, minimumFractionDigits = 2) => {
   const [integerPart = '0', decimalPart = ''] = normalized.split('.');
   const trimmedDecimal = decimalPart.replace(/0+$/, '');
