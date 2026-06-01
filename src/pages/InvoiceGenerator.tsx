@@ -839,9 +839,11 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const normalizedWeight = normalizeDecimalForMath(String(blData.kgs));
     if (!normalizedWeight) return null;
 
-    const calculatedUnitPrice = divideDecimalStrings(parsedAmount.normalizedForMath, normalizedWeight, 6);
+    // Divide price by weight, round to exactly 2 decimal places (matches calculator)
+    const calculatedUnitPrice = divideDecimalStrings(parsedAmount.normalizedForMath, normalizedWeight, 2);
     if (!calculatedUnitPrice) return null;
 
+    // Enforce minimum unit price of 0.42 — never go below
     const enforcedUnitPrice = compareDecimalStrings(calculatedUnitPrice, '0.42') < 0 ? '0.42' : calculatedUnitPrice;
 
     return {
