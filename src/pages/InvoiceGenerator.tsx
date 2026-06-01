@@ -839,8 +839,8 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const normalizedWeight = normalizeDecimalForMath(String(blData.kgs));
     if (!normalizedWeight) return null;
 
-    // Divide price by weight — keep full precision (up to 6 decimals, trailing zeros trimmed)
-    const calculatedUnitPrice = divideDecimalStrings(parsedAmount.normalizedForMath, normalizedWeight, 6);
+    // Unit price always 2 decimals
+    const calculatedUnitPrice = divideDecimalStrings(parsedAmount.normalizedForMath, normalizedWeight, 2);
     if (!calculatedUnitPrice) return null;
 
     // Enforce minimum unit price of 0.42 — never go below
