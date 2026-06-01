@@ -869,15 +869,20 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     // Enforce minimum unit price of 0.42 — never go below
     const enforcedUnitPrice = compareDecimalStrings(calculatedUnitPrice, '0.42') < 0 ? '0.42' : calculatedUnitPrice;
 
+    // Total = unit price × weight, max 3 decimals
+    const computedTotalRaw = multiplyDecimalStrings(enforcedUnitPrice, normalizedWeight, 3) ?? parsedAmount.normalized;
+    const computedTotalText = formatCalculatedDecimal(computedTotalRaw, 2);
+
     return {
       unitPrice: Number(enforcedUnitPrice),
       unitPriceText: formatCalculatedDecimal(enforcedUnitPrice, 2),
-      totalPrice: parsedAmount.amount,
-      totalPriceDisplay: formatExactAmount(parsedAmount.normalized),
-      totalPriceText: parsedAmount.normalized,
+      totalPrice: Number(computedTotalRaw),
+      totalPriceDisplay: formatExactAmount(computedTotalText),
+      totalPriceText: computedTotalText,
       kgs: blData.kgs,
     };
   };
+
 
 
 const generateInvoicePDF = async (calc: {
