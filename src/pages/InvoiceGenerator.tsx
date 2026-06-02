@@ -960,7 +960,7 @@ const generateInvoicePDF = async (calc: {
   const templateCanvas = templateFile ? await renderTemplateFileToCanvas(templateFile, 2) : null;
   const shipperBlock = [blData?.shipper, blData?.shipper_address].filter(Boolean).join('\n');
   const consigneeBlock = [blData?.consignee, blData?.consignee_address].filter(Boolean).join('\n');
-  const notifyBlock = [blData?.consignee || blData?.notify_party, blData?.consignee_address || blData?.notify_party_address].filter(Boolean).join('\n');
+  const notifyBlock = blData?.notify_party || [blData?.consignee, blData?.consignee_address].filter(Boolean).join('\n');
   const referenceBlock = [
     blData?.bl_number ? `BL NO: ${blData.bl_number}` : '',
     containerNums ? `CONTAINER: ${containerNums}` : '',
