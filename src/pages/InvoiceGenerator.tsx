@@ -683,6 +683,47 @@ const formatExactAmount = (normalized: string) => {
   return decimalPart !== undefined ? `${groupedInteger}.${decimalPart}` : groupedInteger;
 };
 
+const MONTH_MAP: Record<string, string> = {
+  jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+  jul: '07', aug: '08', sep: '09', sept: '09', oct: '10', nov: '11', dec: '12',
+};
+
+function normalizeDateString(input: string | null | undefined): string {
+  if (!input) return '';
+  const s = String(input).trim();
+  if (!s) return '';
+  // Match dd<sep>mm-or-monthname<sep>yy(yy)
+  const m = s.match(/^(\d{1,2})[\/\-\s.]+([A-Za-z]+|\d{1,2})[\/\-\s.]+(\d{2,4})$/);
+  if (m) {
+    const dd = m[1].padStart(2, '0');
+    let mm = m[2];
+    if (/^[A-Za-z]+$/.test(mm)) {
+      const key = mm.toLowerCase().slice(0, mm.toLowerCase().startsWith('sept') ? 4 : 3);
+      mm = MONTH_MAP[key] || MONTH_MAP[mm.toLowerCase().slice(0, 3)] || '01';
+    } else {
+      mm = mm.padStart(2, '0');
+    }
+    let yy = m[3];
+    if (yy.length === 4) yy = yy.slice(2);
+    else if (yy.length === 2) yy = yy;
+    else yy = yy.padStart(2, '0');
+    return `${dd}/${mm}/${yy}`;
+  }
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yy = String(d.getFullYear()).slice(2);
+    return `${dd}/${mm}/${yy}`;
+  }
+  return s;
+}
+
+function todayDDMMYY(): string {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(2)}`;
+}
+
 export default function InvoiceGenerator() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
