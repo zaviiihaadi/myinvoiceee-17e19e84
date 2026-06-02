@@ -704,16 +704,16 @@ function normalizeDateString(input: string | null | undefined): string {
       mm = mm.padStart(2, '0');
     }
     let yy = m[3];
-    if (yy.length === 4) yy = yy.slice(2);
-    else if (yy.length === 2) yy = yy;
-    else yy = yy.padStart(2, '0');
+    if (yy.length === 2) yy = `20${yy}`;
+    else if (yy.length === 4) yy = yy;
+    else yy = `20${yy.padStart(2, '0')}`;
     return `${dd}/${mm}/${yy}`;
   }
   const d = new Date(s);
   if (!isNaN(d.getTime())) {
     const dd = String(d.getDate()).padStart(2, '0');
     const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yy = String(d.getFullYear()).slice(2);
+    const yy = String(d.getFullYear());
     return `${dd}/${mm}/${yy}`;
   }
   return s;
@@ -721,7 +721,7 @@ function normalizeDateString(input: string | null | undefined): string {
 
 function todayDDMMYY(): string {
   const d = new Date();
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(2)}`;
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
 export default function InvoiceGenerator() {
