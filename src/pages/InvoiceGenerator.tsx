@@ -873,15 +873,19 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
       if (error) throw error;
 
+      // Merge notify party name + address into a single field
+      const mergedNotify = [data?.notify_party, data?.notify_party_address].filter(Boolean).join('\n');
+      const normalizedData = { ...data, notify_party: mergedNotify || data?.notify_party || '', notify_party_address: '' };
+
       if (data.kgs) {
-        setBlData(data);
+        setBlData(normalizedData);
         if (data.bales) setBalesCount(String(data.bales));
         if (data.bl_number) setInvoiceNumber(data.bl_number);
         if (data.bl_date) setInvoiceDate(normalizeDateString(data.bl_date));
         setStep(2);
         toast.success(`KGS extracted: ${data.kgs} kg`);
       } else {
-        setBlData(data);
+        setBlData(normalizedData);
         toast.error('Could not extract weight (KGS) from the BL. Please check the file.');
       }
     } catch (err: any) {
