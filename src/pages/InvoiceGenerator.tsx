@@ -873,9 +873,24 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
       if (error) throw error;
 
-      // Merge notify party name + address into a single field
-      const mergedNotify = [data?.notify_party, data?.notify_party_address].filter(Boolean).join('\n');
-      const normalizedData = { ...data, notify_party: mergedNotify || data?.notify_party || '', notify_party_address: '' };
+      // Merge notify party name + address into a single field (avoid duplicate address)
+      const notifyName = (data?.notify_party || '').trim();
+      const notifyAddr = (data?.notify_party_address || '').trim();
+      const notifyAlreadyHasAddr = notifyAddr && notifyName.toLowerCase().includes(notifyAddr.toLowerCase());
+      const mergedNotify = notifyAlreadyHasAddr || !notifyAddr
+        ? notifyName
+        : [notifyName, notifyAddr].filter(Boolean).join('\n');
+
+      // Clean goods description: strip "SAID TO CONTAIN ..." prefixes, start at MIX/USED CLOTHING
+      let cleanedDescription = (data?.description || '').trim();
+      if (cleanedDescription) {
+        const match = cleanedDescription.match(/(MIX(?:ED)?\s+USED\s+CLOTHING|USED\s+CLOTHING)[\s\S]*/i);
+        if (match) cleanedDescription = match[0].trim();
+        // Remove leading container/bales boilerplate if still present
+        cleanedDescription = cleanedDescription.replace(/^SAID\s+TO\s+CONTAIN[^A-Za-z]*\d*\s*X?\s*\d*[A-Z0-9]*\s*\d*\s*BALES?\s*[:\-]?\s*/i, '').trim();
+      }
+
+      const normalizedData = { ...data, notify_party: mergedNotify, notify_party_address: '', description: cleanedDescription };
 
       if (data.kgs) {
         setBlData(normalizedData);
