@@ -735,10 +735,7 @@ export default function InvoiceGenerator() {
   const [companyPrice, setCompanyPrice] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [balesCount, setBalesCount] = useState('');
-  const [invoiceDate, setInvoiceDate] = useState(() => {
-    const d = new Date();
-    return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
-  });
+  const [invoiceDate, setInvoiceDate] = useState(() => todayDDMMYY());
   const [extracting, setExtracting] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [blData, setBlData] = useState<BLData | null>(null);
