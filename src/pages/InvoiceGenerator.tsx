@@ -1524,13 +1524,12 @@ const generateInvoicePDF = async (calc: {
                               <Label className="text-xs">Consignee Address</Label>
                               <Input value={blData.consignee_address ?? ''} onChange={(e) => setBlData({ ...blData, consignee_address: e.target.value })} />
                             </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">Notify Party</Label>
-                              <Input value={blData.notify_party ?? ''} onChange={(e) => setBlData({ ...blData, notify_party: e.target.value })} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">Notify Address</Label>
-                              <Input value={blData.notify_party_address ?? ''} onChange={(e) => setBlData({ ...blData, notify_party_address: e.target.value })} />
+                            <div className="space-y-1 sm:col-span-2">
+                              <Label className="text-xs">Notify Party (Name & Address)</Label>
+                              <Input
+                                value={blData.notify_party ?? ''}
+                                onChange={(e) => setBlData({ ...blData, notify_party: e.target.value })}
+                              />
                             </div>
                             <div className="space-y-1">
                               <Label className="text-xs">Port of Loading</Label>
