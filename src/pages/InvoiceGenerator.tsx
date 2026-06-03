@@ -918,8 +918,8 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const normalizedWeight = normalizeDecimalForMath(String(blData.kgs));
     if (!normalizedWeight) return null;
 
-    // Unit price up to 3 decimals so calculator-style totals stay exact
-    const calculatedUnitPrice = divideDecimalStrings(parsedAmount.normalizedForMath, normalizedWeight, 3);
+    // Unit price must stay at exactly 2 decimals
+    const calculatedUnitPrice = divideDecimalStrings(parsedAmount.normalizedForMath, normalizedWeight, 2);
     if (!calculatedUnitPrice) return null;
 
     // Total = displayed unit price × weight, max 3 decimals
