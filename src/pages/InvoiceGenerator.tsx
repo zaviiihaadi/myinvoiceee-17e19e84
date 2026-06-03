@@ -915,7 +915,6 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!blData?.kgs || !companyPrice) return null;
     const parsedAmount = parseExactAmountInput(companyPrice);
     if (!parsedAmount) return null;
-    const MIN_UNIT_PRICE = 0.42;
     const normalizedWeight = normalizeDecimalForMath(String(blData.kgs));
     if (!normalizedWeight) return null;
 
@@ -923,16 +922,13 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const calculatedUnitPrice = divideDecimalStrings(parsedAmount.normalizedForMath, normalizedWeight, 2);
     if (!calculatedUnitPrice) return null;
 
-    // Enforce minimum unit price of 0.42 — never go below
-    const enforcedUnitPrice = compareDecimalStrings(calculatedUnitPrice, '0.42') < 0 ? '0.42' : calculatedUnitPrice;
-
     // Total = unit price × weight, max 3 decimals
-    const computedTotalRaw = multiplyDecimalStrings(enforcedUnitPrice, normalizedWeight, 3) ?? parsedAmount.normalized;
+    const computedTotalRaw = multiplyDecimalStrings(calculatedUnitPrice, normalizedWeight, 3) ?? parsedAmount.normalized;
     const computedTotalText = formatCalculatedDecimal(computedTotalRaw, 2);
 
     return {
-      unitPrice: Number(enforcedUnitPrice),
-      unitPriceText: formatCalculatedDecimal(enforcedUnitPrice, 2),
+      unitPrice: Number(calculatedUnitPrice),
+      unitPriceText: formatCalculatedDecimal(calculatedUnitPrice, 2),
       totalPrice: Number(computedTotalRaw),
       totalPriceDisplay: formatExactAmount(computedTotalText),
       totalPriceText: computedTotalText,
