@@ -918,17 +918,20 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const normalizedWeight = normalizeDecimalForMath(String(blData.kgs));
     if (!normalizedWeight) return null;
 
-    // Unit price must stay at exactly 2 decimals
-    const calculatedUnitPrice = divideDecimalStrings(parsedAmount.normalizedForMath, normalizedWeight, 2);
-    if (!calculatedUnitPrice) return null;
+    // Unit Price = Company Total Price ÷ Weight, displayed with EXACTLY 2 decimals
+    const companyPriceNum = Number(parsedAmount.normalizedForMath);
+    const weightNum = Number(normalizedWeight);
+    if (!isFinite(companyPriceNum) || !isFinite(weightNum) || weightNum === 0) return null;
+    const unitPriceNum = Number((companyPriceNum / weightNum).toFixed(2));
+    const unitPriceTextExact = unitPriceNum.toFixed(2); // always 2 decimals: 0.40, 0.42, 1.00
 
     // Total = displayed unit price × weight, max 3 decimals
-    const computedTotalRaw = multiplyDecimalStrings(calculatedUnitPrice, normalizedWeight, 3) ?? parsedAmount.normalized;
+    const computedTotalRaw = multiplyDecimalStrings(unitPriceTextExact, normalizedWeight, 3) ?? parsedAmount.normalized;
     const computedTotalText = formatCalculatedDecimal(computedTotalRaw, 2);
 
     return {
-      unitPrice: Number(calculatedUnitPrice),
-      unitPriceText: formatCalculatedDecimal(calculatedUnitPrice, 2),
+      unitPrice: unitPriceNum,
+      unitPriceText: unitPriceTextExact,
       totalPrice: Number(computedTotalRaw),
       totalPriceDisplay: formatExactAmount(computedTotalText),
       totalPriceText: computedTotalText,
