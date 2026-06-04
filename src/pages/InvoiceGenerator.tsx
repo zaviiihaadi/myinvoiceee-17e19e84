@@ -637,14 +637,7 @@ const multiplyDecimalStrings = (a: string, b: string, maxDecimals = 3) => {
   let intPart = totalScale ? str.slice(0, -totalScale) : str;
   let decPart = totalScale ? str.slice(-totalScale) : '';
   if (decPart.length > maxDecimals) {
-    // round half up
-    const roundDigit = decPart[maxDecimals];
     decPart = decPart.slice(0, maxDecimals);
-    if (roundDigit >= '5') {
-      const bumped = (BigInt(intPart + decPart) + 1n).toString().padStart(intPart.length + decPart.length, '0');
-      intPart = maxDecimals ? bumped.slice(0, -maxDecimals) : bumped;
-      decPart = maxDecimals ? bumped.slice(-maxDecimals) : '';
-    }
   }
   return decPart ? `${intPart}.${decPart}` : intPart;
 };
@@ -676,9 +669,8 @@ const parseExactAmountInput = (value: string) => {
 
 const formatExactAmount = (normalized: string) => {
   const [integerPart = '0', decimalPart] = normalized.split('.');
-  const groupedInteger = Number(integerPart || '0').toLocaleString(undefined, {
-    maximumFractionDigits: 0,
-  });
+  const sanitizedInteger = (integerPart || '0').replace(/^0+(?=\d)/, '') || '0';
+  const groupedInteger = sanitizedInteger.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
   return decimalPart !== undefined ? `${groupedInteger}.${decimalPart}` : groupedInteger;
 };
@@ -926,14 +918,13 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const unitPriceNum = Math.floor(rawUnitPrice * 100) / 100;
     const unitPriceTextExact = unitPriceNum.toFixed(2); // always 2 decimals after truncation: 0.40, 0.53, 1.00
 
-    // Total = displayed unit price × weight, always exactly 3 decimals (no rounding to 2)
+    // Total = displayed unit price × weight, truncated to 3 decimals with no post-rounding
     const computedTotalRaw = multiplyDecimalStrings(unitPriceTextExact, normalizedWeight, 3) ?? parsedAmount.normalized;
     const computedTotalText = formatCalculatedDecimal(computedTotalRaw, 3);
 
     return {
       unitPrice: unitPriceNum,
       unitPriceText: unitPriceTextExact,
-      totalPrice: Number(computedTotalRaw),
       totalPriceDisplay: formatExactAmount(computedTotalText),
       totalPriceText: computedTotalText,
       kgs: blData.kgs,
@@ -945,7 +936,6 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 const generateInvoicePDF = async (calc: {
   unitPrice: number;
   unitPriceText: string;
-  totalPrice: number;
   totalPriceDisplay: string;
   totalPriceText: string;
   kgs: number;
