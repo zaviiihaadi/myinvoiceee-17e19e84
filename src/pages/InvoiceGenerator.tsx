@@ -918,12 +918,13 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const normalizedWeight = normalizeDecimalForMath(String(blData.kgs));
     if (!normalizedWeight) return null;
 
-    // Unit Price = Company Total Price ÷ Weight, displayed with EXACTLY 2 decimals
+    // Unit Price = Company Total Price ÷ Weight, TRUNCATED to exactly 2 decimals
     const companyPriceNum = Number(parsedAmount.normalizedForMath);
     const weightNum = Number(normalizedWeight);
     if (!isFinite(companyPriceNum) || !isFinite(weightNum) || weightNum === 0) return null;
-    const unitPriceNum = Number((companyPriceNum / weightNum).toFixed(2));
-    const unitPriceTextExact = unitPriceNum.toFixed(2); // always 2 decimals: 0.40, 0.42, 1.00
+    const rawUnitPrice = companyPriceNum / weightNum;
+    const unitPriceNum = Math.floor(rawUnitPrice * 100) / 100;
+    const unitPriceTextExact = unitPriceNum.toFixed(2); // always 2 decimals after truncation: 0.40, 0.53, 1.00
 
     // Total = displayed unit price × weight, max 3 decimals
     const computedTotalRaw = multiplyDecimalStrings(unitPriceTextExact, normalizedWeight, 3) ?? parsedAmount.normalized;
