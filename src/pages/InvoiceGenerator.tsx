@@ -669,9 +669,8 @@ const parseExactAmountInput = (value: string) => {
 
 const formatExactAmount = (normalized: string) => {
   const [integerPart = '0', decimalPart] = normalized.split('.');
-  const groupedInteger = Number(integerPart || '0').toLocaleString(undefined, {
-    maximumFractionDigits: 0,
-  });
+  const sanitizedInteger = (integerPart || '0').replace(/^0+(?=\d)/, '') || '0';
+  const groupedInteger = sanitizedInteger.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
   return decimalPart !== undefined ? `${groupedInteger}.${decimalPart}` : groupedInteger;
 };
