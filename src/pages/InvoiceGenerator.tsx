@@ -1165,6 +1165,30 @@ const generateInvoicePDF = async (calc: {
   return doc;
 };
 
+  const getContainerForFilename = (): string => {
+    const container = blData?.container_numbers?.[0]?.trim();
+    if (container) {
+      return container.replace(/[\\/:*?"<>|]/g, '');
+    }
+    return new Date().toISOString().split('T')[0].replace(/-/g, '');
+  };
+
+  const downloadOriginalBlFile = () => {
+    if (!blFile) return;
+    const container = getContainerForFilename();
+    const ext = blFile.name.includes('.') ? blFile.name.split('.').pop() : 'pdf';
+    const filename = `BL_${container}.${ext}`;
+
+    const url = URL.createObjectURL(blFile);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const generateInvoice = async () => {
     const calc = calculateValues();
     if (!calc) {
