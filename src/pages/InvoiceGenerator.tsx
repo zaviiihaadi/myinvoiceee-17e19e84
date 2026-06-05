@@ -743,6 +743,11 @@ export default function InvoiceGenerator() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [templateLayout, setTemplateLayout] = useState<TemplateLayout | null>(null);
   const [extractingTemplate, setExtractingTemplate] = useState(false);
+  const [excelRows, setExcelRows] = useState<ExcelRow[]>([]);
+  const [excelFileName, setExcelFileName] = useState<string | null>(null);
+  const [excelLoading, setExcelLoading] = useState(false);
+  const [matchedRow, setMatchedRow] = useState<ExcelRow | null>(null);
+  const excelInputRef = useRef<HTMLInputElement>(null);
 
   const templateStorageKey = user?.id ? `invoice-template:${user.id}` : null;
 
