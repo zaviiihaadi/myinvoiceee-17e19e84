@@ -1292,7 +1292,138 @@ const generateInvoicePDF = async (calc: {
     setBlData(null);
     setStep(1);
     setInvoiceDate(todayDDMMYY());
+    setMatchedRow(null);
   };
+
+  const tryAutoFillFromExcel = (containerNumbers: string[]) => {
+    if (!excelRows.length || !containerNumbers || containerNumbers.length === 0) return;
+    const keys = containerNumbers.map(normalizeContainerKey).filter(Boolean);
+    const found = excelRows.find((row) => keys.includes(normalizeContainerKey(row.container)));
+    if (found) {
+      setMatchedRow(found);
+      if (found.invoice) setInvoiceNumber(found.invoice);
+      if (found.price) setCompanyPrice(found.price);
+      toast.success(`Matched container ${found.container} from Excel.`);
+    } else {
+      setMatchedRow(null);
+      toast.error('No matching container found in Excel.');
+    }
+  };
+
+  const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (e.target) e.target.value = '';
+    if (!file) return;
+    const name = file.name.toLowerCase();
+    const isCsv = name.endsWith('.csv');
+    const isXlsx = name.endsWith('.xlsx') || name.endsWith('.xls');
+    if (!isCsv && !isXlsx) {
+      toast.error('Please upload .xlsx, .xls or .csv file.');
+      return;
+    }
+    setExcelLoading(true);
+    try {
+      let rows: string[][] = [];
+      if (isCsv) {
+        const text = await file.text();
+        rows = text.split(/\r?\n/).filter((l) => l.trim().length > 0).map((line) => {
+          const out: string[] = [];
+          let cur = '';
+          let inQ = false;
+          for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"') { inQ = !inQ; continue; }
+            if (ch === ',' && !inQ) { out.push(cur); cur = ''; continue; }
+            cur += ch;
+          }
+          out.push(cur);
+          return out.map((c) => c.trim());
+        });
+      } else {
+        const ExcelJS = await import('exceljs');
+        const buf = await file.arrayBuffer();
+        const wb = new ExcelJS.Workbook();
+        await wb.xlsx.load(buf);
+        const ws = wb.worksheets[0];
+        if (ws) {
+          ws.eachRow((row) => {
+            const arr: string[] = [];
+            row.eachCell({ includeEmpty: true }, (cell) => {
+              const v = cell.value;
+              if (v === null || v === undefined) { arr.push(''); return; }
+              if (typeof v === 'object' && v !== null) {
+                if ('text' in v && typeof (v as any).text === 'string') { arr.push((v as any).text); return; }
+                if ('richText' in v && Array.isArray((v as any).richText)) {
+                  arr.push(((v as any).richText as { text: string }[]).map((r) => r.text).join(''));
+                  return;
+                }
+                if ('result' in v) { arr.push(String((v as any).result ?? '')); return; }
+              }
+              arr.push(String(v));
+            });
+            rows.push(arr.map((c) => (c ?? '').toString().trim()));
+          });
+        }
+      }
+      if (rows.length === 0) {
+        toast.error('Excel file is empty.');
+        return;
+      }
+
+      // Detect header row
+      const header = rows[0].map((h) => h.toLowerCase());
+      const findCol = (keywords: string[]) =>
+        header.findIndex((h) => keywords.some((k) => h.includes(k)));
+      let containerCol = findCol(['container']);
+      let invoiceCol = findCol(['invoice']);
+      let priceCol = findCol(['company price', 'total amount', 'total price', 'amount', 'price']);
+      let dataStart = 1;
+      if (containerCol === -1 && invoiceCol === -1 && priceCol === -1) {
+        // No header — assume first 3 columns
+        containerCol = 0; invoiceCol = 1; priceCol = 2;
+        dataStart = 0;
+      }
+      const parsed: ExcelRow[] = [];
+      for (let i = dataStart; i < rows.length; i++) {
+        const r = rows[i];
+        const container = containerCol >= 0 ? (r[containerCol] || '') : '';
+        const invoice = invoiceCol >= 0 ? (r[invoiceCol] || '') : '';
+        const price = priceCol >= 0 ? (r[priceCol] || '') : '';
+        if (!container && !invoice && !price) continue;
+        parsed.push({ container, invoice, price });
+      }
+      if (parsed.length === 0) {
+        toast.error('No data rows found in Excel.');
+        return;
+      }
+      setExcelRows(parsed);
+      setExcelFileName(file.name);
+      toast.success('Excel data loaded successfully.');
+
+      // If BL already extracted, try matching now
+      if (blData?.container_numbers?.length) {
+        const keys = blData.container_numbers.map(normalizeContainerKey).filter(Boolean);
+        const found = parsed.find((row) => keys.includes(normalizeContainerKey(row.container)));
+        if (found) {
+          setMatchedRow(found);
+          if (found.invoice) setInvoiceNumber(found.invoice);
+          if (found.price) setCompanyPrice(found.price);
+        }
+      }
+    } catch (err: any) {
+      console.error('Excel upload error:', err);
+      toast.error('Failed to read Excel: ' + (err?.message || 'Unknown error'));
+    } finally {
+      setExcelLoading(false);
+    }
+  };
+
+  const clearExcel = () => {
+    setExcelRows([]);
+    setExcelFileName(null);
+    setMatchedRow(null);
+  };
+
 
   const calc = calculateValues();
 
