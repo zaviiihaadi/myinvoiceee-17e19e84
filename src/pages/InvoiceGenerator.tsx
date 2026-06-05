@@ -905,9 +905,11 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (data.bl_date) setInvoiceDate(normalizeDateString(data.bl_date));
         setStep(2);
         toast.success(`KGS extracted: ${data.kgs} kg`);
+        tryAutoFillFromExcel(normalizedData.container_numbers || []);
       } else {
         setBlData(normalizedData);
         toast.error('Could not extract weight (KGS) from the BL. Please check the file.');
+        tryAutoFillFromExcel(normalizedData.container_numbers || []);
       }
     } catch (err: any) {
       console.error('BL extraction error:', err);
