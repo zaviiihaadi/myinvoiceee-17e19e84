@@ -1477,7 +1477,85 @@ const generateInvoicePDF = async (calc: {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Step 1: Upload BL */}
-          <motion.div layout className="lg:col-span-2">
+          <motion.div layout className="lg:col-span-2 space-y-6">
+            {/* Excel Auto-Fill Upload */}
+            <Card className="border-border/50 shadow-sm overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-emerald-500/5 to-transparent">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                  Excel Auto-Fill (Optional)
+                </CardTitle>
+                <CardDescription>
+                  Upload an Excel/CSV with Container Number, Invoice Number, and Company Price. Matching rows will auto-fill after BL extraction.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 space-y-4">
+                <input
+                  ref={excelInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={handleExcelUpload}
+                  className="hidden"
+                />
+                <div
+                  onClick={() => !excelLoading && excelInputRef.current?.click()}
+                  className="border-2 border-dashed border-border rounded-xl p-6 text-center cursor-pointer hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all"
+                >
+                  {excelLoading ? (
+                    <div className="flex items-center justify-center gap-2 text-emerald-600">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span className="text-sm font-medium">Reading Excel...</span>
+                    </div>
+                  ) : excelFileName ? (
+                    <div className="flex items-center justify-center gap-3">
+                      <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                      <div className="text-left">
+                        <p className="font-medium text-foreground">{excelFileName}</p>
+                        <p className="text-xs text-muted-foreground">{excelRows.length} rows loaded</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); clearExcel(); }}
+                        className="ml-2"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <FileSpreadsheet className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                      <p className="font-medium text-foreground">Click to upload Excel/CSV</p>
+                      <p className="text-xs text-muted-foreground mt-1">.xlsx, .xls, .csv</p>
+                    </>
+                  )}
+                </div>
+
+                <AnimatePresence>
+                  {matchedRow && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="rounded-xl p-4 border bg-emerald-500/5 border-emerald-500/20">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                          <span className="font-semibold text-foreground">Matched Record</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+                          <div><span className="text-muted-foreground">Container:</span> <span className="font-medium text-foreground">{matchedRow.container}</span></div>
+                          <div><span className="text-muted-foreground">Invoice #:</span> <span className="font-medium text-foreground">{matchedRow.invoice || '—'}</span></div>
+                          <div><span className="text-muted-foreground">Company Price:</span> <span className="font-medium text-foreground">{matchedRow.price || '—'}</span></div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </CardContent>
+            </Card>
+
             <Card className="border-border/50 shadow-sm overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent">
                 <CardTitle className="flex items-center gap-2 text-lg">
