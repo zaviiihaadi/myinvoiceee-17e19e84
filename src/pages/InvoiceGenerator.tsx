@@ -15,8 +15,17 @@ import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
   FileText, Upload, Calculator, Download, Loader2, CheckCircle2,
   AlertCircle, Scale, DollarSign, Hash, ArrowRight,
-  Sparkles, Ship, FileUp, Eye, Package, RotateCcw
+  Sparkles, Ship, FileUp, Eye, Package, RotateCcw, FileSpreadsheet, X
 } from 'lucide-react';
+
+interface ExcelRow {
+  container: string;
+  invoice: string;
+  price: string;
+}
+
+const normalizeContainerKey = (s: string): string =>
+  (s || '').toString().toUpperCase().replace(/[\s\-_.,:;#'"]/g, '');
 
 interface BLData {
   kgs: number | null;
@@ -734,6 +743,11 @@ export default function InvoiceGenerator() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [templateLayout, setTemplateLayout] = useState<TemplateLayout | null>(null);
   const [extractingTemplate, setExtractingTemplate] = useState(false);
+  const [excelRows, setExcelRows] = useState<ExcelRow[]>([]);
+  const [excelFileName, setExcelFileName] = useState<string | null>(null);
+  const [excelLoading, setExcelLoading] = useState(false);
+  const [matchedRow, setMatchedRow] = useState<ExcelRow | null>(null);
+  const excelInputRef = useRef<HTMLInputElement>(null);
 
   const templateStorageKey = user?.id ? `invoice-template:${user.id}` : null;
 
@@ -891,9 +905,11 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (data.bl_date) setInvoiceDate(normalizeDateString(data.bl_date));
         setStep(2);
         toast.success(`KGS extracted: ${data.kgs} kg`);
+        tryAutoFillFromExcel(normalizedData.container_numbers || []);
       } else {
         setBlData(normalizedData);
         toast.error('Could not extract weight (KGS) from the BL. Please check the file.');
+        tryAutoFillFromExcel(normalizedData.container_numbers || []);
       }
     } catch (err: any) {
       console.error('BL extraction error:', err);
@@ -1276,7 +1292,138 @@ const generateInvoicePDF = async (calc: {
     setBlData(null);
     setStep(1);
     setInvoiceDate(todayDDMMYY());
+    setMatchedRow(null);
   };
+
+  const tryAutoFillFromExcel = (containerNumbers: string[]) => {
+    if (!excelRows.length || !containerNumbers || containerNumbers.length === 0) return;
+    const keys = containerNumbers.map(normalizeContainerKey).filter(Boolean);
+    const found = excelRows.find((row) => keys.includes(normalizeContainerKey(row.container)));
+    if (found) {
+      setMatchedRow(found);
+      if (found.invoice) setInvoiceNumber(found.invoice);
+      if (found.price) setCompanyPrice(found.price);
+      toast.success(`Matched container ${found.container} from Excel.`);
+    } else {
+      setMatchedRow(null);
+      toast.error('No matching container found in Excel.');
+    }
+  };
+
+  const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (e.target) e.target.value = '';
+    if (!file) return;
+    const name = file.name.toLowerCase();
+    const isCsv = name.endsWith('.csv');
+    const isXlsx = name.endsWith('.xlsx') || name.endsWith('.xls');
+    if (!isCsv && !isXlsx) {
+      toast.error('Please upload .xlsx, .xls or .csv file.');
+      return;
+    }
+    setExcelLoading(true);
+    try {
+      let rows: string[][] = [];
+      if (isCsv) {
+        const text = await file.text();
+        rows = text.split(/\r?\n/).filter((l) => l.trim().length > 0).map((line) => {
+          const out: string[] = [];
+          let cur = '';
+          let inQ = false;
+          for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"') { inQ = !inQ; continue; }
+            if (ch === ',' && !inQ) { out.push(cur); cur = ''; continue; }
+            cur += ch;
+          }
+          out.push(cur);
+          return out.map((c) => c.trim());
+        });
+      } else {
+        const ExcelJS = await import('exceljs');
+        const buf = await file.arrayBuffer();
+        const wb = new ExcelJS.Workbook();
+        await wb.xlsx.load(buf);
+        const ws = wb.worksheets[0];
+        if (ws) {
+          ws.eachRow((row) => {
+            const arr: string[] = [];
+            row.eachCell({ includeEmpty: true }, (cell) => {
+              const v = cell.value;
+              if (v === null || v === undefined) { arr.push(''); return; }
+              if (typeof v === 'object' && v !== null) {
+                if ('text' in v && typeof (v as any).text === 'string') { arr.push((v as any).text); return; }
+                if ('richText' in v && Array.isArray((v as any).richText)) {
+                  arr.push(((v as any).richText as { text: string }[]).map((r) => r.text).join(''));
+                  return;
+                }
+                if ('result' in v) { arr.push(String((v as any).result ?? '')); return; }
+              }
+              arr.push(String(v));
+            });
+            rows.push(arr.map((c) => (c ?? '').toString().trim()));
+          });
+        }
+      }
+      if (rows.length === 0) {
+        toast.error('Excel file is empty.');
+        return;
+      }
+
+      // Detect header row
+      const header = rows[0].map((h) => h.toLowerCase());
+      const findCol = (keywords: string[]) =>
+        header.findIndex((h) => keywords.some((k) => h.includes(k)));
+      let containerCol = findCol(['container']);
+      let invoiceCol = findCol(['invoice']);
+      let priceCol = findCol(['company price', 'total amount', 'total price', 'amount', 'price']);
+      let dataStart = 1;
+      if (containerCol === -1 && invoiceCol === -1 && priceCol === -1) {
+        // No header — assume first 3 columns
+        containerCol = 0; invoiceCol = 1; priceCol = 2;
+        dataStart = 0;
+      }
+      const parsed: ExcelRow[] = [];
+      for (let i = dataStart; i < rows.length; i++) {
+        const r = rows[i];
+        const container = containerCol >= 0 ? (r[containerCol] || '') : '';
+        const invoice = invoiceCol >= 0 ? (r[invoiceCol] || '') : '';
+        const price = priceCol >= 0 ? (r[priceCol] || '') : '';
+        if (!container && !invoice && !price) continue;
+        parsed.push({ container, invoice, price });
+      }
+      if (parsed.length === 0) {
+        toast.error('No data rows found in Excel.');
+        return;
+      }
+      setExcelRows(parsed);
+      setExcelFileName(file.name);
+      toast.success('Excel data loaded successfully.');
+
+      // If BL already extracted, try matching now
+      if (blData?.container_numbers?.length) {
+        const keys = blData.container_numbers.map(normalizeContainerKey).filter(Boolean);
+        const found = parsed.find((row) => keys.includes(normalizeContainerKey(row.container)));
+        if (found) {
+          setMatchedRow(found);
+          if (found.invoice) setInvoiceNumber(found.invoice);
+          if (found.price) setCompanyPrice(found.price);
+        }
+      }
+    } catch (err: any) {
+      console.error('Excel upload error:', err);
+      toast.error('Failed to read Excel: ' + (err?.message || 'Unknown error'));
+    } finally {
+      setExcelLoading(false);
+    }
+  };
+
+  const clearExcel = () => {
+    setExcelRows([]);
+    setExcelFileName(null);
+    setMatchedRow(null);
+  };
+
 
   const calc = calculateValues();
 
@@ -1330,7 +1477,85 @@ const generateInvoicePDF = async (calc: {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Step 1: Upload BL */}
-          <motion.div layout className="lg:col-span-2">
+          <motion.div layout className="lg:col-span-2 space-y-6">
+            {/* Excel Auto-Fill Upload */}
+            <Card className="border-border/50 shadow-sm overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-emerald-500/5 to-transparent">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                  Excel Auto-Fill (Optional)
+                </CardTitle>
+                <CardDescription>
+                  Upload an Excel/CSV with Container Number, Invoice Number, and Company Price. Matching rows will auto-fill after BL extraction.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 space-y-4">
+                <input
+                  ref={excelInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={handleExcelUpload}
+                  className="hidden"
+                />
+                <div
+                  onClick={() => !excelLoading && excelInputRef.current?.click()}
+                  className="border-2 border-dashed border-border rounded-xl p-6 text-center cursor-pointer hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all"
+                >
+                  {excelLoading ? (
+                    <div className="flex items-center justify-center gap-2 text-emerald-600">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span className="text-sm font-medium">Reading Excel...</span>
+                    </div>
+                  ) : excelFileName ? (
+                    <div className="flex items-center justify-center gap-3">
+                      <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                      <div className="text-left">
+                        <p className="font-medium text-foreground">{excelFileName}</p>
+                        <p className="text-xs text-muted-foreground">{excelRows.length} rows loaded</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); clearExcel(); }}
+                        className="ml-2"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <FileSpreadsheet className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                      <p className="font-medium text-foreground">Click to upload Excel/CSV</p>
+                      <p className="text-xs text-muted-foreground mt-1">.xlsx, .xls, .csv</p>
+                    </>
+                  )}
+                </div>
+
+                <AnimatePresence>
+                  {matchedRow && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="rounded-xl p-4 border bg-emerald-500/5 border-emerald-500/20">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                          <span className="font-semibold text-foreground">Matched Record</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+                          <div><span className="text-muted-foreground">Container:</span> <span className="font-medium text-foreground">{matchedRow.container}</span></div>
+                          <div><span className="text-muted-foreground">Invoice #:</span> <span className="font-medium text-foreground">{matchedRow.invoice || '—'}</span></div>
+                          <div><span className="text-muted-foreground">Company Price:</span> <span className="font-medium text-foreground">{matchedRow.price || '—'}</span></div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </CardContent>
+            </Card>
+
             <Card className="border-border/50 shadow-sm overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent">
                 <CardTitle className="flex items-center gap-2 text-lg">
