@@ -15,8 +15,17 @@ import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
   FileText, Upload, Calculator, Download, Loader2, CheckCircle2,
   AlertCircle, Scale, DollarSign, Hash, ArrowRight,
-  Sparkles, Ship, FileUp, Eye, Package, RotateCcw
+  Sparkles, Ship, FileUp, Eye, Package, RotateCcw, FileSpreadsheet, X
 } from 'lucide-react';
+
+interface ExcelRow {
+  container: string;
+  invoice: string;
+  price: string;
+}
+
+const normalizeContainerKey = (s: string): string =>
+  (s || '').toString().toUpperCase().replace(/[\s\-_.,:;#'"]/g, '');
 
 interface BLData {
   kgs: number | null;
