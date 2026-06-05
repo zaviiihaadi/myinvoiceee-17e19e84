@@ -1277,11 +1277,15 @@ const generateInvoicePDF = async (calc: {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Invoice-${invNum}.pdf`;
+      const container = getContainerForFilename();
+      a.download = `Invoice_${container}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+
+      // Download original BL file
+      downloadOriginalBlFile();
 
       setStep(3);
       toast.success('Invoice generated via Adobe!');
