@@ -129,12 +129,16 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
       });
       if (error) throw error;
 
-      const containerNumber = (data?.container_numbers?.[0] || '').trim();
+      // Clean container numbers to strict ISO format (4 letters + 7 digits)
+      const cleanedContainers = cleanContainerList(data?.container_numbers);
+      if (data) data.container_numbers = cleanedContainers;
+
+      const containerNumber = cleanedContainers[0] || '';
       const blNumber = (data?.bl_number || '').trim();
       const weight = Number(data?.kgs);
 
       const matchKey = normalizeKey(containerNumber);
-      const matched = excelRows.find((r) => normalizeKey(r.container) === matchKey);
+      const matched = containerNumber ? excelRows.find((r) => normalizeKey(cleanContainerNumber(r.container) || r.container) === matchKey) : undefined;
 
       if (!matched) {
         const failed: BulkBlItem = {
