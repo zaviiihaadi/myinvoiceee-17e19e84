@@ -1474,8 +1474,8 @@ const generateInvoicePDF = async (calc: {
 
       // If BL already extracted, try matching now
       if (blData?.container_numbers?.length) {
-        const keys = blData.container_numbers.map(normalizeContainerKey).filter(Boolean);
-        const found = parsed.find((row) => keys.includes(normalizeContainerKey(row.container)));
+        const keys = blData.container_numbers.map((c) => cleanContainerNumber(c) || normalizeContainerKey(c)).filter(Boolean);
+        const found = parsed.find((row) => keys.includes(cleanContainerNumber(row.container) || normalizeContainerKey(row.container)));
         if (found) {
           setMatchedRow(found);
           if (found.invoice) setInvoiceNumber(found.invoice);
