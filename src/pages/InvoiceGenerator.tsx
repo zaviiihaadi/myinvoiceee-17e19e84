@@ -17,6 +17,7 @@ import {
   AlertCircle, Scale, DollarSign, Hash, ArrowRight,
   Sparkles, Ship, FileUp, Eye, Package, RotateCcw, FileSpreadsheet, X
 } from 'lucide-react';
+import { BulkBlUpload } from '@/components/BulkBlUpload';
 
 interface ExcelRow {
   container: string;
