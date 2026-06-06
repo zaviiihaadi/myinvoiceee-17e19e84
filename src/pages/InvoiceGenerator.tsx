@@ -1288,6 +1288,26 @@ const generateInvoicePDF = async (calc: {
       // Download original BL file
       downloadOriginalBlFile();
 
+      // Auto-create NOC tracking record(s) for each container in the BL
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        const uid = authData?.user?.id;
+        const containers = blData?.container_numbers?.filter(Boolean) || [];
+        if (uid && containers.length > 0) {
+          const rows = containers.map((c) => ({
+            user_id: uid,
+            container_number: c,
+            bl_number: blData?.bl_number || null,
+            invoice_number: invNum,
+            status: 'Pending Approval',
+          }));
+          const { error: nocErr } = await supabase.from('noc_records').insert(rows);
+          if (nocErr) console.error('NOC auto-create failed:', nocErr);
+        }
+      } catch (nocErr) {
+        console.error('NOC auto-create error:', nocErr);
+      }
+
       setStep(3);
       toast.success('Invoice generated via Adobe!');
     } catch (err: any) {
