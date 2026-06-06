@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      noc_records: {
+        Row: {
+          approval_date: string | null
+          arrived_date: string | null
+          bl_number: string | null
+          container_number: string
+          created_at: string
+          expiry_date: string | null
+          generated_date: string
+          id: string
+          invoice_number: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          approval_date?: string | null
+          arrived_date?: string | null
+          bl_number?: string | null
+          container_number: string
+          created_at?: string
+          expiry_date?: string | null
+          generated_date?: string
+          id?: string
+          invoice_number?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          approval_date?: string | null
+          arrived_date?: string | null
+          bl_number?: string | null
+          container_number?: string
+          created_at?: string
+          expiry_date?: string | null
+          generated_date?: string
+          id?: string
+          invoice_number?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
