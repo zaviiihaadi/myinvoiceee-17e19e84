@@ -1606,6 +1606,13 @@ const generateInvoicePDF = async (calc: {
               </CardContent>
             </Card>
 
+            {/* Bulk BL Upload (Max 5) — independent of single-BL workflow */}
+            <BulkBlUpload
+              excelRows={excelRows}
+              templateFile={templateFile}
+              templateLayout={templateLayout}
+            />
+
             <Card className="border-border/50 shadow-sm overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent">
                 <CardTitle className="flex items-center gap-2 text-lg">
