@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import Tracking from "./pages/Tracking";
 import InvoiceGenerator from "./pages/InvoiceGenerator";
+import NocTracker from "./pages/NocTracker";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => {
               <Route path="/auth" element={<Auth />} />
               <Route path="/tracking" element={<Tracking />} />
               <Route path="/invoice-generator" element={<InvoiceGenerator />} />
+              <Route path="/noc-tracker" element={<NocTracker />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
