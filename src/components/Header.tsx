@@ -27,6 +27,7 @@ export function Header() {
     { path: '/tracking', label: 'Tracking', icon: Globe },
     { path: '/dashboard', label: 'Dashboard', icon: BarChart3 },
     { path: '/invoice-generator', label: 'Invoice', icon: Sparkles },
+    { path: '/noc-tracker', label: 'NOC', icon: ShieldCheck },
   ];
   
   return (
