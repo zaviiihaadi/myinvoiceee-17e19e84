@@ -28,6 +28,25 @@ interface ExcelRow {
 const normalizeContainerKey = (s: string): string =>
   (s || '').toString().toUpperCase().replace(/[\s\-_.,:;#'"]/g, '');
 
+// Extract the clean ISO container code (4 letters + 7 digits) from any string.
+// Strips trailing size/type suffixes like /40HC, /20GP, -45HC, etc.
+export const cleanContainerNumber = (raw: string): string => {
+  if (!raw) return '';
+  const compact = raw.toString().toUpperCase().replace(/[\s\-_./\\]/g, '');
+  const m = compact.match(/([A-Z]{4}\d{7})/);
+  return m ? m[1] : '';
+};
+
+const cleanContainerList = (arr: any): string[] => {
+  if (!Array.isArray(arr)) return [];
+  const out: string[] = [];
+  for (const v of arr) {
+    const c = cleanContainerNumber(String(v ?? ''));
+    if (c && !out.includes(c)) out.push(c);
+  }
+  return out;
+};
+
 interface BLData {
   kgs: number | null;
   shipper: string | null;
