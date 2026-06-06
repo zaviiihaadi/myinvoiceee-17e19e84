@@ -41,6 +41,23 @@ interface BulkBlItem {
 const normalizeKey = (s: string) =>
   (s || '').toString().toUpperCase().replace(/[\s\-_.,:;#'"]/g, '');
 
+const cleanContainerNumber = (raw: string): string => {
+  if (!raw) return '';
+  const compact = raw.toString().toUpperCase().replace(/[\s\-_./\\]/g, '');
+  const m = compact.match(/([A-Z]{4}\d{7})/);
+  return m ? m[1] : '';
+};
+
+const cleanContainerList = (arr: any): string[] => {
+  if (!Array.isArray(arr)) return [];
+  const out: string[] = [];
+  for (const v of arr) {
+    const c = cleanContainerNumber(String(v ?? ''));
+    if (c && !out.includes(c)) out.push(c);
+  }
+  return out;
+};
+
 const readBase64 = (file: File) =>
   new Promise<string>((resolve, reject) => {
     const r = new FileReader();
@@ -112,12 +129,16 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
       });
       if (error) throw error;
 
-      const containerNumber = (data?.container_numbers?.[0] || '').trim();
+      // Clean container numbers to strict ISO format (4 letters + 7 digits)
+      const cleanedContainers = cleanContainerList(data?.container_numbers);
+      if (data) data.container_numbers = cleanedContainers;
+
+      const containerNumber = cleanedContainers[0] || '';
       const blNumber = (data?.bl_number || '').trim();
       const weight = Number(data?.kgs);
 
       const matchKey = normalizeKey(containerNumber);
-      const matched = excelRows.find((r) => normalizeKey(r.container) === matchKey);
+      const matched = containerNumber ? excelRows.find((r) => normalizeKey(cleanContainerNumber(r.container) || r.container) === matchKey) : undefined;
 
       if (!matched) {
         const failed: BulkBlItem = {

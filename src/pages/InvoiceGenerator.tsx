@@ -28,6 +28,25 @@ interface ExcelRow {
 const normalizeContainerKey = (s: string): string =>
   (s || '').toString().toUpperCase().replace(/[\s\-_.,:;#'"]/g, '');
 
+// Extract the clean ISO container code (4 letters + 7 digits) from any string.
+// Strips trailing size/type suffixes like /40HC, /20GP, -45HC, etc.
+export const cleanContainerNumber = (raw: string): string => {
+  if (!raw) return '';
+  const compact = raw.toString().toUpperCase().replace(/[\s\-_./\\]/g, '');
+  const m = compact.match(/([A-Z]{4}\d{7})/);
+  return m ? m[1] : '';
+};
+
+const cleanContainerList = (arr: any): string[] => {
+  if (!Array.isArray(arr)) return [];
+  const out: string[] = [];
+  for (const v of arr) {
+    const c = cleanContainerNumber(String(v ?? ''));
+    if (c && !out.includes(c)) out.push(c);
+  }
+  return out;
+};
+
 interface BLData {
   kgs: number | null;
   shipper: string | null;
@@ -897,7 +916,7 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         cleanedDescription = cleanedDescription.replace(/^SAID\s+TO\s+CONTAIN[^A-Za-z]*\d*\s*X?\s*\d*[A-Z0-9]*\s*\d*\s*BALES?\s*[:\-]?\s*/i, '').trim();
       }
 
-      const normalizedData = { ...data, notify_party: mergedNotify, notify_party_address: '', description: cleanedDescription };
+      const normalizedData = { ...data, container_numbers: cleanContainerList(data?.container_numbers), notify_party: mergedNotify, notify_party_address: '', description: cleanedDescription };
 
       if (data.kgs) {
         setBlData(normalizedData);
@@ -1347,8 +1366,11 @@ const generateInvoicePDF = async (calc: {
 
   const tryAutoFillFromExcel = (containerNumbers: string[]) => {
     if (!excelRows.length || !containerNumbers || containerNumbers.length === 0) return;
-    const keys = containerNumbers.map(normalizeContainerKey).filter(Boolean);
-    const found = excelRows.find((row) => keys.includes(normalizeContainerKey(row.container)));
+    const keys = containerNumbers.map((c) => cleanContainerNumber(c) || normalizeContainerKey(c)).filter(Boolean);
+    const found = excelRows.find((row) => {
+      const k = cleanContainerNumber(row.container) || normalizeContainerKey(row.container);
+      return keys.includes(k);
+    });
     if (found) {
       setMatchedRow(found);
       if (found.invoice) setInvoiceNumber(found.invoice);
@@ -1452,8 +1474,8 @@ const generateInvoicePDF = async (calc: {
 
       // If BL already extracted, try matching now
       if (blData?.container_numbers?.length) {
-        const keys = blData.container_numbers.map(normalizeContainerKey).filter(Boolean);
-        const found = parsed.find((row) => keys.includes(normalizeContainerKey(row.container)));
+        const keys = blData.container_numbers.map((c) => cleanContainerNumber(c) || normalizeContainerKey(c)).filter(Boolean);
+        const found = parsed.find((row) => keys.includes(cleanContainerNumber(row.container) || normalizeContainerKey(row.container)));
         if (found) {
           setMatchedRow(found);
           if (found.invoice) setInvoiceNumber(found.invoice);
@@ -1846,7 +1868,7 @@ const generateInvoicePDF = async (calc: {
                               <Label className="text-xs">Container Numbers (comma separated)</Label>
                               <Input
                                 value={blData.container_numbers?.join(', ') ?? ''}
-                                onChange={(e) => setBlData({ ...blData, container_numbers: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                                onChange={(e) => setBlData({ ...blData, container_numbers: cleanContainerList(e.target.value.split(',')) })}
                               />
                             </div>
                             <div className="space-y-1 sm:col-span-2">
