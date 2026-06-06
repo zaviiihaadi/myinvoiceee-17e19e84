@@ -1,4 +1,4 @@
-import { Ship, BarChart3, LogOut, User, Sparkles, Menu, X, Globe, Waves } from 'lucide-react';
+import { Ship, BarChart3, LogOut, User, Sparkles, Menu, X, Globe, Waves, ShieldCheck } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
