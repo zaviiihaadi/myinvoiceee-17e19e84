@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import Tracking from "./pages/Tracking";
 import InvoiceGenerator from "./pages/InvoiceGenerator";
+import NocTracker from "./pages/NocTracker";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
