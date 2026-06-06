@@ -41,6 +41,23 @@ interface BulkBlItem {
 const normalizeKey = (s: string) =>
   (s || '').toString().toUpperCase().replace(/[\s\-_.,:;#'"]/g, '');
 
+const cleanContainerNumber = (raw: string): string => {
+  if (!raw) return '';
+  const compact = raw.toString().toUpperCase().replace(/[\s\-_./\\]/g, '');
+  const m = compact.match(/([A-Z]{4}\d{7})/);
+  return m ? m[1] : '';
+};
+
+const cleanContainerList = (arr: any): string[] => {
+  if (!Array.isArray(arr)) return [];
+  const out: string[] = [];
+  for (const v of arr) {
+    const c = cleanContainerNumber(String(v ?? ''));
+    if (c && !out.includes(c)) out.push(c);
+  }
+  return out;
+};
+
 const readBase64 = (file: File) =>
   new Promise<string>((resolve, reject) => {
     const r = new FileReader();
