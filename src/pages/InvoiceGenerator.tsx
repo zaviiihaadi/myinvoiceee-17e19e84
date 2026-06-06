@@ -17,6 +17,7 @@ import {
   AlertCircle, Scale, DollarSign, Hash, ArrowRight,
   Sparkles, Ship, FileUp, Eye, Package, RotateCcw, FileSpreadsheet, X
 } from 'lucide-react';
+import { BulkBlUpload } from '@/components/BulkBlUpload';
 
 interface ExcelRow {
   container: string;
@@ -1604,6 +1605,13 @@ const generateInvoicePDF = async (calc: {
                 </AnimatePresence>
               </CardContent>
             </Card>
+
+            {/* Bulk BL Upload (Max 5) — independent of single-BL workflow */}
+            <BulkBlUpload
+              excelRows={excelRows}
+              templateFile={templateFile}
+              templateLayout={templateLayout}
+            />
 
             <Card className="border-border/50 shadow-sm overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent">
