@@ -931,7 +931,8 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const weightNum = Number(normalizedWeight);
     if (!isFinite(companyPriceNum) || !isFinite(weightNum) || weightNum === 0) return null;
     const rawUnitPrice = companyPriceNum / weightNum;
-    const unitPriceNum = Math.floor(rawUnitPrice * 100) / 100;
+    const truncatedUnitPrice = Math.floor(rawUnitPrice * 100) / 100;
+    const unitPriceNum = truncatedUnitPrice < 0.42 ? 0.42 : truncatedUnitPrice;
     const unitPriceTextExact = unitPriceNum.toFixed(2); // always 2 decimals after truncation: 0.40, 0.53, 1.00
 
     // Total = displayed unit price × weight, truncated to 3 decimals with no post-rounding
