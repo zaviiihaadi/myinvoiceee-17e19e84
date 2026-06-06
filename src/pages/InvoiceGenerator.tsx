@@ -1366,8 +1366,11 @@ const generateInvoicePDF = async (calc: {
 
   const tryAutoFillFromExcel = (containerNumbers: string[]) => {
     if (!excelRows.length || !containerNumbers || containerNumbers.length === 0) return;
-    const keys = containerNumbers.map(normalizeContainerKey).filter(Boolean);
-    const found = excelRows.find((row) => keys.includes(normalizeContainerKey(row.container)));
+    const keys = containerNumbers.map((c) => cleanContainerNumber(c) || normalizeContainerKey(c)).filter(Boolean);
+    const found = excelRows.find((row) => {
+      const k = cleanContainerNumber(row.container) || normalizeContainerKey(row.container);
+      return keys.includes(k);
+    });
     if (found) {
       setMatchedRow(found);
       if (found.invoice) setInvoiceNumber(found.invoice);
