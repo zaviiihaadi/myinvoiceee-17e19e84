@@ -1865,7 +1865,7 @@ const generateInvoicePDF = async (calc: {
                               <Label className="text-xs">Container Numbers (comma separated)</Label>
                               <Input
                                 value={blData.container_numbers?.join(', ') ?? ''}
-                                onChange={(e) => setBlData({ ...blData, container_numbers: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                                onChange={(e) => setBlData({ ...blData, container_numbers: cleanContainerList(e.target.value.split(',')) })}
                               />
                             </div>
                             <div className="space-y-1 sm:col-span-2">
