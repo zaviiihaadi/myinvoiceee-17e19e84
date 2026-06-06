@@ -916,7 +916,7 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         cleanedDescription = cleanedDescription.replace(/^SAID\s+TO\s+CONTAIN[^A-Za-z]*\d*\s*X?\s*\d*[A-Z0-9]*\s*\d*\s*BALES?\s*[:\-]?\s*/i, '').trim();
       }
 
-      const normalizedData = { ...data, notify_party: mergedNotify, notify_party_address: '', description: cleanedDescription };
+      const normalizedData = { ...data, container_numbers: cleanContainerList(data?.container_numbers), notify_party: mergedNotify, notify_party_address: '', description: cleanedDescription };
 
       if (data.kgs) {
         setBlData(normalizedData);
