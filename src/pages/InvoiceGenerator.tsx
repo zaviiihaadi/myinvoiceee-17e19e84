@@ -1552,16 +1552,16 @@ const generateInvoicePDF = async (calc: {
           <motion.div layout className="space-y-4 sm:space-y-6 min-w-0">
             {/* Excel Auto-Fill Upload */}
             <Card className="border-border/50 shadow-sm overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-emerald-500/5 to-transparent">
-                <CardTitle className="flex items-center gap-2 text-lg">
+              <CardHeader className="bg-gradient-to-r from-emerald-500/5 to-transparent p-4 sm:p-6">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                   <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
                   Excel Auto-Fill (Optional)
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-xs sm:text-sm">
                   Upload an Excel/CSV with Container Number, Invoice Number, and Company Price. Matching rows will auto-fill after BL extraction.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-6 space-y-4">
+              <CardContent className="p-4 sm:p-6 space-y-3 sm:space-y-4">
                 <input
                   ref={excelInputRef}
                   type="file"
@@ -1636,14 +1636,14 @@ const generateInvoicePDF = async (calc: {
             />
 
             <Card className="border-border/50 shadow-sm overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent">
-                <CardTitle className="flex items-center gap-2 text-lg">
+              <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent p-4 sm:p-6">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                   <FileText className="w-5 h-5 text-primary" />
                   Step 1: Upload Bill of Lading
                 </CardTitle>
-                <CardDescription>Upload PDF or Image file of your BL document</CardDescription>
+                <CardDescription className="text-xs sm:text-sm">Upload PDF or Image file of your BL document</CardDescription>
               </CardHeader>
-              <CardContent className="p-6 space-y-4">
+              <CardContent className="p-4 sm:p-6 space-y-3 sm:space-y-4">
                 <input ref={blInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={handleBLUpload} className="hidden" />
                 <div
                   onClick={() => blInputRef.current?.click()}
