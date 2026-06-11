@@ -6,6 +6,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Upload, Loader2, CheckCircle2, X, Download, Package, AlertCircle, FileUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  cleanContainerNumber,
+  cleanContainerList,
+  resolveTemplateLayout,
+  parseExactAmountInput,
+  normalizeDecimalForMath,
+  multiplyDecimalStrings,
+  formatCalculatedDecimal,
+  normalizeDateString,
+  todayDDMMYY,
+} from '@/pages/InvoiceGenerator';
 
 const MAX_BULK_FILES = 5;
 const ACCEPTED_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
@@ -41,23 +52,6 @@ interface BulkBlItem {
 const normalizeKey = (s: string) =>
   (s || '').toString().toUpperCase().replace(/[\s\-_.,:;#'"]/g, '');
 
-const cleanContainerNumber = (raw: string): string => {
-  if (!raw) return '';
-  const compact = raw.toString().toUpperCase().replace(/[\s\-_./\\]/g, '');
-  const m = compact.match(/([A-Z]{4}\d{7})/);
-  return m ? m[1] : '';
-};
-
-const cleanContainerList = (arr: any): string[] => {
-  if (!Array.isArray(arr)) return [];
-  const out: string[] = [];
-  for (const v of arr) {
-    const c = cleanContainerNumber(String(v ?? ''));
-    if (c && !out.includes(c)) out.push(c);
-  }
-  return out;
-};
-
 const readBase64 = (file: File) =>
   new Promise<string>((resolve, reject) => {
     const r = new FileReader();
@@ -66,12 +60,63 @@ const readBase64 = (file: File) =>
     r.readAsDataURL(file);
   });
 
-const todayDDMMYY = () => {
-  const d = new Date();
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-};
-
 const sanitize = (s: string) => s.replace(/[\\/:*?"<>|]/g, '');
+
+// Mirrors the single-BL normalization performed in InvoiceGenerator.extractBLData
+function normalizeExtractedBlData(raw: any) {
+  const notifyName = (raw?.notify_party || '').trim();
+  const notifyAddr = (raw?.notify_party_address || '').trim();
+  const notifyAlreadyHasAddr = notifyAddr && notifyName.toLowerCase().includes(notifyAddr.toLowerCase());
+  const mergedNotify = notifyAlreadyHasAddr || !notifyAddr
+    ? notifyName
+    : [notifyName, notifyAddr].filter(Boolean).join('\n');
+
+  let cleanedDescription = (raw?.description || '').trim();
+  if (cleanedDescription) {
+    const match = cleanedDescription.match(/(MIX(?:ED)?\s+USED\s+CLOTHING|USED\s+CLOTHING)[\s\S]*/i);
+    if (match) cleanedDescription = match[0].trim();
+    cleanedDescription = cleanedDescription
+      .replace(/^SAID\s+TO\s+CONTAIN[^A-Za-z]*\d*\s*X?\s*\d*[A-Z0-9]*\s*\d*\s*BALES?\s*[:\-]?\s*/i, '')
+      .trim();
+  }
+
+  return {
+    ...raw,
+    container_numbers: cleanContainerList(raw?.container_numbers),
+    notify_party: mergedNotify,
+    notify_party_address: '',
+    description: cleanedDescription,
+  };
+}
+
+// Mirrors the single-BL calculateValues() exactly (same truncation + 0.42 floor + 3dp total)
+function singleBlCalculate(blData: any, companyPriceStr: string) {
+  if (!blData?.kgs || !companyPriceStr) return null;
+  const parsedAmount = parseExactAmountInput(companyPriceStr);
+  if (!parsedAmount) return null;
+  const normalizedWeight = normalizeDecimalForMath(String(blData.kgs));
+  if (!normalizedWeight) return null;
+
+  const companyPriceNum = Number(parsedAmount.normalizedForMath);
+  const weightNum = Number(normalizedWeight);
+  if (!isFinite(companyPriceNum) || !isFinite(weightNum) || weightNum === 0) return null;
+
+  const rawUnitPrice = companyPriceNum / weightNum;
+  const truncatedUnitPrice = Math.floor(rawUnitPrice * 100) / 100;
+  const unitPriceNum = truncatedUnitPrice < 0.42 ? 0.42 : truncatedUnitPrice;
+  const unitPriceText = unitPriceNum.toFixed(2);
+
+  const computedTotalRaw =
+    multiplyDecimalStrings(unitPriceText, normalizedWeight, 3) ?? parsedAmount.normalized;
+  const totalPriceText = formatCalculatedDecimal(computedTotalRaw, 3);
+
+  return {
+    unitPrice: unitPriceNum,
+    unitPriceText,
+    totalPriceText,
+    kgs: blData.kgs as number,
+  };
+}
 
 export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBlUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -100,45 +145,38 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
     );
   };
 
-  const clearAll = () => {
-    setItems([]);
-  };
+  const clearAll = () => setItems([]);
 
   const updateItem = (id: string, patch: Partial<BulkBlItem>) => {
     setItems((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
   };
 
-  const computeCalc = (companyPriceStr: string, weight: number) => {
-    const companyPriceNum = Number(String(companyPriceStr).replace(/,/g, ''));
-    if (!isFinite(companyPriceNum) || !isFinite(weight) || weight === 0) return null;
-    const raw = companyPriceNum / weight;
-    const truncated = Math.floor(raw * 100) / 100;
-    const unitPrice = truncated < 0.42 ? 0.42 : truncated;
-    const unitPriceText = unitPrice.toFixed(2);
-    const totalRaw = Math.floor(unitPrice * weight * 1000) / 1000;
-    const totalText = totalRaw.toFixed(3);
-    return { unitPrice, unitPriceText, totalText, totalDisplay: totalText };
-  };
-
   const processBL = async (item: BulkBlItem): Promise<BulkBlItem> => {
     try {
       updateItem(item.id, { status: 'processing', message: 'Extracting…' });
+
+      // 1. AI Extraction (same edge function as single BL)
       const base64 = await readBase64(item.file);
-      const { data, error } = await supabase.functions.invoke('extract-bl-data', {
+      const { data: rawData, error } = await supabase.functions.invoke('extract-bl-data', {
         body: { fileBase64: base64, mimeType: item.file.type },
       });
       if (error) throw error;
 
-      // Clean container numbers to strict ISO format (4 letters + 7 digits)
-      const cleanedContainers = cleanContainerList(data?.container_numbers);
-      if (data) data.container_numbers = cleanedContainers;
+      // 2. Same normalization as single BL (containers + notify party + description)
+      const blData = normalizeExtractedBlData(rawData);
+      const containers: string[] = blData.container_numbers || [];
+      const containerNumber = containers[0] || '';
+      const blNumber = (blData?.bl_number || '').trim();
+      const weight = Number(blData?.kgs);
 
-      const containerNumber = cleanedContainers[0] || '';
-      const blNumber = (data?.bl_number || '').trim();
-      const weight = Number(data?.kgs);
-
-      const matchKey = normalizeKey(containerNumber);
-      const matched = containerNumber ? excelRows.find((r) => normalizeKey(cleanContainerNumber(r.container) || r.container) === matchKey) : undefined;
+      // 3. Same Excel matching logic as single BL (tryAutoFillFromExcel)
+      const keys = containers
+        .map((c) => cleanContainerNumber(c) || normalizeKey(c))
+        .filter(Boolean);
+      const matched = excelRows.find((row) => {
+        const k = cleanContainerNumber(row.container) || normalizeKey(row.container);
+        return keys.includes(k);
+      });
 
       if (!matched) {
         const failed: BulkBlItem = {
@@ -147,14 +185,15 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
           message: 'No Excel match',
           containerNumber,
           blNumber,
-          blData: data,
+          blData,
           weight: isFinite(weight) ? weight : undefined,
         };
         updateItem(item.id, failed);
         return failed;
       }
 
-      const calc = isFinite(weight) ? computeCalc(matched.price, weight) : null;
+      // 4. Same calculation as single BL (calculateValues)
+      const calc = singleBlCalculate(blData, matched.price);
       if (!calc) {
         const failed: BulkBlItem = {
           ...item,
@@ -164,69 +203,87 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
           blNumber,
           invoiceNumber: matched.invoice,
           companyPrice: matched.price,
-          blData: data,
+          blData,
         };
         updateItem(item.id, failed);
         return failed;
       }
 
+      // 5. Same field resolution as single BL (matched.invoice -> blData.bl_number fallback handled via state in single)
       const invNum = matched.invoice || blNumber || `INV-${Date.now()}`;
-      const containerNums = (data?.container_numbers || []).join(', ');
+      const invoiceDate = blData?.bl_date ? normalizeDateString(blData.bl_date) : todayDDMMYY();
+      const containerNums = containers.join(', ');
       const firstContainer = containerNumber;
-      const containerSize = data?.container_size || '';
-      const bales = data?.bales || '';
+      const containerSize = blData?.container_size || '';
+      const bales = blData?.bales || '';
 
+      // 6. Identical Adobe merge tags payload as single BL
       const adobeData = {
         invoice_number: invNum,
-        date: todayDDMMYY(),
-        shipper: data?.shipper || '',
-        shipper_address: data?.shipper_address || '',
-        consignee: data?.consignee || '',
-        consignee_address: data?.consignee_address || '',
-        notify_party: data?.notify_party || data?.consignee || '',
-        notify_party_address: data?.notify_party_address || data?.consignee_address || '',
+        date: invoiceDate,
+        shipper: blData?.shipper || '',
+        shipper_address: blData?.shipper_address || '',
+        consignee: blData?.consignee || '',
+        consignee_address: blData?.consignee_address || '',
+        notify_party: blData?.notify_party || blData?.consignee || '',
+        notify_party_address: blData?.notify_party_address || blData?.consignee_address || '',
         container_size: containerSize,
         container_numbers: containerNums,
         container_numbers_one: firstContainer,
-        vessel: data?.vessel_name || '',
-        port_of_loading: data?.port_of_loading || '',
-        port_of_discharge: data?.port_of_discharge || '',
-        hs_code: data?.hs_code || '',
-        goods_description: data?.description || '',
-        gross_weight: `${weight}KGS`,
+        vessel: blData?.vessel_name || '',
+        port_of_loading: blData?.port_of_loading || '',
+        port_of_discharge: blData?.port_of_discharge || '',
+        hs_code: blData?.hs_code || '',
+        goods_description: blData?.description || '',
+        gross_weight: `${calc.kgs}KGS`,
         unit_price: `${calc.unitPriceText}US$ Per KG`,
-        amount: `${calc.totalText}$`,
-        shipping_marks: data?.shipping_marks || 'NIL',
-        packages: bales ? `${bales} BALES` : (data?.packages || ''),
-        company_name: data?.shipper || '',
+        amount: `${calc.totalPriceText}$`,
+        shipping_marks: blData?.shipping_marks || 'NIL',
+        packages: bales ? `${bales} BALES` : (blData?.packages || ''),
+        company_name: blData?.shipper || '',
       };
 
-      updateItem(item.id, { status: 'processing', message: 'Generating PDF…', containerNumber, blNumber, invoiceNumber: invNum, companyPrice: matched.price, weight });
+      updateItem(item.id, {
+        status: 'processing',
+        message: 'Generating PDF…',
+        containerNumber,
+        blNumber,
+        invoiceNumber: invNum,
+        companyPrice: matched.price,
+        weight,
+      });
 
+      // 7. Same template routing as single BL (overlay for PDF, Adobe for DOCX/built-in)
       const tplName = (templateFile?.name || '').toLowerCase();
-      const isUserPdf = templateFile && (templateFile.type === 'application/pdf' || tplName.endsWith('.pdf'));
-      const isUserDocx = templateFile && (
-        tplName.endsWith('.docx') || tplName.endsWith('.doc') ||
-        templateFile.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-      );
+      const isUserPdf =
+        templateFile && (templateFile.type === 'application/pdf' || tplName.endsWith('.pdf'));
+      const isUserDocx =
+        templateFile &&
+        (tplName.endsWith('.docx') ||
+          tplName.endsWith('.doc') ||
+          templateFile.type ===
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
 
       let pdfBase64: string | undefined;
       if (isUserPdf) {
         const overlayData = {
           ...adobeData,
-          shipper: [data?.shipper, data?.shipper_address].filter(Boolean).join('\n'),
-          consignee: [data?.consignee, data?.consignee_address].filter(Boolean).join('\n'),
+          shipper: [blData?.shipper, blData?.shipper_address].filter(Boolean).join('\n'),
+          consignee: [blData?.consignee, blData?.consignee_address].filter(Boolean).join('\n'),
           notify_party: [
-            data?.notify_party || data?.consignee,
-            data?.notify_party_address || data?.consignee_address,
-          ].filter(Boolean).join('\n'),
+            blData?.notify_party || blData?.consignee,
+            blData?.notify_party_address || blData?.consignee_address,
+          ]
+            .filter(Boolean)
+            .join('\n'),
         };
         const templateBase64 = await readBase64(templateFile!);
+        const resolved = resolveTemplateLayout(templateLayout);
         const { data: res, error: err } = await supabase.functions.invoke('generate-invoice-overlay', {
-          body: { templateBase64, data: overlayData, fields: templateLayout?.fields ?? [] },
+          body: { templateBase64, data: overlayData, fields: resolved.fields ?? [] },
         });
         if (err) throw err;
-        if (!res?.success) throw new Error(res?.error || 'overlay failed');
+        if (!res?.success) throw new Error(res?.error || 'PDF overlay failed');
         pdfBase64 = res.pdfBase64;
       } else {
         const templateBase64 = isUserDocx ? await readBase64(templateFile!) : undefined;
@@ -234,20 +291,19 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
           body: { data: adobeData, templateBase64 },
         });
         if (err) throw err;
-        if (!res?.success || !res?.pdfBase64) throw new Error(res?.error || 'adobe failed');
+        if (!res?.success || !res?.pdfBase64) throw new Error(res?.error || 'Adobe generation failed');
         pdfBase64 = res.pdfBase64;
       }
 
-      // NOC tracking
+      // 8. Same NOC auto-create (one row per container in the BL)
       try {
         const { data: authData } = await supabase.auth.getUser();
         const uid = authData?.user?.id;
-        const containers = (data?.container_numbers || []).filter(Boolean);
         if (uid && containers.length > 0) {
-          const rows = containers.map((c: string) => ({
+          const rows = containers.map((c) => ({
             user_id: uid,
             container_number: c,
-            bl_number: data?.bl_number || null,
+            bl_number: blData?.bl_number || null,
             invoice_number: invNum,
             status: 'Pending Approval',
           }));
@@ -266,7 +322,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
         invoiceNumber: invNum,
         companyPrice: matched.price,
         weight,
-        blData: data,
+        blData,
         pdfBase64,
       };
       updateItem(item.id, done);
@@ -287,6 +343,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
     }
     setProcessing(true);
     try {
+      // Run the exact single-BL workflow once per file, independently
       for (const item of items) {
         await processBL(item);
       }
@@ -313,6 +370,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
 
   const downloadOne = (item: BulkBlItem) => {
     if (!item.pdfBase64) return;
+    // Same naming as single-BL (Invoice_<container>.pdf)
     const container = item.containerNumber
       ? sanitize(item.containerNumber)
       : new Date().toISOString().split('T')[0].replace(/-/g, '');
@@ -353,7 +411,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
           Bulk BL Upload (Max 5 Files)
         </CardTitle>
         <CardDescription>
-          Process up to 5 BL files at once. Each BL is treated independently and matched against the uploaded Excel.
+          Each BL runs the exact same Single-BL workflow (AI extraction → Excel match → calculations → template → PDF → NOC).
         </CardDescription>
       </CardHeader>
       <CardContent className="p-6 space-y-4">
@@ -454,9 +512,9 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
 
             {generatedCount > 0 && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <Button onClick={downloadAll} className="w-full gap-2" variant="secondary">
+                <Button onClick={downloadAll} className="w-full gap-2" variant="default">
                   <Download className="w-4 h-4" />
-                  Download All Invoices ({generatedCount})
+                  Download All ({generatedCount})
                 </Button>
               </motion.div>
             )}

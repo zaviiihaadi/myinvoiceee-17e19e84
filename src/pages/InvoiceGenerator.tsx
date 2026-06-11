@@ -37,7 +37,7 @@ export const cleanContainerNumber = (raw: string): string => {
   return m ? m[1] : '';
 };
 
-const cleanContainerList = (arr: any): string[] => {
+export const cleanContainerList = (arr: any): string[] => {
   if (!Array.isArray(arr)) return [];
   const out: string[] = [];
   for (const v of arr) {
@@ -318,7 +318,7 @@ const mergeImageRegions = (incoming: TemplateImageRegion[] | null | undefined): 
     .filter((item): item is TemplateImageRegion => Boolean(item))
 );
 
-const resolveTemplateLayout = (layout: TemplateLayout | null | undefined): TemplateLayout => ({
+export const resolveTemplateLayout = (layout: TemplateLayout | null | undefined): TemplateLayout => ({
   ...DEFAULT_TEMPLATE_LAYOUT,
   ...layout,
   show_lines: false,
@@ -602,7 +602,7 @@ const removePersistedInvoiceTemplate = async (storageKey: string) => {
 
 const normalizeAmountInput = (value: string) => value.replace(/,/g, '').trim();
 
-const normalizeDecimalForMath = (value: string) => {
+export const normalizeDecimalForMath = (value: string) => {
   const normalized = normalizeAmountInput(value);
   if (!/^(?:\d+|\d*\.\d+)$/.test(normalized)) return null;
 
@@ -656,7 +656,7 @@ const divideDecimalStrings = (numerator: string, denominator: string, precision 
   return decimalPart ? `${integerPart.toString()}.${decimalPart}` : integerPart.toString();
 };
 
-const multiplyDecimalStrings = (a: string, b: string, maxDecimals = 3) => {
+export const multiplyDecimalStrings = (a: string, b: string, maxDecimals = 3) => {
   const aParts = parseDecimalParts(a);
   const bParts = parseDecimalParts(b);
   if (!aParts || !bParts) return null;
@@ -672,7 +672,7 @@ const multiplyDecimalStrings = (a: string, b: string, maxDecimals = 3) => {
 };
 
 
-const formatCalculatedDecimal = (normalized: string, minimumFractionDigits = 2) => {
+export const formatCalculatedDecimal = (normalized: string, minimumFractionDigits = 2) => {
   const [integerPart = '0', decimalPart = ''] = normalized.split('.');
   const trimmedDecimal = decimalPart.replace(/0+$/, '');
   const finalDecimal = trimmedDecimal.length
@@ -686,7 +686,7 @@ const formatCalculatedDecimal = (normalized: string, minimumFractionDigits = 2) 
   return finalDecimal ? `${integerPart}.${finalDecimal}` : integerPart;
 };
 
-const parseExactAmountInput = (value: string) => {
+export const parseExactAmountInput = (value: string) => {
   const normalized = normalizeAmountInput(value);
   if (!normalized || !/^(?:\d+|\d*\.\d+)$/.test(normalized)) return null;
 
@@ -696,7 +696,7 @@ const parseExactAmountInput = (value: string) => {
   return { amount, normalized, normalizedForMath: normalizeDecimalForMath(normalized) ?? normalized };
 };
 
-const formatExactAmount = (normalized: string) => {
+export const formatExactAmount = (normalized: string) => {
   const [integerPart = '0', decimalPart] = normalized.split('.');
   const sanitizedInteger = (integerPart || '0').replace(/^0+(?=\d)/, '') || '0';
   const groupedInteger = sanitizedInteger.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -709,7 +709,7 @@ const MONTH_MAP: Record<string, string> = {
   jul: '07', aug: '08', sep: '09', sept: '09', oct: '10', nov: '11', dec: '12',
 };
 
-function normalizeDateString(input: string | null | undefined): string {
+export function normalizeDateString(input: string | null | undefined): string {
   if (!input) return '';
   const s = String(input).trim();
   if (!s) return '';
@@ -740,7 +740,7 @@ function normalizeDateString(input: string | null | undefined): string {
   return s;
 }
 
-function todayDDMMYY(): string {
+export function todayDDMMYY(): string {
   const d = new Date();
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
