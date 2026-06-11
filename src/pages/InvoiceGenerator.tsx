@@ -1502,27 +1502,27 @@ const generateInvoicePDF = async (calc: {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="container mx-auto px-4 py-8 max-w-5xl">
+      <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-6xl pb-28 lg:pb-8">
         {/* Page title */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8"
+          className="text-center mb-4 sm:mb-8"
         >
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
             <Sparkles className="w-4 h-4" />
             AI-Powered Invoice Generator
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-2">
             Generate Invoice from <span className="text-primary">Bill of Lading</span>
           </h1>
-          <p className="text-muted-foreground max-w-xl mx-auto">
+          <p className="text-sm sm:text-base text-muted-foreground max-w-xl mx-auto">
             Upload your BL, let AI map the original template, and generate a line-free invoice that follows the same layout.
           </p>
         </motion.div>
 
         {/* Progress Steps */}
-        <div className="flex items-center justify-center gap-2 mb-10">
+        <div className="flex items-center justify-center gap-2 mb-6 sm:mb-10">
           {[
             { num: 1, label: 'Upload BL' },
             { num: 2, label: 'Enter Details' },
@@ -1547,21 +1547,21 @@ const generateInvoicePDF = async (calc: {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Step 1: Upload BL */}
-          <motion.div layout className="lg:col-span-2 space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          {/* LEFT: Upload + AI Extraction + Excel Matching */}
+          <motion.div layout className="space-y-4 sm:space-y-6 min-w-0">
             {/* Excel Auto-Fill Upload */}
             <Card className="border-border/50 shadow-sm overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-emerald-500/5 to-transparent">
-                <CardTitle className="flex items-center gap-2 text-lg">
+              <CardHeader className="bg-gradient-to-r from-emerald-500/5 to-transparent p-4 sm:p-6">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                   <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
                   Excel Auto-Fill (Optional)
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-xs sm:text-sm">
                   Upload an Excel/CSV with Container Number, Invoice Number, and Company Price. Matching rows will auto-fill after BL extraction.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-6 space-y-4">
+              <CardContent className="p-4 sm:p-6 space-y-3 sm:space-y-4">
                 <input
                   ref={excelInputRef}
                   type="file"
@@ -1636,14 +1636,14 @@ const generateInvoicePDF = async (calc: {
             />
 
             <Card className="border-border/50 shadow-sm overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent">
-                <CardTitle className="flex items-center gap-2 text-lg">
+              <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent p-4 sm:p-6">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                   <FileText className="w-5 h-5 text-primary" />
                   Step 1: Upload Bill of Lading
                 </CardTitle>
-                <CardDescription>Upload PDF or Image file of your BL document</CardDescription>
+                <CardDescription className="text-xs sm:text-sm">Upload PDF or Image file of your BL document</CardDescription>
               </CardHeader>
-              <CardContent className="p-6 space-y-4">
+              <CardContent className="p-4 sm:p-6 space-y-3 sm:space-y-4">
                 <input ref={blInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={handleBLUpload} className="hidden" />
                 <div
                   onClick={() => blInputRef.current?.click()}
@@ -1742,25 +1742,34 @@ const generateInvoicePDF = async (calc: {
               </CardContent>
             </Card>
 
+          </motion.div>
+
+          {/* RIGHT: Invoice Details + Preview + Generate */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.1 }}
+            className="space-y-4 sm:space-y-6 min-w-0"
+          >
             {/* Step 2: Details */}
             <AnimatePresence>
-              {step >= 2 && (
+              {step >= 2 ? (
                 <motion.div
+                  key="step2"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="mt-6"
                 >
-                  <Card className="border-border/50 shadow-sm">
-                    <CardHeader className="bg-gradient-to-r from-accent/5 to-transparent">
-                      <CardTitle className="flex items-center gap-2 text-lg">
+                  <Card className="border-border/50 shadow-sm lg:sticky lg:top-24">
+                    <CardHeader className="bg-gradient-to-r from-accent/5 to-transparent p-4 sm:p-6">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                         <Calculator className="w-5 h-5 text-primary" />
                         Step 2: Invoice Details
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="p-6 space-y-4">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <CardContent className="p-4 sm:p-6 space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                         <div className="space-y-2">
-                          <Label className="flex items-center gap-2">
+                          <Label className="flex items-center gap-2 text-xs sm:text-sm">
                             <DollarSign className="w-4 h-4 text-primary" />
                             Company Total Price ($)
                           </Label>
@@ -1770,11 +1779,11 @@ const generateInvoicePDF = async (calc: {
                             placeholder="e.g. 7479"
                             value={companyPrice}
                             onChange={(e) => setCompanyPrice(e.target.value)}
-                            className="text-lg"
+                            className="text-base h-10"
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label className="flex items-center gap-2">
+                          <Label className="flex items-center gap-2 text-xs sm:text-sm">
                             <Hash className="w-4 h-4 text-primary" />
                             Invoice Number
                           </Label>
@@ -1782,25 +1791,27 @@ const generateInvoicePDF = async (calc: {
                             placeholder="e.g. FL-GR-1302"
                             value={invoiceNumber}
                             onChange={(e) => setInvoiceNumber(e.target.value)}
+                            className="h-10"
                           />
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 gap-3 sm:gap-4">
                         <div className="space-y-2">
-                          <Label className="flex items-center gap-2">
+                          <Label className="flex items-center gap-2 text-xs sm:text-sm">
                             <Package className="w-4 h-4 text-primary" />
-                            Number of Bales
+                            Bales
                           </Label>
                           <Input
                             type="number"
                             placeholder="e.g. 32"
                             value={balesCount}
                             onChange={(e) => setBalesCount(e.target.value)}
+                            className="h-10"
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label className="flex items-center gap-2">
+                          <Label className="flex items-center gap-2 text-xs sm:text-sm">
                             <FileText className="w-4 h-4 text-primary" />
                             Invoice Date
                           </Label>
@@ -1808,103 +1819,110 @@ const generateInvoicePDF = async (calc: {
                             placeholder="DD-MM-YYYY"
                             value={invoiceDate}
                             onChange={(e) => setInvoiceDate(e.target.value)}
+                            className="h-10"
                           />
                         </div>
                       </div>
 
-                      {/* Editable BL fields — full PDF editor */}
+                      {/* Editable BL fields — collapsible on mobile */}
                       {blData && (
-                        <div className="space-y-3 rounded-xl border border-border/50 bg-muted/30 p-4">
-                          <div className="flex items-center gap-2">
+                        <details className="group rounded-xl border border-border/50 bg-muted/30 open:bg-muted/40">
+                          <summary className="cursor-pointer list-none p-3 sm:p-4 flex items-center gap-2 select-none">
                             <Sparkles className="w-4 h-4 text-primary" />
-                            <h4 className="text-sm font-semibold text-foreground">Edit Invoice Fields</h4>
-                            <span className="text-xs text-muted-foreground">— ye sab fields PDF me same dikhayenge</span>
+                            <h4 className="text-sm font-semibold text-foreground flex-1">Edit Invoice Fields</h4>
+                            <span className="text-xs text-muted-foreground group-open:hidden">Tap to edit</span>
+                            <ArrowRight className="w-4 h-4 text-muted-foreground transition-transform group-open:rotate-90" />
+                          </summary>
+                          <div className="px-3 sm:px-4 pb-4 space-y-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <Label className="text-xs">Shipper</Label>
+                                <Input value={blData.shipper ?? ''} onChange={(e) => setBlData({ ...blData, shipper: e.target.value })} className="h-9" />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Shipper Address</Label>
+                                <Input value={blData.shipper_address ?? ''} onChange={(e) => setBlData({ ...blData, shipper_address: e.target.value })} className="h-9" />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Consignee</Label>
+                                <Input value={blData.consignee ?? ''} onChange={(e) => setBlData({ ...blData, consignee: e.target.value })} className="h-9" />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Consignee Address</Label>
+                                <Input value={blData.consignee_address ?? ''} onChange={(e) => setBlData({ ...blData, consignee_address: e.target.value })} className="h-9" />
+                              </div>
+                              <div className="space-y-1 sm:col-span-2">
+                                <Label className="text-xs">Notify Party (Name & Address)</Label>
+                                <Input
+                                  value={blData.notify_party ?? ''}
+                                  onChange={(e) => setBlData({ ...blData, notify_party: e.target.value })}
+                                  className="h-9"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Port of Loading</Label>
+                                <Input value={blData.port_of_loading ?? ''} onChange={(e) => setBlData({ ...blData, port_of_loading: e.target.value })} className="h-9" />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Port of Discharge</Label>
+                                <Input value={blData.port_of_discharge ?? ''} onChange={(e) => setBlData({ ...blData, port_of_discharge: e.target.value })} className="h-9" />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Vessel / Flight</Label>
+                                <Input value={blData.vessel_name ?? ''} onChange={(e) => setBlData({ ...blData, vessel_name: e.target.value })} className="h-9" />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">HS Code</Label>
+                                <Input value={blData.hs_code ?? ''} onChange={(e) => setBlData({ ...blData, hs_code: e.target.value })} className="h-9" />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">BL Number</Label>
+                                <Input value={blData.bl_number ?? ''} onChange={(e) => setBlData({ ...blData, bl_number: e.target.value })} className="h-9" />
+                              </div>
+                              <div className="space-y-1 sm:col-span-2">
+                                <Label className="text-xs">Container Numbers (comma separated)</Label>
+                                <Input
+                                  value={blData.container_numbers?.join(', ') ?? ''}
+                                  onChange={(e) => setBlData({ ...blData, container_numbers: cleanContainerList(e.target.value.split(',')) })}
+                                  className="h-9"
+                                />
+                              </div>
+                              <div className="space-y-1 sm:col-span-2">
+                                <Label className="text-xs">Goods Description</Label>
+                                <Input value={blData.description ?? ''} onChange={(e) => setBlData({ ...blData, description: e.target.value })} className="h-9" />
+                              </div>
+                              <div className="space-y-1 sm:col-span-2">
+                                <Label className="text-xs">Shipping Marks</Label>
+                                <Input value={blData.shipping_marks ?? ''} onChange={(e) => setBlData({ ...blData, shipping_marks: e.target.value })} className="h-9" />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Weight (KGS)</Label>
+                                <Input
+                                  type="number"
+                                  value={blData.kgs ?? ''}
+                                  onChange={(e) => setBlData({ ...blData, kgs: e.target.value ? parseFloat(e.target.value) : null })}
+                                  className="h-9"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Packages Text</Label>
+                                <Input value={blData.packages ?? ''} onChange={(e) => setBlData({ ...blData, packages: e.target.value })} className="h-9" />
+                              </div>
+                            </div>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                              <Label className="text-xs">Shipper</Label>
-                              <Input value={blData.shipper ?? ''} onChange={(e) => setBlData({ ...blData, shipper: e.target.value })} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">Shipper Address</Label>
-                              <Input value={blData.shipper_address ?? ''} onChange={(e) => setBlData({ ...blData, shipper_address: e.target.value })} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">Consignee</Label>
-                              <Input value={blData.consignee ?? ''} onChange={(e) => setBlData({ ...blData, consignee: e.target.value })} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">Consignee Address</Label>
-                              <Input value={blData.consignee_address ?? ''} onChange={(e) => setBlData({ ...blData, consignee_address: e.target.value })} />
-                            </div>
-                            <div className="space-y-1 sm:col-span-2">
-                              <Label className="text-xs">Notify Party (Name & Address)</Label>
-                              <Input
-                                value={blData.notify_party ?? ''}
-                                onChange={(e) => setBlData({ ...blData, notify_party: e.target.value })}
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">Port of Loading</Label>
-                              <Input value={blData.port_of_loading ?? ''} onChange={(e) => setBlData({ ...blData, port_of_loading: e.target.value })} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">Port of Discharge</Label>
-                              <Input value={blData.port_of_discharge ?? ''} onChange={(e) => setBlData({ ...blData, port_of_discharge: e.target.value })} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">Vessel / Flight</Label>
-                              <Input value={blData.vessel_name ?? ''} onChange={(e) => setBlData({ ...blData, vessel_name: e.target.value })} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">HS Code</Label>
-                              <Input value={blData.hs_code ?? ''} onChange={(e) => setBlData({ ...blData, hs_code: e.target.value })} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">BL Number</Label>
-                              <Input value={blData.bl_number ?? ''} onChange={(e) => setBlData({ ...blData, bl_number: e.target.value })} />
-                            </div>
-                            <div className="space-y-1 sm:col-span-2">
-                              <Label className="text-xs">Container Numbers (comma separated)</Label>
-                              <Input
-                                value={blData.container_numbers?.join(', ') ?? ''}
-                                onChange={(e) => setBlData({ ...blData, container_numbers: cleanContainerList(e.target.value.split(',')) })}
-                              />
-                            </div>
-                            <div className="space-y-1 sm:col-span-2">
-                              <Label className="text-xs">Goods Description</Label>
-                              <Input value={blData.description ?? ''} onChange={(e) => setBlData({ ...blData, description: e.target.value })} />
-                            </div>
-                            <div className="space-y-1 sm:col-span-2">
-                              <Label className="text-xs">Shipping Marks</Label>
-                              <Input value={blData.shipping_marks ?? ''} onChange={(e) => setBlData({ ...blData, shipping_marks: e.target.value })} />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">Weight (KGS)</Label>
-                              <Input
-                                type="number"
-                                value={blData.kgs ?? ''}
-                                onChange={(e) => setBlData({ ...blData, kgs: e.target.value ? parseFloat(e.target.value) : null })}
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">Packages Text</Label>
-                              <Input value={blData.packages ?? ''} onChange={(e) => setBlData({ ...blData, packages: e.target.value })} />
-                            </div>
-                          </div>
-                        </div>
+                        </details>
                       )}
 
                       {/* Template upload */}
                       <div className="space-y-2">
-                        <Label className="flex items-center gap-2">
+                        <Label className="flex items-center gap-2 text-xs sm:text-sm">
                           <FileUp className="w-4 h-4 text-primary" />
                             Original Invoice Template (AI Exact Match)
                         </Label>
                          <input ref={templateInputRef} type="file" accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp" onChange={handleTemplateUpload} className="hidden" />
                         <div
                           onClick={() => !templateFile && templateInputRef.current?.click()}
-                          className="border border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all text-sm"
+                          className="border border-dashed border-border rounded-lg p-3 sm:p-4 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all text-sm"
                         >
                           {extractingTemplate ? (
                             <div className="flex items-center justify-center gap-2">
@@ -1912,11 +1930,10 @@ const generateInvoicePDF = async (calc: {
                               <span className="text-muted-foreground">Analyzing template layout...</span>
                             </div>
                           ) : templateFile ? (
-                            <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
-                              <div className="flex items-center justify-center gap-2">
-                                <CheckCircle2 className="w-4 h-4 text-green-500" />
-                                <span className="text-foreground">{templateFile.name}</span>
-                                 <span className="text-xs text-green-600">(AI exact-match mode)</span>
+                            <div className="flex flex-col items-center justify-center gap-2 sm:flex-row sm:gap-3">
+                              <div className="flex items-center justify-center gap-2 min-w-0">
+                                <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+                                <span className="text-foreground truncate">{templateFile.name}</span>
                               </div>
                               <Button
                                 type="button"
@@ -1929,12 +1946,12 @@ const generateInvoicePDF = async (calc: {
                                 }}
                               >
                                 <RotateCcw className="w-4 h-4" />
-                                Remove template
+                                Remove
                               </Button>
                             </div>
                           ) : (
-                            <span className="text-muted-foreground">
-                               Upload PDF ya Word (.docx) template — PDF me text overlay hoga, DOCX me Adobe merge tags
+                            <span className="text-muted-foreground text-xs sm:text-sm">
+                               Upload PDF or Word template — PDF gets overlay, DOCX uses Adobe merge tags
                             </span>
                           )}
                         </div>
@@ -1945,37 +1962,38 @@ const generateInvoicePDF = async (calc: {
                         <motion.div
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          className="bg-muted/50 rounded-xl p-4 border border-border/50"
+                          className="bg-gradient-to-br from-primary/5 to-accent/5 rounded-xl p-3 sm:p-4 border border-primary/20"
                         >
-                          <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                          <h4 className="text-xs sm:text-sm font-semibold text-foreground mb-2 sm:mb-3 flex items-center gap-2">
                             <Eye className="w-4 h-4 text-primary" />
                             Calculation Preview
                           </h4>
-                          <div className="grid grid-cols-4 gap-3 text-center">
-                            <div>
-                              <p className="text-xs text-muted-foreground">Weight</p>
-                              <p className="text-lg font-bold text-foreground">{calc.kgs} KG</p>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 text-center">
+                            <div className="rounded-lg bg-background/60 p-2">
+                              <p className="text-[10px] sm:text-xs text-muted-foreground">Weight</p>
+                              <p className="text-sm sm:text-lg font-bold text-foreground">{calc.kgs} KG</p>
                             </div>
-                            <div>
-                              <p className="text-xs text-muted-foreground">Bales</p>
-                              <p className="text-lg font-bold text-foreground">{balesCount || '-'}</p>
+                            <div className="rounded-lg bg-background/60 p-2">
+                              <p className="text-[10px] sm:text-xs text-muted-foreground">Bales</p>
+                              <p className="text-sm sm:text-lg font-bold text-foreground">{balesCount || '-'}</p>
                             </div>
-                            <div>
-                              <p className="text-xs text-muted-foreground">Unit Price</p>
-                              <p className="text-lg font-bold text-primary">${calc.unitPriceText}/KG</p>
+                            <div className="rounded-lg bg-background/60 p-2">
+                              <p className="text-[10px] sm:text-xs text-muted-foreground">Unit Price</p>
+                              <p className="text-sm sm:text-lg font-bold text-primary">${calc.unitPriceText}/KG</p>
                             </div>
-                            <div>
-                              <p className="text-xs text-muted-foreground">Total</p>
-                              <p className="text-lg font-bold text-foreground">${calc.totalPriceDisplay}</p>
+                            <div className="rounded-lg bg-background/60 p-2">
+                              <p className="text-[10px] sm:text-xs text-muted-foreground">Total</p>
+                              <p className="text-sm sm:text-lg font-bold text-foreground">${calc.totalPriceDisplay}</p>
                             </div>
                           </div>
                         </motion.div>
                       )}
 
+                      {/* Desktop Generate button (mobile uses sticky bar) */}
                       <Button
                         onClick={generateInvoice}
                         disabled={!calc || generating}
-                        className="w-full gap-2"
+                        className="w-full gap-2 hidden lg:inline-flex"
                         size="lg"
                       >
                         {generating ? (
@@ -1993,6 +2011,20 @@ const generateInvoicePDF = async (calc: {
                     </CardContent>
                   </Card>
                 </motion.div>
+              ) : (
+                <motion.div
+                  key="step2-placeholder"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="hidden lg:block"
+                >
+                  <Card className="border-border/50 border-dashed shadow-none bg-muted/20">
+                    <CardContent className="p-8 text-center text-sm text-muted-foreground">
+                      <Calculator className="w-10 h-10 text-muted-foreground/40 mx-auto mb-2" />
+                      Upload and extract a BL on the left to enter invoice details here.
+                    </CardContent>
+                  </Card>
+                </motion.div>
               )}
             </AnimatePresence>
 
@@ -2002,14 +2034,13 @@ const generateInvoicePDF = async (calc: {
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="mt-6"
                 >
                   <Card className="border-green-500/20 bg-green-500/5">
-                    <CardContent className="p-6 text-center">
-                      <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-3" />
-                      <h3 className="text-lg font-bold text-foreground mb-1">Invoice Generated Successfully!</h3>
-                      <p className="text-sm text-muted-foreground mb-4">Your invoice PDF has been downloaded.</p>
-                      <div className="flex gap-3 justify-center">
+                    <CardContent className="p-4 sm:p-6 text-center">
+                      <CheckCircle2 className="w-10 h-10 sm:w-12 sm:h-12 text-green-500 mx-auto mb-2 sm:mb-3" />
+                      <h3 className="text-base sm:text-lg font-bold text-foreground mb-1">Invoice Generated Successfully!</h3>
+                      <p className="text-xs sm:text-sm text-muted-foreground mb-4">Your invoice PDF has been downloaded.</p>
+                      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center">
                         <Button variant="outline" onClick={resetAll} className="gap-2">
                           <RotateCcw className="w-4 h-4" />
                           Generate Another
@@ -2025,50 +2056,36 @@ const generateInvoicePDF = async (calc: {
               )}
             </AnimatePresence>
           </motion.div>
-
-          {/* Sidebar */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <Card className="border-border/50 shadow-sm sticky top-24">
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Ship className="w-5 h-5 text-primary" />
-                  How It Works
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {[
-                  { icon: Upload, title: 'Upload BL', desc: 'Upload your Bill of Lading (PDF or Image)' },
-                  { icon: Sparkles, title: 'AI Extracts Data', desc: 'AI reads KGS, bales, shipper, consignee etc.' },
-                  { icon: Calculator, title: 'Enter Price', desc: 'Enter total price, bales count, date' },
-                  { icon: Download, title: 'AI Exact Invoice', desc: 'AI places fields on the same template layout without adding generic lines' },
-                ].map((item, i) => (
-                  <div key={i} className="flex gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <item.icon className="w-4 h-4 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{item.title}</p>
-                      <p className="text-xs text-muted-foreground">{item.desc}</p>
-                    </div>
-                  </div>
-                ))}
-
-                <div className="border-t border-border pt-4 mt-4">
-                  <h4 className="text-sm font-semibold text-foreground mb-2">Template Placeholders</h4>
-                  <div className="space-y-1 text-xs font-mono bg-muted/50 rounded-lg p-3">
-                    {['{invoice_number}', '{date}', '{kgs}', '{bales}', '{unit_price}', '{total_price}', '{shipper}', '{consignee}', '{bl_number}', '{container_number}', '{vessel}', '{port_of_loading}', '{port_of_discharge}'].map(p => (
-                      <div key={p} className="text-muted-foreground">{p}</div>
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
         </div>
+
+        {/* Mobile sticky action bar */}
+        {step >= 2 && (
+          <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+            <Button
+              onClick={generateInvoice}
+              disabled={!calc || generating}
+              className="w-full gap-2 h-12 text-sm font-semibold shadow-lg"
+              size="lg"
+            >
+              {generating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Generating…
+                </>
+              ) : step === 3 ? (
+                <>
+                  <Download className="w-4 h-4" />
+                  Download Invoice Again
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  Generate & Download Invoice
+                </>
+              )}
+            </Button>
+          </div>
+        )}
       </main>
     </div>
   );
