@@ -17,7 +17,7 @@ import {
   AlertCircle, Scale, DollarSign, Hash, ArrowRight,
   Sparkles, Ship, FileUp, Eye, Package, RotateCcw, FileSpreadsheet, X
 } from 'lucide-react';
-import { BulkBlUpload } from '@/components/BulkBlUpload';
+
 
 interface ExcelRow {
   container: string;
@@ -532,15 +532,15 @@ const drawTextBlock = (
   });
 };
 
-interface PersistedInvoiceTemplate {
+export interface PersistedInvoiceTemplate {
   blob: Blob;
   layout: TemplateLayout | null;
   name: string;
   type: string;
 }
 
-const INVOICE_TEMPLATE_DB_NAME = 'shipahead-invoice-generator';
-const INVOICE_TEMPLATE_STORE = 'invoice-template-store';
+export const INVOICE_TEMPLATE_DB_NAME = 'shipahead-invoice-generator';
+export const INVOICE_TEMPLATE_STORE = 'invoice-template-store';
 
 const openInvoiceTemplateDb = () => new Promise<IDBDatabase>((resolve, reject) => {
   const request = window.indexedDB.open(INVOICE_TEMPLATE_DB_NAME, 1);
@@ -556,7 +556,7 @@ const openInvoiceTemplateDb = () => new Promise<IDBDatabase>((resolve, reject) =
   request.onerror = () => reject(request.error ?? new Error('Failed to open template storage'));
 });
 
-const loadPersistedInvoiceTemplate = async (storageKey: string): Promise<PersistedInvoiceTemplate | null> => {
+export const loadPersistedInvoiceTemplate = async (storageKey: string): Promise<PersistedInvoiceTemplate | null> => {
   const db = await openInvoiceTemplateDb();
 
   return new Promise((resolve, reject) => {
@@ -570,7 +570,7 @@ const loadPersistedInvoiceTemplate = async (storageKey: string): Promise<Persist
   });
 };
 
-const savePersistedInvoiceTemplate = async (storageKey: string, template: PersistedInvoiceTemplate) => {
+export const savePersistedInvoiceTemplate = async (storageKey: string, template: PersistedInvoiceTemplate) => {
   const db = await openInvoiceTemplateDb();
 
   return new Promise<void>((resolve, reject) => {
@@ -585,7 +585,7 @@ const savePersistedInvoiceTemplate = async (storageKey: string, template: Persis
   });
 };
 
-const removePersistedInvoiceTemplate = async (storageKey: string) => {
+export const removePersistedInvoiceTemplate = async (storageKey: string) => {
   const db = await openInvoiceTemplateDb();
 
   return new Promise<void>((resolve, reject) => {
@@ -770,6 +770,23 @@ export default function InvoiceGenerator() {
   const excelInputRef = useRef<HTMLInputElement>(null);
 
   const templateStorageKey = user?.id ? `invoice-template:${user.id}` : null;
+  const excelStorageKey = user?.id ? `invoice-excel:${user.id}` : null;
+
+  // Restore persisted Excel rows on mount so Single BL and Multi-BL share the same Excel.
+  useEffect(() => {
+    if (!excelStorageKey) return;
+    try {
+      const raw = window.localStorage.getItem(excelStorageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { rows: ExcelRow[]; fileName: string | null };
+      if (Array.isArray(parsed?.rows) && parsed.rows.length > 0) {
+        setExcelRows(parsed.rows);
+        setExcelFileName(parsed.fileName ?? null);
+      }
+    } catch (e) {
+      console.error('Failed to restore saved excel:', e);
+    }
+  }, [excelStorageKey]);
 
   useEffect(() => {
     if (!templateStorageKey) return;
@@ -1470,6 +1487,13 @@ const generateInvoicePDF = async (calc: {
       }
       setExcelRows(parsed);
       setExcelFileName(file.name);
+      try {
+        if (excelStorageKey) {
+          window.localStorage.setItem(excelStorageKey, JSON.stringify({ rows: parsed, fileName: file.name }));
+        }
+      } catch (e) {
+        console.error('Failed to persist excel:', e);
+      }
       toast.success('Excel data loaded successfully.');
 
       // If BL already extracted, try matching now
@@ -1494,6 +1518,11 @@ const generateInvoicePDF = async (calc: {
     setExcelRows([]);
     setExcelFileName(null);
     setMatchedRow(null);
+    try {
+      if (excelStorageKey) window.localStorage.removeItem(excelStorageKey);
+    } catch (e) {
+      console.error('Failed to clear persisted excel:', e);
+    }
   };
 
 
@@ -1628,12 +1657,28 @@ const generateInvoicePDF = async (calc: {
               </CardContent>
             </Card>
 
-            {/* Bulk BL Upload (Max 5) — independent of single-BL workflow */}
-            <BulkBlUpload
-              excelRows={excelRows}
-              templateFile={templateFile}
-              templateLayout={templateLayout}
-            />
+            {/* Multi-BL Invoice — opens dedicated premium page (up to 10 BL files) */}
+            <Card
+              onClick={() => navigate('/multi-bl-invoice')}
+              className="border-border/50 shadow-sm overflow-hidden cursor-pointer hover:border-indigo-500/60 hover:shadow-lg transition-all group"
+            >
+              <CardHeader className="bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent p-4 sm:p-6">
+                <div className="flex items-start gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-md shrink-0">
+                    <Package className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                      Multi-BL Invoice
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 uppercase tracking-wider">New</span>
+                    </CardTitle>
+                    <CardDescription className="text-xs sm:text-sm mt-1">
+                      Process up to <span className="font-semibold text-foreground">10 BL files</span> at once using the same Single-BL workflow. Open premium dashboard →
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
 
             <Card className="border-border/50 shadow-sm overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent p-4 sm:p-6">
