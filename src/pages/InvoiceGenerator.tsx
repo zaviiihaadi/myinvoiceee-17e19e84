@@ -1657,12 +1657,28 @@ const generateInvoicePDF = async (calc: {
               </CardContent>
             </Card>
 
-            {/* Bulk BL Upload (Max 5) — independent of single-BL workflow */}
-            <BulkBlUpload
-              excelRows={excelRows}
-              templateFile={templateFile}
-              templateLayout={templateLayout}
-            />
+            {/* Multi-BL Invoice — opens dedicated premium page (up to 10 BL files) */}
+            <Card
+              onClick={() => navigate('/multi-bl-invoice')}
+              className="border-border/50 shadow-sm overflow-hidden cursor-pointer hover:border-indigo-500/60 hover:shadow-lg transition-all group"
+            >
+              <CardHeader className="bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent p-4 sm:p-6">
+                <div className="flex items-start gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-md shrink-0">
+                    <Package className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                      Multi-BL Invoice
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 uppercase tracking-wider">New</span>
+                    </CardTitle>
+                    <CardDescription className="text-xs sm:text-sm mt-1">
+                      Process up to <span className="font-semibold text-foreground">10 BL files</span> at once using the same Single-BL workflow. Open premium dashboard →
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
 
             <Card className="border-border/50 shadow-sm overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent p-4 sm:p-6">
