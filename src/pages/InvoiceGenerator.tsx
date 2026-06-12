@@ -532,15 +532,15 @@ const drawTextBlock = (
   });
 };
 
-interface PersistedInvoiceTemplate {
+export interface PersistedInvoiceTemplate {
   blob: Blob;
   layout: TemplateLayout | null;
   name: string;
   type: string;
 }
 
-const INVOICE_TEMPLATE_DB_NAME = 'shipahead-invoice-generator';
-const INVOICE_TEMPLATE_STORE = 'invoice-template-store';
+export const INVOICE_TEMPLATE_DB_NAME = 'shipahead-invoice-generator';
+export const INVOICE_TEMPLATE_STORE = 'invoice-template-store';
 
 const openInvoiceTemplateDb = () => new Promise<IDBDatabase>((resolve, reject) => {
   const request = window.indexedDB.open(INVOICE_TEMPLATE_DB_NAME, 1);
@@ -556,7 +556,7 @@ const openInvoiceTemplateDb = () => new Promise<IDBDatabase>((resolve, reject) =
   request.onerror = () => reject(request.error ?? new Error('Failed to open template storage'));
 });
 
-const loadPersistedInvoiceTemplate = async (storageKey: string): Promise<PersistedInvoiceTemplate | null> => {
+export const loadPersistedInvoiceTemplate = async (storageKey: string): Promise<PersistedInvoiceTemplate | null> => {
   const db = await openInvoiceTemplateDb();
 
   return new Promise((resolve, reject) => {
@@ -570,7 +570,7 @@ const loadPersistedInvoiceTemplate = async (storageKey: string): Promise<Persist
   });
 };
 
-const savePersistedInvoiceTemplate = async (storageKey: string, template: PersistedInvoiceTemplate) => {
+export const savePersistedInvoiceTemplate = async (storageKey: string, template: PersistedInvoiceTemplate) => {
   const db = await openInvoiceTemplateDb();
 
   return new Promise<void>((resolve, reject) => {
@@ -585,7 +585,7 @@ const savePersistedInvoiceTemplate = async (storageKey: string, template: Persis
   });
 };
 
-const removePersistedInvoiceTemplate = async (storageKey: string) => {
+export const removePersistedInvoiceTemplate = async (storageKey: string) => {
   const db = await openInvoiceTemplateDb();
 
   return new Promise<void>((resolve, reject) => {
