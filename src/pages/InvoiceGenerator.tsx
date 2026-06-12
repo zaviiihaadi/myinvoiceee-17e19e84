@@ -770,6 +770,23 @@ export default function InvoiceGenerator() {
   const excelInputRef = useRef<HTMLInputElement>(null);
 
   const templateStorageKey = user?.id ? `invoice-template:${user.id}` : null;
+  const excelStorageKey = user?.id ? `invoice-excel:${user.id}` : null;
+
+  // Restore persisted Excel rows on mount so Single BL and Multi-BL share the same Excel.
+  useEffect(() => {
+    if (!excelStorageKey) return;
+    try {
+      const raw = window.localStorage.getItem(excelStorageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { rows: ExcelRow[]; fileName: string | null };
+      if (Array.isArray(parsed?.rows) && parsed.rows.length > 0) {
+        setExcelRows(parsed.rows);
+        setExcelFileName(parsed.fileName ?? null);
+      }
+    } catch (e) {
+      console.error('Failed to restore saved excel:', e);
+    }
+  }, [excelStorageKey]);
 
   useEffect(() => {
     if (!templateStorageKey) return;
@@ -1470,6 +1487,13 @@ const generateInvoicePDF = async (calc: {
       }
       setExcelRows(parsed);
       setExcelFileName(file.name);
+      try {
+        if (excelStorageKey) {
+          window.localStorage.setItem(excelStorageKey, JSON.stringify({ rows: parsed, fileName: file.name }));
+        }
+      } catch (e) {
+        console.error('Failed to persist excel:', e);
+      }
       toast.success('Excel data loaded successfully.');
 
       // If BL already extracted, try matching now
@@ -1494,6 +1518,11 @@ const generateInvoicePDF = async (calc: {
     setExcelRows([]);
     setExcelFileName(null);
     setMatchedRow(null);
+    try {
+      if (excelStorageKey) window.localStorage.removeItem(excelStorageKey);
+    } catch (e) {
+      console.error('Failed to clear persisted excel:', e);
+    }
   };
 
 
