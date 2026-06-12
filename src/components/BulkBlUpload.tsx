@@ -18,7 +18,7 @@ import {
   todayDDMMYY,
 } from '@/pages/InvoiceGenerator';
 
-const MAX_BULK_FILES = 5;
+const MAX_BULK_FILES = 10;
 const ACCEPTED_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
 
 interface ExcelRow {
@@ -408,7 +408,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
       <CardHeader className="bg-gradient-to-r from-indigo-500/5 to-transparent">
         <CardTitle className="flex items-center gap-2 text-lg">
           <Package className="w-5 h-5 text-indigo-600" />
-          Bulk BL Upload (Max 5 Files)
+          Bulk BL Upload (Max 10 Files)
         </CardTitle>
         <CardDescription>
           Each BL runs the exact same Single-BL workflow (AI extraction → Excel match → calculations → template → PDF → NOC).
@@ -429,7 +429,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
           className="border-2 border-dashed border-border rounded-xl p-6 text-center cursor-pointer hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all"
         >
           <FileUp className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-          <p className="font-medium text-foreground">Click to upload up to 5 BL files</p>
+          <p className="font-medium text-foreground">Click to upload up to 10 BL files</p>
           <p className="text-xs text-muted-foreground mt-1">PDF, JPG, JPEG, PNG</p>
         </div>
 
