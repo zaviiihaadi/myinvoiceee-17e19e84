@@ -823,6 +823,21 @@ export default function InvoiceGenerator() {
     }
   }, [authLoading, user, navigate]);
 
+  // Auto-open Excel upload picker when arriving with ?upload=excel
+  useEffect(() => {
+    if (authLoading || !user) return;
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('upload') === 'excel') {
+      const t = window.setTimeout(() => excelInputRef.current?.click(), 350);
+      // Strip the param so refresh doesn't reopen the picker
+      const url = new URL(window.location.href);
+      url.searchParams.delete('upload');
+      window.history.replaceState({}, '', url.toString());
+      return () => window.clearTimeout(t);
+    }
+  }, [authLoading, user]);
+
   if (authLoading || !user) return <div className="min-h-screen bg-background" />;
 
   const handleBLUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

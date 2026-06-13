@@ -276,7 +276,7 @@ export default function MultiBlInvoice() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate('/invoice-generator')}
+            onClick={() => navigate('/invoice-home')}
             className="gap-2 -ml-2"
           >
             <ArrowLeft className="w-4 h-4" />

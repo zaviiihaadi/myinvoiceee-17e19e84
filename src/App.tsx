@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import Tracking from "./pages/Tracking";
 import InvoiceGenerator from "./pages/InvoiceGenerator";
+import InvoiceHome from "./pages/InvoiceHome";
 import MultiBlInvoice from "./pages/MultiBlInvoice";
 import NocTracker from "./pages/NocTracker";
 import NotFound from "./pages/NotFound";
@@ -35,6 +36,7 @@ const App = () => {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/tracking" element={<Tracking />} />
+              <Route path="/invoice-home" element={<InvoiceHome />} />
               <Route path="/invoice-generator" element={<InvoiceGenerator />} />
               <Route path="/multi-bl-invoice" element={<MultiBlInvoice />} />
               <Route path="/noc-tracker" element={<NocTracker />} />
