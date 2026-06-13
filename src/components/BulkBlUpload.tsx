@@ -1,9 +1,11 @@
 import { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Upload, Loader2, CheckCircle2, X, Download, Package, AlertCircle, FileUp } from 'lucide-react';
+import {
+  Upload, Loader2, CheckCircle2, X, Download, AlertCircle, UploadCloud,
+  FileText, Brain, Link2, Calculator, FileCheck2, Info,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -403,18 +405,34 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
 
   const generatedCount = items.filter((i) => i.pdfBase64).length;
 
+  const features = [
+    { icon: Brain, label: 'AI Extraction', sub: 'Smart data extraction', color: 'bg-sky-100 text-sky-600' },
+    { icon: Link2, label: 'Accurate Matching', sub: 'Excel auto matching', color: 'bg-emerald-100 text-emerald-600' },
+    { icon: Calculator, label: 'Auto Calculations', sub: 'Weights, prices & amounts', color: 'bg-amber-100 text-amber-600' },
+    { icon: FileCheck2, label: 'Invoice Generation', sub: 'PDF with template mapping', color: 'bg-violet-100 text-violet-600' },
+  ];
+
   return (
-    <Card className="border-border/50 shadow-sm overflow-hidden">
-      <CardHeader className="bg-gradient-to-r from-indigo-500/5 to-transparent">
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Package className="w-5 h-5 text-indigo-600" />
-          Bulk BL Upload (Max 10 Files)
-        </CardTitle>
-        <CardDescription>
-          Each BL runs the exact same Single-BL workflow (AI extraction → Excel match → calculations → template → PDF → NOC).
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="p-6 space-y-4">
+    <div className="rounded-2xl bg-white border border-blue-100 shadow-[0_4px_24px_-12px_rgba(59,130,246,0.25)] overflow-hidden">
+      <div className="p-5 sm:p-6 bg-gradient-to-br from-blue-50/80 to-transparent">
+        <div className="flex items-start justify-between gap-3 mb-5 flex-wrap">
+          <div className="flex items-start gap-3">
+            <div className="w-11 h-11 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shadow-sm">
+              <FileText className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-blue-700">Bulk BL Upload (Max 10 Files)</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Each BL runs the exact same Single-BL workflow (AI extraction → Excel match → calculations → template → PDF → NOC).
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-100">
+            {items.length} / {MAX_BULK_FILES} Files
+            <Info className="w-3.5 h-3.5 opacity-70" />
+          </div>
+        </div>
+
         <input
           ref={inputRef}
           type="file"
@@ -426,22 +444,42 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
 
         <div
           onClick={() => !processing && inputRef.current?.click()}
-          className="border-2 border-dashed border-border rounded-xl p-6 text-center cursor-pointer hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all"
+          className="border-2 border-dashed border-blue-200 rounded-2xl p-8 sm:p-10 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/40 transition-all bg-white/60"
         >
-          <FileUp className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-          <p className="font-medium text-foreground">Click to upload up to 10 BL files</p>
-          <p className="text-xs text-muted-foreground mt-1">PDF, JPG, JPEG, PNG</p>
+          <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-white border border-blue-200 flex items-center justify-center shadow-sm">
+            <UploadCloud className="w-6 h-6 text-blue-500" />
+          </div>
+          <p className="text-base font-semibold text-slate-700">Click to upload up to 10 BL files</p>
+          <p className="text-xs text-slate-400 mt-1">PDF, JPG, JPEG, PNG</p>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+          {features.map((f) => (
+            <motion.div
+              key={f.label}
+              whileHover={{ y: -2 }}
+              className="flex items-center gap-3 p-3 rounded-xl bg-white border border-slate-100 shadow-sm"
+            >
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${f.color}`}>
+                <f.icon className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-800 truncate">{f.label}</p>
+                <p className="text-xs text-slate-400 truncate">{f.sub}</p>
+              </div>
+            </motion.div>
+          ))}
         </div>
 
         {items.length > 0 && (
-          <>
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm text-muted-foreground">{items.length} file(s) ready</p>
+          <div className="mt-5 space-y-4">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <p className="text-sm text-slate-500">{items.length} file(s) ready</p>
               <div className="flex items-center gap-2">
                 <Button variant="ghost" size="sm" onClick={clearAll} disabled={processing}>
                   <X className="w-4 h-4 mr-1" /> Clear
                 </Button>
-                <Button onClick={processAll} disabled={processing} className="gap-2">
+                <Button onClick={processAll} disabled={processing} className="gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
                   {processing ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -457,7 +495,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
               </div>
             </div>
 
-            <div className="rounded-xl border border-border overflow-x-auto">
+            <div className="rounded-xl border border-slate-200 overflow-x-auto bg-white">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -518,9 +556,9 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
                 </Button>
               </motion.div>
             )}
-          </>
+          </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
