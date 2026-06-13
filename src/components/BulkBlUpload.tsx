@@ -1,9 +1,11 @@
 import { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Upload, Loader2, CheckCircle2, X, Download, Package, AlertCircle, FileUp } from 'lucide-react';
+import {
+  Upload, Loader2, CheckCircle2, X, Download, AlertCircle, UploadCloud,
+  FileText, Brain, Link2, Calculator, FileCheck2, Info,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import {
