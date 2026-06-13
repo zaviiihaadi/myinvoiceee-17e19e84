@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import Tracking from "./pages/Tracking";
 import InvoiceGenerator from "./pages/InvoiceGenerator";
+import InvoiceHome from "./pages/InvoiceHome";
 import MultiBlInvoice from "./pages/MultiBlInvoice";
 import NocTracker from "./pages/NocTracker";
 import NotFound from "./pages/NotFound";
