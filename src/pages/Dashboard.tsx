@@ -444,13 +444,8 @@ const Dashboard = () => {
           <KpiCard icon={MapPin} label="Containers Tracked" value={trackedThisMonth} sublabel="This Month" trend={pct(todayTrk, yTrk)} tint="sky" delay={0.15} />
         </div>
 
-        {/* Secondary KPIs */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard icon={Clock} label="Pending NOC" value={pendingNoc} sublabel="Awaiting approval" tint="rose" delay={0.0} />
-          <KpiCard icon={AlertTriangle} label="Expiring NOC" value={expiringNoc} sublabel="Within 3 days" tint="fuchsia" delay={0.05} />
-          <KpiCard icon={Activity} label="Active Tracking" value={containers.filter(c => c.status === 'In Transit').length} sublabel="In transit now" tint="sky" delay={0.1} />
-          <KpiCard icon={Ship} label="Shipping Lines" value={new Set(containers.map(c => c.shippingLine).filter(Boolean)).size} sublabel="Active carriers" tint="violet" delay={0.15} />
-        </div>
+
+
 
         {/* Monthly Overview / Ports / Lines */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
