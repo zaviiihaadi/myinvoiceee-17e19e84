@@ -123,20 +123,18 @@ const KpiCard = ({
       whileHover={{ y: -3 }}
       className={`group relative overflow-hidden rounded-2xl bg-white border border-slate-100 p-5 ${t.ring} transition-shadow hover:shadow-xl`}
     >
-      <div className="flex items-start justify-between">
-        <div className={`w-12 h-12 rounded-xl ${t.bg} ${t.text} flex items-center justify-center`}>
+      <div className="flex items-start gap-4">
+        <div className={`w-12 h-12 shrink-0 rounded-xl ${t.bg} ${t.text} flex items-center justify-center`}>
           <Icon className="w-6 h-6" />
         </div>
-        <div className="text-right">
-          <p className="text-sm font-medium text-slate-500">{label}</p>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-slate-500 truncate">{label}</p>
+          <p className="mt-1 text-3xl font-bold tracking-tight text-slate-800 tabular-nums">
+            {fmtNum(animated)}
+          </p>
         </div>
       </div>
-      <div className="mt-3 flex items-end justify-between">
-        <p className="text-3xl font-bold tracking-tight text-slate-800 tabular-nums">
-          {fmtNum(animated)}
-        </p>
-      </div>
-      <div className="mt-3 flex items-center justify-between text-xs">
+      <div className="mt-4 flex items-center justify-between text-xs border-t border-slate-100 pt-3">
         <span className="text-slate-400">{sublabel}</span>
         {typeof trend === 'number' && (
           <span className={`inline-flex items-center gap-1 font-semibold ${trend >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
@@ -149,6 +147,7 @@ const KpiCard = ({
     </motion.div>
   );
 };
+
 
 const Panel = ({
   title, right, children, className = '',
@@ -445,13 +444,8 @@ const Dashboard = () => {
           <KpiCard icon={MapPin} label="Containers Tracked" value={trackedThisMonth} sublabel="This Month" trend={pct(todayTrk, yTrk)} tint="sky" delay={0.15} />
         </div>
 
-        {/* Secondary KPIs */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard icon={Clock} label="Pending NOC" value={pendingNoc} sublabel="Awaiting approval" tint="rose" delay={0.0} />
-          <KpiCard icon={AlertTriangle} label="Expiring NOC" value={expiringNoc} sublabel="Within 3 days" tint="fuchsia" delay={0.05} />
-          <KpiCard icon={Activity} label="Active Tracking" value={containers.filter(c => c.status === 'In Transit').length} sublabel="In transit now" tint="sky" delay={0.1} />
-          <KpiCard icon={Ship} label="Shipping Lines" value={new Set(containers.map(c => c.shippingLine).filter(Boolean)).size} sublabel="Active carriers" tint="violet" delay={0.15} />
-        </div>
+
+
 
         {/* Monthly Overview / Ports / Lines */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
@@ -637,26 +631,24 @@ const Dashboard = () => {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent border-slate-100">
-                    <TableHead className="text-xs text-slate-400 font-normal">Container</TableHead>
-                    <TableHead className="text-xs text-slate-400 font-normal">Line</TableHead>
+                    <TableHead className="text-xs text-slate-400 font-normal">Container No.</TableHead>
+                    <TableHead className="text-xs text-slate-400 font-normal">Shipping Line</TableHead>
                     <TableHead className="text-xs text-slate-400 font-normal">Port</TableHead>
                     <TableHead className="text-xs text-slate-400 font-normal">Status</TableHead>
-                    <TableHead className="text-xs text-slate-400 font-normal">NOC</TableHead>
-                    <TableHead className="text-xs text-slate-400 font-normal">Invoice</TableHead>
+                    <TableHead className="text-xs text-slate-400 font-normal">Last Update</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {tableRows.length === 0 && (
-                    <TableRow><TableCell colSpan={6} className="text-center py-10 text-sm text-slate-400">No containers</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-10 text-sm text-slate-400">No containers</TableCell></TableRow>
                   )}
                   {tableRows.map((r) => (
                     <TableRow key={r.container} className="border-slate-100 hover:bg-slate-50/70">
                       <TableCell className="font-medium text-slate-700 text-sm">{r.container}</TableCell>
-                      <TableCell className="text-sm text-slate-600 truncate max-w-[120px]">{r.line}</TableCell>
+                      <TableCell className="text-sm text-slate-600 truncate max-w-[140px]">{r.line}</TableCell>
                       <TableCell className="text-sm text-slate-600">{r.port}</TableCell>
                       <TableCell><Badge variant="outline" className={statusBadgeCls(r.status)}>{r.status}</Badge></TableCell>
-                      <TableCell><Badge variant="outline" className={nocBadgeCls(r.nocStatus)}>{r.nocStatus}</Badge></TableCell>
-                      <TableCell className="text-xs text-slate-500">{r.invoice}</TableCell>
+                      <TableCell className="text-xs text-slate-500 whitespace-nowrap">{r.lastUpdate || '—'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -665,40 +657,7 @@ const Dashboard = () => {
           </Panel>
         </div>
 
-        {/* Activity feed */}
-        <Panel title="Recent Activity" right={<span className="text-xs text-slate-400">Live feed</span>}>
-          {activities.length === 0 ? (
-            <p className="text-sm text-slate-400 text-center py-6">No recent activity yet.</p>
-          ) : (
-            <ul className="divide-y divide-slate-100">
-              {activities.map((a) => {
-                const tintMap: Record<string, string> = {
-                  invoice: 'bg-violet-100 text-violet-600',
-                  noc: 'bg-emerald-100 text-emerald-600',
-                  arrived: 'bg-amber-100 text-amber-600',
-                };
-                const iconMap: Record<string, typeof FileText> = {
-                  invoice: FileText, noc: ShieldCheck, arrived: PackageCheck,
-                };
-                const Icon = iconMap[a.type];
-                return (
-                  <motion.li
-                    key={a.id}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="flex items-center gap-3 py-2.5"
-                  >
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${tintMap[a.type]}`}>
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <p className="text-sm text-slate-700 flex-1 truncate">{a.text}</p>
-                    <span className="text-xs text-slate-400">{fmtTime(new Date(a.ts))}</span>
-                  </motion.li>
-                );
-              })}
-            </ul>
-          )}
-        </Panel>
+
 
         <p className="text-center text-xs text-slate-400 pt-2">All times are shown in PKT (Pakistan Standard Time)</p>
       </main>
