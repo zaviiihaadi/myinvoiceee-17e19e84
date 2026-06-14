@@ -123,20 +123,18 @@ const KpiCard = ({
       whileHover={{ y: -3 }}
       className={`group relative overflow-hidden rounded-2xl bg-white border border-slate-100 p-5 ${t.ring} transition-shadow hover:shadow-xl`}
     >
-      <div className="flex items-start justify-between">
-        <div className={`w-12 h-12 rounded-xl ${t.bg} ${t.text} flex items-center justify-center`}>
+      <div className="flex items-start gap-4">
+        <div className={`w-12 h-12 shrink-0 rounded-xl ${t.bg} ${t.text} flex items-center justify-center`}>
           <Icon className="w-6 h-6" />
         </div>
-        <div className="text-right">
-          <p className="text-sm font-medium text-slate-500">{label}</p>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-slate-500 truncate">{label}</p>
+          <p className="mt-1 text-3xl font-bold tracking-tight text-slate-800 tabular-nums">
+            {fmtNum(animated)}
+          </p>
         </div>
       </div>
-      <div className="mt-3 flex items-end justify-between">
-        <p className="text-3xl font-bold tracking-tight text-slate-800 tabular-nums">
-          {fmtNum(animated)}
-        </p>
-      </div>
-      <div className="mt-3 flex items-center justify-between text-xs">
+      <div className="mt-4 flex items-center justify-between text-xs border-t border-slate-100 pt-3">
         <span className="text-slate-400">{sublabel}</span>
         {typeof trend === 'number' && (
           <span className={`inline-flex items-center gap-1 font-semibold ${trend >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
@@ -149,6 +147,7 @@ const KpiCard = ({
     </motion.div>
   );
 };
+
 
 const Panel = ({
   title, right, children, className = '',
