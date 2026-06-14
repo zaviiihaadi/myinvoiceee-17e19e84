@@ -1,360 +1,707 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { Header } from '@/components/Header';
-import { ContainerData, ContainerStatus } from '@/types/container';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Area, AreaChart } from 'recharts';
-import { Package, TrendingUp, Activity, Ship, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import {
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip,
+  PieChart, Pie, Cell, BarChart, Bar, CartesianGrid, AreaChart, Area,
+} from 'recharts';
+import {
+  FileText, ShieldCheck, PackageCheck, MapPin, Search, Loader2,
+  TrendingUp, AlertTriangle, Clock, Activity, Ship,
+} from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { fetchUserContainers } from '@/services/containerDbService';
+import { ContainerData } from '@/types/container';
 
-const STATUS_COLORS: Record<ContainerStatus, string> = {
-  'In Transit': 'hsl(var(--status-transit))',
-  'Arrived': 'hsl(var(--status-arrived))',
-  'Discharged': 'hsl(var(--status-discharged))',
-  'Loading': 'hsl(210, 85%, 55%)',
-  'Pending': 'hsl(var(--status-pending))',
-  'Not Available': 'hsl(0, 0%, 60%)',
-};
-
-const chartConfig = {
-  'In Transit': { label: 'In Transit', color: 'hsl(45 95% 55%)' },
-  'Arrived': { label: 'Arrived', color: 'hsl(145 65% 42%)' },
-  'Discharged': { label: 'Discharged', color: 'hsl(210 85% 55%)' },
-  'Loading': { label: 'Loading', color: 'hsl(210 85% 55%)' },
-  'Pending': { label: 'Pending', color: 'hsl(220 15% 55%)' },
-  'Not Available': { label: 'Not Available', color: 'hsl(0 0% 60%)' },
-};
-
-interface StatusHistoryEntry {
-  timestamp: string;
-  date: string;
-  counts: Record<ContainerStatus, number>;
+interface NocRecord {
+  id: string;
+  container_number: string;
+  bl_number: string | null;
+  invoice_number: string | null;
+  generated_date: string;
+  status: string;
+  approval_date: string | null;
+  expiry_date: string | null;
+  arrived_date: string | null;
 }
+
+type RangeKey = 'today' | 'yesterday' | 'weekly' | 'monthly';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const sameDay = (a: Date, b: Date) =>
+  a.getFullYear() === b.getFullYear() &&
+  a.getMonth() === b.getMonth() &&
+  a.getDate() === b.getDate();
+
+const sameMonth = (a: Date, b: Date) =>
+  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+
+function computeNocDisplay(r: NocRecord, now: number) {
+  if (r.status === 'Container Arrived' || r.arrived_date) return 'Container Arrived';
+  if (!r.approval_date || !r.expiry_date) return 'Pending Approval';
+  const expiry = new Date(r.expiry_date).getTime();
+  const daysLeft = Math.ceil((expiry - now) / DAY_MS);
+  if (daysLeft <= 0) return 'Expired';
+  if (daysLeft <= 3) return 'Expiring Soon';
+  return 'NOC Approved';
+}
+
+function useCountUp(target: number, duration = 900) {
+  const [val, setVal] = useState(0);
+  const fromRef = useRef(0);
+  useEffect(() => {
+    const from = fromRef.current;
+    const start = performance.now();
+    let raf = 0;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - start) / duration);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setVal(Math.round(from + (target - from) * eased));
+      if (p < 1) raf = requestAnimationFrame(tick);
+      else fromRef.current = target;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+  return val;
+}
+
+const fmtNum = (n: number) => n.toLocaleString('en-US');
+const fmtTime = (d: Date) =>
+  d.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+const PORT_COLORS = ['#8b5cf6', '#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ef4444'];
+
+function classifyPort(loc?: string, dest?: string) {
+  const t = `${loc || ''} ${dest || ''}`.toLowerCase();
+  if (t.includes('qasim')) return 'Port Qasim';
+  if (t.includes('kict')) return 'KICT';
+  if (t.includes('sapt')) return 'SAPT';
+  if (t.includes('karachi')) return 'Karachi Port';
+  if (!t.trim()) return 'Unknown';
+  return 'Other';
+}
+
+const KpiCard = ({
+  icon: Icon, label, value, sublabel, trend, tint, delay = 0,
+}: {
+  icon: typeof FileText;
+  label: string;
+  value: number;
+  sublabel: string;
+  trend?: number;
+  tint: string; // tailwind color group e.g. 'violet'
+  delay?: number;
+}) => {
+  const animated = useCountUp(value);
+  const tintMap: Record<string, { bg: string; text: string; ring: string }> = {
+    violet:  { bg: 'bg-violet-100',  text: 'text-violet-600',  ring: 'shadow-[0_10px_30px_-12px_rgba(139,92,246,0.45)]' },
+    emerald: { bg: 'bg-emerald-100', text: 'text-emerald-600', ring: 'shadow-[0_10px_30px_-12px_rgba(16,185,129,0.45)]' },
+    amber:   { bg: 'bg-amber-100',   text: 'text-amber-600',   ring: 'shadow-[0_10px_30px_-12px_rgba(245,158,11,0.45)]' },
+    sky:     { bg: 'bg-sky-100',     text: 'text-sky-600',     ring: 'shadow-[0_10px_30px_-12px_rgba(14,165,233,0.45)]' },
+    rose:    { bg: 'bg-rose-100',    text: 'text-rose-600',    ring: 'shadow-[0_10px_30px_-12px_rgba(244,63,94,0.45)]' },
+    fuchsia: { bg: 'bg-fuchsia-100', text: 'text-fuchsia-600', ring: 'shadow-[0_10px_30px_-12px_rgba(217,70,239,0.45)]' },
+  };
+  const t = tintMap[tint] || tintMap.violet;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, delay }}
+      whileHover={{ y: -3 }}
+      className={`group relative overflow-hidden rounded-2xl bg-white border border-slate-100 p-5 ${t.ring} transition-shadow hover:shadow-xl`}
+    >
+      <div className="flex items-start justify-between">
+        <div className={`w-12 h-12 rounded-xl ${t.bg} ${t.text} flex items-center justify-center`}>
+          <Icon className="w-6 h-6" />
+        </div>
+        <div className="text-right">
+          <p className="text-sm font-medium text-slate-500">{label}</p>
+        </div>
+      </div>
+      <div className="mt-3 flex items-end justify-between">
+        <p className="text-3xl font-bold tracking-tight text-slate-800 tabular-nums">
+          {fmtNum(animated)}
+        </p>
+      </div>
+      <div className="mt-3 flex items-center justify-between text-xs">
+        <span className="text-slate-400">{sublabel}</span>
+        {typeof trend === 'number' && (
+          <span className={`inline-flex items-center gap-1 font-semibold ${trend >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+            <TrendingUp className={`w-3.5 h-3.5 ${trend < 0 ? 'rotate-180' : ''}`} />
+            {trend >= 0 ? '+' : ''}{trend.toFixed(1)}%
+          </span>
+        )}
+      </div>
+      <div className="pointer-events-none absolute -right-8 -top-8 w-32 h-32 rounded-full bg-gradient-to-br from-white to-slate-50 opacity-60" />
+    </motion.div>
+  );
+};
+
+const Panel = ({
+  title, right, children, className = '',
+}: { title: string; right?: React.ReactNode; children: React.ReactNode; className?: string }) => (
+  <Card className={`rounded-2xl border border-slate-100 bg-white shadow-[0_4px_24px_-12px_rgba(15,23,42,0.08)] ${className}`}>
+    <div className="flex items-center justify-between px-5 pt-5">
+      <h3 className="text-base font-semibold text-slate-800">{title}</h3>
+      {right}
+    </div>
+    <div className="p-5">{children}</div>
+  </Card>
+);
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
-  const [trackingData, setTrackingData] = useState<ContainerData[]>([]);
-  const [statusHistory, setStatusHistory] = useState<StatusHistoryEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
-  // Redirect to auth if not logged in
+  const [containers, setContainers] = useState<ContainerData[]>([]);
+  const [nocs, setNocs] = useState<NocRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(Date.now());
+
+  const [overviewRange, setOverviewRange] = useState<RangeKey>('monthly');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+
   useEffect(() => {
-    if (!authLoading && !user) {
-      navigate('/auth');
-    }
-  }, [user, authLoading, navigate]);
+    if (!authLoading && !user) navigate('/auth');
+  }, [authLoading, user, navigate]);
 
-  // Load tracking data from database and localStorage for history
+  // Tick for relative times
   useEffect(() => {
-    const loadData = async () => {
-      if (!user) return;
-      
-      try {
-        // Load containers from database
-        const containers = await fetchUserContainers();
-        setTrackingData(containers);
-        
-        // Also save to localStorage for dashboard sync
-        localStorage.setItem('cargotrack_tracking_data', JSON.stringify(containers));
-      } catch (error) {
-        console.error('Failed to load containers:', error);
-      }
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
 
-      // Load history from localStorage
-      const storedHistory = localStorage.getItem('cargotrack_status_history');
-      if (storedHistory) {
-        try {
-          setStatusHistory(JSON.parse(storedHistory));
-        } catch (e) {
-          console.error('Failed to parse status history:', e);
-        }
-      }
-      
-      setIsLoading(false);
-    };
-
-    if (user) {
-      loadData();
+  // Load data
+  const loadAll = async () => {
+    if (!user) return;
+    try {
+      const [c, n] = await Promise.all([
+        fetchUserContainers(),
+        supabase.from('noc_records').select('*').order('generated_date', { ascending: false }),
+      ]);
+      setContainers(c);
+      if (!n.error && n.data) setNocs(n.data as NocRecord[]);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
     }
-    
-    // Listen for storage changes from other tabs/components
-    const handleStorageChange = () => {
-      const storedHistory = localStorage.getItem('cargotrack_status_history');
-      if (storedHistory) {
-        try {
-          setStatusHistory(JSON.parse(storedHistory));
-        } catch (e) {
-          console.error('Failed to parse status history:', e);
-        }
-      }
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
+  };
+
+  useEffect(() => {
+    if (user) loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Calculate status distribution
-  const statusDistribution = useMemo(() => {
-    const counts: Record<ContainerStatus, number> = {
-      'In Transit': 0,
-      'Arrived': 0,
-      'Discharged': 0,
-      'Loading': 0,
-      'Pending': 0,
-      'Not Available': 0,
-    };
+  // Realtime subscriptions
+  useEffect(() => {
+    if (!user) return;
+    const ch = supabase
+      .channel('dashboard-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tracked_containers', filter: `user_id=eq.${user.id}` }, () => loadAll())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'noc_records', filter: `user_id=eq.${user.id}` }, () => loadAll())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
-    trackingData.forEach(container => {
-      if (counts[container.status] !== undefined) {
-        counts[container.status]++;
-      }
-    });
+  // Derived metrics
+  const today = new Date();
+  const yesterday = new Date(Date.now() - DAY_MS);
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59);
 
-    return Object.entries(counts)
-      .filter(([_, count]) => count > 0)
-      .map(([status, count]) => ({
-        name: status,
-        value: count,
-        fill: STATUS_COLORS[status as ContainerStatus],
-      }));
-  }, [trackingData]);
+  const invoicesAll = useMemo(
+    () => nocs.filter((n) => !!n.invoice_number),
+    [nocs]
+  );
+  const arrivedAll = useMemo(
+    () => containers.filter((c) => c.status === 'Arrived'),
+    [containers]
+  );
+  const approvedAll = useMemo(
+    () => nocs.filter((n) => !!n.approval_date),
+    [nocs]
+  );
+  const pendingNoc = useMemo(
+    () => nocs.filter((n) => computeNocDisplay(n, now) === 'Pending Approval').length,
+    [nocs, now]
+  );
+  const expiringNoc = useMemo(
+    () => nocs.filter((n) => computeNocDisplay(n, now) === 'Expiring Soon').length,
+    [nocs, now]
+  );
 
-  // Calculate shipping line distribution
-  const shippingLineDistribution = useMemo(() => {
+  const countInRange = <T,>(arr: T[], getDate: (x: T) => string | null | undefined, range: 'thisMonth' | 'lastMonth' | 'today' | 'yesterday') =>
+    arr.filter((x) => {
+      const ds = getDate(x); if (!ds) return false;
+      const d = new Date(ds);
+      if (range === 'thisMonth') return sameMonth(d, today);
+      if (range === 'lastMonth') return d >= lastMonthStart && d <= lastMonthEnd;
+      if (range === 'today') return sameDay(d, today);
+      return sameDay(d, yesterday);
+    }).length;
+
+  const pct = (curr: number, prev: number) => (prev === 0 ? (curr > 0 ? 100 : 0) : ((curr - prev) / prev) * 100);
+
+  const invThisMonth = countInRange(invoicesAll, (n) => n.generated_date, 'thisMonth');
+  const invLastMonth = countInRange(invoicesAll, (n) => n.generated_date, 'lastMonth');
+  const nocThisMonth = countInRange(approvedAll, (n) => n.approval_date, 'thisMonth');
+  const nocLastMonth = countInRange(approvedAll, (n) => n.approval_date, 'lastMonth');
+  const arrivedThisMonth = arrivedAll.length; // status flag without date — use total
+  const trackedThisMonth = containers.length;
+  const trackedLastMonth = containers.filter((c) => {
+    // tracked_containers has created_at via DB but not in ContainerData type — approximate using all
+    return false;
+  }).length;
+
+  // Monthly Overview chart data
+  const overviewData = useMemo(() => {
+    const days = overviewRange === 'today' ? 1 : overviewRange === 'yesterday' ? 1 : overviewRange === 'weekly' ? 7 : 30;
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+    if (overviewRange === 'yesterday') { end.setDate(end.getDate() - 1); }
+    const points: { date: string; Invoices: number; 'NOC Approved': number; Arrived: number; Tracked: number }[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(end);
+      d.setDate(end.getDate() - i);
+      const ds = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+      const inv = invoicesAll.filter((n) => n.generated_date && sameDay(new Date(n.generated_date), d)).length;
+      const apr = approvedAll.filter((n) => n.approval_date && sameDay(new Date(n.approval_date!), d)).length;
+      const arr = nocs.filter((n) => n.arrived_date && sameDay(new Date(n.arrived_date!), d)).length;
+      const trk = nocs.filter((n) => n.generated_date && sameDay(new Date(n.generated_date), d)).length;
+      points.push({ date: ds, Invoices: inv, 'NOC Approved': apr, Arrived: arr, Tracked: trk });
+    }
+    return points;
+  }, [overviewRange, invoicesAll, approvedAll, nocs]);
+
+  // Ports
+  const portsData = useMemo(() => {
     const counts: Record<string, number> = {};
-
-    trackingData.forEach(container => {
-      const line = container.shippingLine || 'Unknown';
-      counts[line] = (counts[line] || 0) + 1;
+    containers.forEach((c) => {
+      const p = classifyPort(c.currentLocation, c.destinationPort);
+      counts[p] = (counts[p] || 0) + 1;
     });
+    const total = Object.values(counts).reduce((a, b) => a + b, 0);
+    return {
+      total,
+      slices: Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, value], i) => ({ name, value, fill: PORT_COLORS[i % PORT_COLORS.length] })),
+    };
+  }, [containers]);
 
+  // Shipping lines
+  const linesData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    containers.forEach((c) => {
+      const k = (c.shippingLine || 'Unknown').trim() || 'Unknown';
+      counts[k] = (counts[k] || 0) + 1;
+    });
+    const total = Object.values(counts).reduce((a, b) => a + b, 0) || 1;
     return Object.entries(counts)
-      .filter(([_, count]) => count > 0)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 6)
-      .map(([name, count]) => ({
-        name: name.length > 15 ? name.substring(0, 15) + '...' : name,
-        count,
-      }));
-  }, [trackingData]);
+      .map(([name, count]) => ({ name, count, pct: (count / total) * 100 }));
+  }, [containers]);
 
-  // Format history for chart
-  const historyChartData = useMemo(() => {
-    return statusHistory.slice(-10).map(entry => ({
-      date: entry.date,
-      ...entry.counts,
-    }));
-  }, [statusHistory]);
+  // Daily report compare today/yesterday
+  const todayInv = countInRange(invoicesAll, (n) => n.generated_date, 'today');
+  const yInv = countInRange(invoicesAll, (n) => n.generated_date, 'yesterday');
+  const todayNoc = countInRange(approvedAll, (n) => n.approval_date, 'today');
+  const yNoc = countInRange(approvedAll, (n) => n.approval_date, 'yesterday');
+  const todayArr = countInRange(nocs, (n) => n.arrived_date, 'today');
+  const yArr = countInRange(nocs, (n) => n.arrived_date, 'yesterday');
+  const todayTrk = countInRange(nocs, (n) => n.generated_date, 'today');
+  const yTrk = countInRange(nocs, (n) => n.generated_date, 'yesterday');
 
-  if (authLoading || isLoading) {
+  const hourlyToday = useMemo(() => {
+    const arr = new Array(24).fill(0).map((_, h) => ({ hour: `${h.toString().padStart(2, '0')}:00`, today: 0, yesterday: 0 }));
+    invoicesAll.forEach((n) => {
+      if (!n.generated_date) return;
+      const d = new Date(n.generated_date);
+      if (sameDay(d, today)) arr[d.getHours()].today++;
+      else if (sameDay(d, yesterday)) arr[d.getHours()].yesterday++;
+    });
+    return arr;
+  }, [invoicesAll]);
+
+  // Recent activity
+  const activities = useMemo(() => {
+    const items: { id: string; text: string; ts: number; type: string }[] = [];
+    nocs.forEach((n) => {
+      if (n.invoice_number && n.generated_date) {
+        items.push({ id: `inv-${n.id}`, text: `Invoice ${n.invoice_number} generated`, ts: new Date(n.generated_date).getTime(), type: 'invoice' });
+      }
+      if (n.approval_date) items.push({ id: `apr-${n.id}`, text: `NOC approved for ${n.container_number}`, ts: new Date(n.approval_date).getTime(), type: 'noc' });
+      if (n.arrived_date) items.push({ id: `arr-${n.id}`, text: `Container ${n.container_number} arrived`, ts: new Date(n.arrived_date).getTime(), type: 'arrived' });
+    });
+    return items.sort((a, b) => b.ts - a.ts).slice(0, 8);
+  }, [nocs]);
+
+  // Top active containers table
+  const tableRows = useMemo(() => {
+    const nocByContainer = new Map<string, NocRecord>();
+    nocs.forEach((n) => { if (!nocByContainer.has(n.container_number)) nocByContainer.set(n.container_number, n); });
+    let rows = containers.map((c) => {
+      const n = nocByContainer.get(c.containerNumber);
+      const nocStatus = n ? computeNocDisplay(n, now) : '—';
+      return {
+        container: c.containerNumber,
+        line: c.shippingLine || '—',
+        bl: n?.bl_number || '—',
+        port: classifyPort(c.currentLocation, c.destinationPort),
+        status: c.status,
+        nocStatus,
+        invoice: n?.invoice_number || '—',
+        lastUpdate: c.lastUpdate || '',
+      };
+    });
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      rows = rows.filter((r) =>
+        r.container.toLowerCase().includes(q) ||
+        r.line.toLowerCase().includes(q) ||
+        r.bl.toLowerCase().includes(q) ||
+        r.port.toLowerCase().includes(q) ||
+        r.invoice.toLowerCase().includes(q));
+    }
+    if (statusFilter !== 'all') rows = rows.filter((r) => r.status === statusFilter);
+    return rows.slice(0, 10);
+  }, [containers, nocs, search, statusFilter, now]);
+
+  if (authLoading || loading) {
     return (
-      <div className="min-h-screen flex flex-col">
+      <div className="min-h-screen flex flex-col bg-slate-50">
         <Header />
         <main className="flex-1 flex items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <Loader2 className="w-8 h-8 animate-spin text-violet-500" />
         </main>
       </div>
     );
   }
 
-  if (trackingData.length === 0) {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <Header />
-        <main className="flex-1 container mx-auto px-4 py-8 flex items-center justify-center">
-          <Card className="max-w-md w-full text-center">
-            <CardHeader>
-              <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                <Package className="w-8 h-8 text-muted-foreground" />
-              </div>
-              <CardTitle>No Tracking Data</CardTitle>
-              <CardDescription>
-                Start tracking containers to see analytics and status distribution charts.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link to="/">
-                <Button className="gap-2">
-                  <Ship className="w-4 h-4" />
-                  Go to Tracking
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        </main>
-      </div>
-    );
-  }
+  const statusBadgeCls = (s: string) => {
+    switch (s) {
+      case 'Arrived': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      case 'In Transit': return 'bg-sky-100 text-sky-700 border-sky-200';
+      case 'Discharged': return 'bg-violet-100 text-violet-700 border-violet-200';
+      case 'Pending': return 'bg-amber-100 text-amber-700 border-amber-200';
+      default: return 'bg-slate-100 text-slate-700 border-slate-200';
+    }
+  };
+  const nocBadgeCls = (s: string) => {
+    switch (s) {
+      case 'NOC Approved': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      case 'Pending Approval': return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'Expiring Soon': return 'bg-orange-100 text-orange-700 border-orange-200';
+      case 'Expired': return 'bg-rose-100 text-rose-700 border-rose-200';
+      case 'Container Arrived': return 'bg-sky-100 text-sky-700 border-sky-200';
+      default: return 'bg-slate-100 text-slate-600 border-slate-200';
+    }
+  };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
       <Header />
-      
-      <main className="flex-1 container mx-auto px-4 py-8 space-y-8">
-        {/* Page Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-foreground">Analytics Dashboard</h2>
-            <p className="text-muted-foreground">Container status distribution and tracking insights</p>
+
+      <main className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* Title */}
+        <div className="flex items-start justify-between flex-wrap gap-3">
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 flex items-center gap-2">
+              Dashboard <span className="animate-pulse-soft">👋</span>
+            </h1>
+            <p className="text-sm text-slate-500 mt-1">Welcome back! Here's what's happening today.</p>
+          </motion.div>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+            </span>
+            <span className="text-xs font-semibold text-emerald-700">Live</span>
           </div>
-          <Link to="/">
-            <Button variant="outline" className="gap-2">
-              <Ship className="w-4 h-4" />
-              Back to Tracking
-            </Button>
-          </Link>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Total Containers</CardDescription>
-              <CardTitle className="text-3xl">{trackingData.length}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Package className="w-3 h-3" />
-                <span>Being tracked</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>In Transit</CardDescription>
-              <CardTitle className="text-3xl text-[hsl(var(--status-transit))]">
-                {trackingData.filter(c => c.status === 'In Transit').length}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <TrendingUp className="w-3 h-3" />
-                <span>Currently moving</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Arrived</CardDescription>
-              <CardTitle className="text-3xl text-[hsl(var(--status-arrived))]">
-                {trackingData.filter(c => c.status === 'Arrived').length}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Activity className="w-3 h-3" />
-                <span>At destination</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Shipping Lines</CardDescription>
-              <CardTitle className="text-3xl">
-                {new Set(trackingData.map(c => c.shippingLine).filter(Boolean)).size}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Ship className="w-3 h-3" />
-                <span>Active carriers</span>
-              </div>
-            </CardContent>
-          </Card>
+        {/* KPIs */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard icon={FileText} label="Invoices Generated" value={invThisMonth} sublabel="This Month" trend={pct(invThisMonth, invLastMonth)} tint="violet" delay={0.0} />
+          <KpiCard icon={ShieldCheck} label="NOCs Approved" value={nocThisMonth} sublabel="This Month" trend={pct(nocThisMonth, nocLastMonth)} tint="emerald" delay={0.05} />
+          <KpiCard icon={PackageCheck} label="Containers Arrived" value={arrivedThisMonth} sublabel="This Month" trend={pct(todayArr, yArr)} tint="amber" delay={0.1} />
+          <KpiCard icon={MapPin} label="Containers Tracked" value={trackedThisMonth} sublabel="This Month" trend={pct(todayTrk, yTrk)} tint="sky" delay={0.15} />
         </div>
 
-        {/* Charts Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Status Distribution Pie Chart */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Status Distribution</CardTitle>
-              <CardDescription>Current container status breakdown</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ChartContainer config={chartConfig} className="h-[300px]">
-                <PieChart>
-                  <Pie
-                    data={statusDistribution}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    paddingAngle={2}
-                    dataKey="value"
-                    nameKey="name"
-                    label={({ name, value }) => `${name}: ${value}`}
-                    labelLine={false}
-                  >
-                    {statusDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                </PieChart>
-              </ChartContainer>
-            </CardContent>
-          </Card>
+        {/* Secondary KPIs */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard icon={Clock} label="Pending NOC" value={pendingNoc} sublabel="Awaiting approval" tint="rose" delay={0.0} />
+          <KpiCard icon={AlertTriangle} label="Expiring NOC" value={expiringNoc} sublabel="Within 3 days" tint="fuchsia" delay={0.05} />
+          <KpiCard icon={Activity} label="Active Tracking" value={containers.filter(c => c.status === 'In Transit').length} sublabel="In transit now" tint="sky" delay={0.1} />
+          <KpiCard icon={Ship} label="Shipping Lines" value={new Set(containers.map(c => c.shippingLine).filter(Boolean)).size} sublabel="Active carriers" tint="violet" delay={0.15} />
+        </div>
 
-          {/* Shipping Line Distribution Bar Chart */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Containers by Shipping Line</CardTitle>
-              <CardDescription>Distribution across carriers</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ChartContainer config={{ count: { label: 'Containers', color: 'hsl(var(--primary))' } }} className="h-[300px]">
-                <BarChart data={shippingLineDistribution} layout="vertical" margin={{ left: 20, right: 20 }}>
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 12 }} />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+        {/* Monthly Overview / Ports / Lines */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <Panel
+            title="Monthly Overview"
+            className="lg:col-span-6"
+            right={
+              <Select value={overviewRange} onValueChange={(v) => setOverviewRange(v as RangeKey)}>
+                <SelectTrigger className="w-32 h-8 rounded-lg border-slate-200 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="yesterday">Yesterday</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">This Month</SelectItem>
+                </SelectContent>
+              </Select>
+            }
+          >
+            <div className="flex flex-wrap items-center gap-4 mb-3 text-xs">
+              {[
+                { k: 'Invoices', c: '#a855f7' },
+                { k: 'NOC Approved', c: '#10b981' },
+                { k: 'Arrived', c: '#f59e0b' },
+                { k: 'Tracked', c: '#3b82f6' },
+              ].map((l) => (
+                <span key={l.k} className="inline-flex items-center gap-1.5 text-slate-600">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: l.c }} /> {l.k}
+                </span>
+              ))}
+            </div>
+            <div className="h-[280px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={overviewData} margin={{ top: 6, right: 8, left: -10, bottom: 0 }}>
+                  <CartesianGrid stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', boxShadow: '0 10px 30px -10px rgba(0,0,0,0.1)' }} />
+                  <Line type="monotone" dataKey="Invoices" stroke="#a855f7" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  <Line type="monotone" dataKey="NOC Approved" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="Arrived" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="Tracked" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </Panel>
+
+          <Panel title="Containers by Port" className="lg:col-span-3">
+            {portsData.total === 0 ? (
+              <div className="h-[280px] flex items-center justify-center text-sm text-slate-400">No data</div>
+            ) : (
+              <div className="flex flex-col items-center">
+                <div className="relative w-full h-[220px]">
+                  <ResponsiveContainer>
+                    <PieChart>
+                      <Pie data={portsData.slices} innerRadius={62} outerRadius={88} paddingAngle={2} dataKey="value" nameKey="name">
+                        {portsData.slices.map((s, i) => (<Cell key={i} fill={s.fill} />))}
+                      </Pie>
+                      <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="text-center">
+                      <p className="text-xs text-slate-400">Total</p>
+                      <p className="text-2xl font-bold text-slate-800 tabular-nums">{fmtNum(portsData.total)}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="w-full mt-3 space-y-1.5">
+                  {portsData.slices.slice(0, 4).map((s) => (
+                    <div key={s.name} className="flex items-center justify-between text-xs">
+                      <span className="inline-flex items-center gap-2 text-slate-600">
+                        <span className="w-2 h-2 rounded-full" style={{ background: s.fill }} />{s.name}
+                      </span>
+                      <span className="text-slate-500 tabular-nums">
+                        {fmtNum(s.value)} <span className="text-slate-400">· {((s.value / portsData.total) * 100).toFixed(1)}%</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Panel>
+
+          <Panel title="Shipping Lines Overview" className="lg:col-span-3">
+            <div className="max-h-[280px] overflow-y-auto -mx-1">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-slate-400">
+                    <th className="text-left font-normal py-2 px-1">Shipping Line</th>
+                    <th className="text-right font-normal py-2 px-1">Containers</th>
+                    <th className="text-right font-normal py-2 px-1">%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {linesData.length === 0 && (
+                    <tr><td colSpan={3} className="text-center text-slate-400 py-8">No data</td></tr>
+                  )}
+                  {linesData.slice(0, 8).map((l) => (
+                    <tr key={l.name} className="border-t border-slate-100 hover:bg-slate-50/60 transition-colors">
+                      <td className="py-2.5 px-1 text-slate-700 font-medium truncate max-w-[140px]">{l.name}</td>
+                      <td className="py-2.5 px-1 text-right text-slate-700 tabular-nums">{fmtNum(l.count)}</td>
+                      <td className="py-2.5 px-1 text-right text-slate-400 tabular-nums">{l.pct.toFixed(1)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        </div>
+
+        {/* Daily Report + Top Active Containers */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <Panel title="Daily Report" className="lg:col-span-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              {[
+                { label: 'Invoices Generated', icon: FileText, tint: 'violet', today: todayInv, yest: yInv },
+                { label: 'NOC Approved', icon: ShieldCheck, tint: 'emerald', today: todayNoc, yest: yNoc },
+                { label: 'Containers Arrived', icon: PackageCheck, tint: 'amber', today: todayArr, yest: yArr },
+                { label: 'Containers Tracked', icon: MapPin, tint: 'sky', today: todayTrk, yest: yTrk },
+              ].map((d) => {
+                const tintMap: Record<string, string> = { violet: 'bg-violet-100 text-violet-600', emerald: 'bg-emerald-100 text-emerald-600', amber: 'bg-amber-100 text-amber-600', sky: 'bg-sky-100 text-sky-600' };
+                const delta = pct(d.today, d.yest);
+                return (
+                  <div key={d.label} className="rounded-xl border border-slate-100 p-3 bg-white">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${tintMap[d.tint]}`}>
+                        <d.icon className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs text-slate-500 leading-tight">{d.label}</span>
+                    </div>
+                    <p className="text-2xl font-bold text-slate-800 tabular-nums">{fmtNum(d.today)}</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Yesterday: {d.yest}{' '}
+                      <span className={`ml-1 font-semibold ${delta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {delta >= 0 ? '↑' : '↓'} {Math.abs(delta).toFixed(1)}%
+                      </span>
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-4 mb-2 text-xs">
+              <span className="inline-flex items-center gap-1.5 text-slate-600"><span className="w-2.5 h-2.5 rounded-full bg-violet-500" /> Today</span>
+              <span className="inline-flex items-center gap-1.5 text-slate-400"><span className="w-2.5 h-2.5 rounded-full bg-slate-300" /> Yesterday</span>
+            </div>
+            <div className="h-[200px]">
+              <ResponsiveContainer>
+                <BarChart data={hourlyToday} margin={{ top: 6, right: 8, left: -16, bottom: 0 }}>
+                  <CartesianGrid stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="hour" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} interval={3} />
+                  <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0' }} />
+                  <Bar dataKey="yesterday" fill="#e2e8f0" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="today" fill="#a855f7" radius={[4, 4, 0, 0]} />
                 </BarChart>
-              </ChartContainer>
-            </CardContent>
-          </Card>
+              </ResponsiveContainer>
+            </div>
+          </Panel>
 
-          {/* Status Over Time */}
-          {historyChartData.length > 1 && (
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle>Status Trends Over Time</CardTitle>
-                <CardDescription>Historical status distribution from tracking refreshes</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ChartContainer config={chartConfig} className="h-[300px]">
-                  <AreaChart data={historyChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Area type="monotone" dataKey="In Transit" stackId="1" stroke="hsl(45 95% 55%)" fill="hsl(45 95% 55% / 0.6)" />
-                    <Area type="monotone" dataKey="Arrived" stackId="1" stroke="hsl(145 65% 42%)" fill="hsl(145 65% 42% / 0.6)" />
-                    <Area type="monotone" dataKey="Discharged" stackId="1" stroke="hsl(210 85% 55%)" fill="hsl(210 85% 55% / 0.6)" />
-                    <Area type="monotone" dataKey="Pending" stackId="1" stroke="hsl(220 15% 55%)" fill="hsl(220 15% 55% / 0.6)" />
-                  </AreaChart>
-                </ChartContainer>
-              </CardContent>
-            </Card>
+          <Panel
+            title="Top Active Containers"
+            className="lg:col-span-6"
+            right={
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search…" className="h-8 pl-7 w-36 text-xs rounded-lg" />
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-28 h-8 rounded-lg text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="In Transit">In Transit</SelectItem>
+                    <SelectItem value="Arrived">Arrived</SelectItem>
+                    <SelectItem value="Discharged">Discharged</SelectItem>
+                    <SelectItem value="Pending">Pending</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            }
+          >
+            <div className="overflow-x-auto -mx-2">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent border-slate-100">
+                    <TableHead className="text-xs text-slate-400 font-normal">Container</TableHead>
+                    <TableHead className="text-xs text-slate-400 font-normal">Line</TableHead>
+                    <TableHead className="text-xs text-slate-400 font-normal">Port</TableHead>
+                    <TableHead className="text-xs text-slate-400 font-normal">Status</TableHead>
+                    <TableHead className="text-xs text-slate-400 font-normal">NOC</TableHead>
+                    <TableHead className="text-xs text-slate-400 font-normal">Invoice</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {tableRows.length === 0 && (
+                    <TableRow><TableCell colSpan={6} className="text-center py-10 text-sm text-slate-400">No containers</TableCell></TableRow>
+                  )}
+                  {tableRows.map((r) => (
+                    <TableRow key={r.container} className="border-slate-100 hover:bg-slate-50/70">
+                      <TableCell className="font-medium text-slate-700 text-sm">{r.container}</TableCell>
+                      <TableCell className="text-sm text-slate-600 truncate max-w-[120px]">{r.line}</TableCell>
+                      <TableCell className="text-sm text-slate-600">{r.port}</TableCell>
+                      <TableCell><Badge variant="outline" className={statusBadgeCls(r.status)}>{r.status}</Badge></TableCell>
+                      <TableCell><Badge variant="outline" className={nocBadgeCls(r.nocStatus)}>{r.nocStatus}</Badge></TableCell>
+                      <TableCell className="text-xs text-slate-500">{r.invoice}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </Panel>
+        </div>
+
+        {/* Activity feed */}
+        <Panel title="Recent Activity" right={<span className="text-xs text-slate-400">Live feed</span>}>
+          {activities.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-6">No recent activity yet.</p>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {activities.map((a) => {
+                const tintMap: Record<string, string> = {
+                  invoice: 'bg-violet-100 text-violet-600',
+                  noc: 'bg-emerald-100 text-emerald-600',
+                  arrived: 'bg-amber-100 text-amber-600',
+                };
+                const iconMap: Record<string, typeof FileText> = {
+                  invoice: FileText, noc: ShieldCheck, arrived: PackageCheck,
+                };
+                const Icon = iconMap[a.type];
+                return (
+                  <motion.li
+                    key={a.id}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="flex items-center gap-3 py-2.5"
+                  >
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${tintMap[a.type]}`}>
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <p className="text-sm text-slate-700 flex-1 truncate">{a.text}</p>
+                    <span className="text-xs text-slate-400">{fmtTime(new Date(a.ts))}</span>
+                  </motion.li>
+                );
+              })}
+            </ul>
           )}
-        </div>
-      </main>
+        </Panel>
 
-      {/* Footer */}
-      <footer className="border-t border-border py-6 mt-auto">
-        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>CargoTrack Pro — Real-time container tracking across major shipping lines</p>
-        </div>
-      </footer>
+        <p className="text-center text-xs text-slate-400 pt-2">All times are shown in PKT (Pakistan Standard Time)</p>
+      </main>
     </div>
   );
 };
