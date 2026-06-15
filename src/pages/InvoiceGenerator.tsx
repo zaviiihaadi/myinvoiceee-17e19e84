@@ -14,8 +14,9 @@ import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
   FileText, Upload, Calculator, Download, Loader2, CheckCircle2,
-  AlertCircle, Scale, DollarSign, Hash, ArrowRight,
-  Sparkles, Ship, FileUp, Eye, Package, RotateCcw, FileSpreadsheet, X
+  AlertCircle, Scale, DollarSign, Hash, ArrowRight, ArrowLeft,
+  Sparkles, Ship, FileUp, Eye, Package, RotateCcw, FileSpreadsheet, X,
+  Truck, ShieldCheck, Wand2, Receipt, FileCheck2, Layers,
 } from 'lucide-react';
 
 
