@@ -14,8 +14,9 @@ import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
   FileText, Upload, Calculator, Download, Loader2, CheckCircle2,
-  AlertCircle, Scale, DollarSign, Hash, ArrowRight,
-  Sparkles, Ship, FileUp, Eye, Package, RotateCcw, FileSpreadsheet, X
+  AlertCircle, Scale, DollarSign, Hash, ArrowRight, ArrowLeft,
+  Sparkles, Ship, FileUp, Eye, Package, RotateCcw, FileSpreadsheet, X,
+  Truck, ShieldCheck, Wand2, Receipt, FileCheck2, Layers,
 } from 'lucide-react';
 
 
@@ -1544,78 +1545,132 @@ const generateInvoicePDF = async (calc: {
   const calc = calculateValues();
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/40">
       <Header />
-      <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-6xl pb-28 lg:pb-8">
-        {/* Page title */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-4 sm:mb-8"
-        >
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
-            <Sparkles className="w-4 h-4" />
-            AI-Powered Invoice Generator
-          </div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-2">
-            Generate Invoice from <span className="text-primary">Bill of Lading</span>
-          </h1>
-          <p className="text-sm sm:text-base text-muted-foreground max-w-xl mx-auto">
-            Upload your BL, let AI map the original template, and generate a line-free invoice that follows the same layout.
-          </p>
-        </motion.div>
-
-        {/* Progress Steps */}
-        <div className="flex items-center justify-center gap-2 mb-6 sm:mb-10">
-          {[
-            { num: 1, label: 'Upload BL' },
-            { num: 2, label: 'Enter Details' },
-            { num: 3, label: 'Invoice Ready' },
-          ].map((s, i) => (
-            <div key={s.num} className="flex items-center gap-2">
-              <motion.div
-                animate={{
-                  scale: step >= s.num ? 1 : 0.9,
-                  backgroundColor: step >= s.num ? 'hsl(var(--primary))' : 'hsl(var(--muted))',
-                }}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-                style={{ color: step >= s.num ? 'hsl(var(--primary-foreground))' : 'hsl(var(--muted-foreground))' }}
-              >
-                {step > s.num ? <CheckCircle2 className="w-4 h-4" /> : s.num}
-              </motion.div>
-              <span className={`text-sm font-medium hidden sm:inline ${step >= s.num ? 'text-foreground' : 'text-muted-foreground'}`}>
-                {s.label}
-              </span>
-              {i < 2 && <ArrowRight className="w-4 h-4 text-muted-foreground mx-1" />}
+      <main className="container mx-auto px-3 sm:px-6 py-4 sm:py-8 max-w-7xl pb-28 lg:pb-12">
+        {/* Top bar: back + steps */}
+        <div className="flex flex-col gap-4 mb-6">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/invoice-home')}
+              className="rounded-full bg-white/80 backdrop-blur border-slate-200 shadow-sm hover:bg-white gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Dashboard
+            </Button>
+            <div className="hidden sm:flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              All systems operational
             </div>
-          ))}
+          </div>
+
+          {/* Progress Steps */}
+          <div className="flex items-center justify-center gap-2 sm:gap-3 flex-wrap">
+            {[
+              { num: 1, label: 'Upload BL' },
+              { num: 2, label: 'Enter Details' },
+              { num: 3, label: 'Invoice Ready' },
+            ].map((s, i) => (
+              <div key={s.num} className="flex items-center gap-2">
+                <motion.div
+                  animate={{ scale: step >= s.num ? 1 : 0.92 }}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shadow-sm transition-colors ${
+                    step >= s.num
+                      ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'
+                      : 'bg-white border border-slate-200 text-slate-400'
+                  }`}
+                >
+                  {step > s.num ? <CheckCircle2 className="w-4 h-4" /> : s.num}
+                </motion.div>
+                <span className={`text-sm font-medium ${step >= s.num ? 'text-slate-900' : 'text-slate-400'}`}>
+                  {s.label}
+                </span>
+                {i < 2 && <ArrowRight className="w-4 h-4 text-slate-300 mx-1 hidden sm:inline" />}
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          {/* LEFT: Upload + AI Extraction + Excel Matching */}
-          <motion.div layout className="space-y-4 sm:space-y-6 min-w-0">
-            {/* Excel Auto-Fill Upload */}
-            <Card className="border-border/50 shadow-sm overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-emerald-500/5 to-transparent p-4 sm:p-6">
-                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                  <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
-                  Excel Auto-Fill (Optional)
-                </CardTitle>
-                <CardDescription className="text-xs sm:text-sm">
-                  Upload an Excel/CSV with Container Number, Invoice Number, and Company Price. Matching rows will auto-fill after BL extraction.
-                </CardDescription>
+        {/* Page Title + State preserved */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6 sm:mb-8"
+        >
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white flex items-center justify-center shadow-lg shadow-purple-500/30 shrink-0">
+              <Truck className="w-7 h-7" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Single BL Invoice</h1>
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 uppercase tracking-wider">
+                  <Sparkles className="w-3 h-3" /> AI Powered
+                </span>
+              </div>
+              <p className="text-sm text-slate-500 mt-1">
+                Upload a single Bill of Lading file and generate invoice instantly using AI.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-purple-50 px-4 py-3 shadow-sm">
+            <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center shadow-sm">
+              <ShieldCheck className="w-5 h-5 text-indigo-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900">State preserved across refresh</p>
+              <p className="text-xs text-slate-500">Your files and selections are safe</p>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Multi-BL quick-link banner (preserves existing route) */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          onClick={() => navigate('/multi-bl-invoice')}
+          className="mb-6 cursor-pointer rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 hover:from-indigo-500/15 hover:via-purple-500/15 hover:to-pink-500/15 px-4 py-3 flex items-center gap-3 group transition-all"
+        >
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-md shrink-0">
+            <Layers className="w-5 h-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-slate-900">Need to process multiple BLs?</p>
+            <p className="text-xs text-slate-500">Open Multi-BL Invoice — up to 10 files at once with the same workflow.</p>
+          </div>
+          <ArrowRight className="w-4 h-4 text-indigo-600 group-hover:translate-x-1 transition-transform" />
+        </motion.div>
+
+        {/* Main two-column layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* LEFT COLUMN */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-5 min-w-0"
+          >
+            {/* Excel Auto-Fill */}
+            <Card className="rounded-2xl border border-emerald-100 shadow-sm overflow-hidden bg-white">
+              <CardHeader className="bg-gradient-to-r from-emerald-50 to-transparent p-5">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 text-white flex items-center justify-center shadow-sm">
+                    <FileSpreadsheet className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-base sm:text-lg text-emerald-700">Excel Auto-Fill (Optional)</CardTitle>
+                    <CardDescription className="text-xs">
+                      Upload Excel/CSV with Container, Invoice Number, Company Price — rows auto-fill after extraction.
+                    </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent className="p-4 sm:p-6 space-y-3 sm:space-y-4">
-                <input
-                  ref={excelInputRef}
-                  type="file"
-                  accept=".xlsx,.xls,.csv"
-                  onChange={handleExcelUpload}
-                  className="hidden"
-                />
+              <CardContent className="p-5 space-y-3">
+                <input ref={excelInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleExcelUpload} className="hidden" />
                 <div
                   onClick={() => !excelLoading && excelInputRef.current?.click()}
-                  className="border-2 border-dashed border-border rounded-xl p-6 text-center cursor-pointer hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all"
+                  className="border-2 border-dashed border-emerald-200 rounded-xl p-5 text-center cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/50 transition-all"
                 >
                   {excelLoading ? (
                     <div className="flex items-center justify-center gap-2 text-emerald-600">
@@ -1623,113 +1678,85 @@ const generateInvoicePDF = async (calc: {
                       <span className="text-sm font-medium">Reading Excel...</span>
                     </div>
                   ) : excelFileName ? (
-                    <div className="flex items-center justify-center gap-3">
-                      <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-                      <div className="text-left">
-                        <p className="font-medium text-foreground">{excelFileName}</p>
-                        <p className="text-xs text-muted-foreground">{excelRows.length} rows loaded</p>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+                          <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                        </div>
+                        <div className="text-left min-w-0">
+                          <p className="font-medium text-slate-900 truncate">{excelFileName}</p>
+                          <p className="text-xs text-slate-500">{excelRows.length} rows loaded</p>
+                        </div>
                       </div>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={(e) => { e.stopPropagation(); clearExcel(); }}
-                        className="ml-2"
+                        className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                       >
                         <X className="w-4 h-4" />
                       </Button>
                     </div>
                   ) : (
                     <>
-                      <FileSpreadsheet className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-                      <p className="font-medium text-foreground">Click to upload Excel/CSV</p>
-                      <p className="text-xs text-muted-foreground mt-1">.xlsx, .xls, .csv</p>
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-100 mx-auto mb-2 flex items-center justify-center">
+                        <Upload className="w-6 h-6 text-emerald-600" />
+                      </div>
+                      <p className="font-medium text-slate-900">Click to upload Excel/CSV</p>
+                      <p className="text-xs text-slate-500 mt-1">.xlsx, .xls, .csv</p>
                     </>
                   )}
                 </div>
-
-                <AnimatePresence>
-                  {matchedRow && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="rounded-xl p-4 border bg-emerald-500/5 border-emerald-500/20">
-                        <div className="flex items-center gap-2 mb-2">
-                          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                          <span className="font-semibold text-foreground">Matched Record</span>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
-                          <div><span className="text-muted-foreground">Container:</span> <span className="font-medium text-foreground">{matchedRow.container}</span></div>
-                          <div><span className="text-muted-foreground">Invoice #:</span> <span className="font-medium text-foreground">{matchedRow.invoice || '—'}</span></div>
-                          <div><span className="text-muted-foreground">Company Price:</span> <span className="font-medium text-foreground">{matchedRow.price || '—'}</span></div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </CardContent>
             </Card>
 
-            {/* Multi-BL Invoice — opens dedicated premium page (up to 10 BL files) */}
-            <Card
-              onClick={() => navigate('/multi-bl-invoice')}
-              className="border-border/50 shadow-sm overflow-hidden cursor-pointer hover:border-indigo-500/60 hover:shadow-lg transition-all group"
-            >
-              <CardHeader className="bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent p-4 sm:p-6">
+            {/* Upload Bill of Lading */}
+            <Card className="rounded-2xl border border-indigo-100 shadow-sm overflow-hidden bg-white">
+              <CardHeader className="bg-gradient-to-r from-indigo-50 via-purple-50/50 to-transparent p-5">
                 <div className="flex items-start gap-3">
-                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-md shrink-0">
-                    <Package className="w-5 h-5" />
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-sm">
+                    <FileText className="w-5 h-5" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-base sm:text-lg flex items-center gap-2">
-                      Multi-BL Invoice
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 uppercase tracking-wider">New</span>
-                    </CardTitle>
-                    <CardDescription className="text-xs sm:text-sm mt-1">
-                      Process up to <span className="font-semibold text-foreground">10 BL files</span> at once using the same Single-BL workflow. Open premium dashboard →
-                    </CardDescription>
+                    <CardTitle className="text-base sm:text-lg text-indigo-700">1. Upload Bill of Lading</CardTitle>
+                    <CardDescription className="text-xs">Upload PDF or image file of your BL document</CardDescription>
                   </div>
                 </div>
               </CardHeader>
-            </Card>
-
-            <Card className="border-border/50 shadow-sm overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent p-4 sm:p-6">
-                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                  <FileText className="w-5 h-5 text-primary" />
-                  Step 1: Upload Bill of Lading
-                </CardTitle>
-                <CardDescription className="text-xs sm:text-sm">Upload PDF or Image file of your BL document</CardDescription>
-              </CardHeader>
-              <CardContent className="p-4 sm:p-6 space-y-3 sm:space-y-4">
+              <CardContent className="p-5 space-y-4">
                 <input ref={blInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={handleBLUpload} className="hidden" />
                 <div
                   onClick={() => blInputRef.current?.click()}
-                  className="border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all duration-200"
+                  className="border-2 border-dashed border-indigo-200 rounded-xl p-8 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 transition-all"
                 >
-                  {blFile ? (
-                    <div className="flex items-center justify-center gap-3">
-                      <CheckCircle2 className="w-6 h-6 text-green-500" />
-                      <div className="text-left">
-                        <p className="font-medium text-foreground">{blFile.name}</p>
-                        <p className="text-xs text-muted-foreground">{(blFile.size / 1024).toFixed(1)} KB</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <Upload className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                      <p className="font-medium text-foreground">Click to upload BL file</p>
-                      <p className="text-xs text-muted-foreground mt-1">PDF, PNG, JPG, WEBP</p>
-                    </>
-                  )}
+                  <div className="w-14 h-14 rounded-2xl bg-indigo-100 mx-auto mb-3 flex items-center justify-center">
+                    <Upload className="w-7 h-7 text-indigo-600" />
+                  </div>
+                  <p className="font-semibold text-slate-900">Click to upload BL file</p>
+                  <p className="text-xs text-slate-500 mt-1">PDF, JPG, JPEG, PNG</p>
                 </div>
+
+                {blFile && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center shrink-0">
+                      <FileText className="w-5 h-5 text-rose-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-slate-900 truncate">{blFile.name}</p>
+                      <p className="text-xs text-slate-500">{(blFile.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                    <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                  </motion.div>
+                )}
 
                 <Button
                   onClick={extractBLData}
                   disabled={!blFile || extracting}
-                  className="w-full gap-2"
+                  className="w-full gap-2 h-11 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-md"
                 >
                   {extracting ? (
                     <>
@@ -1738,13 +1765,13 @@ const generateInvoicePDF = async (calc: {
                     </>
                   ) : (
                     <>
-                      <Scale className="w-4 h-4" />
+                      <Wand2 className="w-4 h-4" />
                       Extract BL Data
                     </>
                   )}
                 </Button>
 
-                {/* Extracted BL Data Preview */}
+                {/* Extracted Data */}
                 <AnimatePresence>
                   {blData && (
                     <motion.div
@@ -1753,45 +1780,54 @@ const generateInvoicePDF = async (calc: {
                       exit={{ opacity: 0, height: 0 }}
                       className="overflow-hidden"
                     >
-                      <div className={`rounded-xl p-4 border ${blData.kgs ? 'bg-green-500/5 border-green-500/20' : 'bg-destructive/5 border-destructive/20'}`}>
+                      <div className={`rounded-xl p-4 border ${blData.kgs ? 'bg-emerald-50/70 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
                         <div className="flex items-center gap-2 mb-3">
                           {blData.kgs ? (
-                            <CheckCircle2 className="w-5 h-5 text-green-500" />
+                            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                           ) : (
-                            <AlertCircle className="w-5 h-5 text-destructive" />
+                            <AlertCircle className="w-5 h-5 text-rose-600" />
                           )}
-                          <span className="font-semibold text-foreground">
-                            {blData.kgs ? `Weight: ${blData.kgs} KGS` : 'Weight not detected'}
+                          <span className="font-semibold text-slate-900">
+                            {blData.kgs ? 'Data Extracted Successfully' : 'Weight not detected'}
                           </span>
-                          {blData.bales && (
-                            <span className="text-sm text-muted-foreground ml-2">| {blData.bales} Bales</span>
-                          )}
                         </div>
                         {blData.kgs && (
-                          <div className="grid grid-cols-2 gap-2 text-sm">
-                            {blData.shipper && (
-                              <div><span className="text-muted-foreground">Shipper:</span> <span className="text-foreground">{blData.shipper}</span></div>
-                            )}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="text-slate-500">Weight:</span>
+                              <span className="font-medium text-slate-900">{blData.kgs} KGS</span>
+                              {blData.bales != null && (
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                                  {blData.bales} Bales
+                                </span>
+                              )}
+                            </div>
                             {blData.consignee && (
-                              <div><span className="text-muted-foreground">Consignee:</span> <span className="text-foreground">{blData.consignee}</span></div>
+                              <div><span className="text-slate-500">Consignee:</span> <span className="text-slate-900">{blData.consignee}</span></div>
                             )}
-                            {blData.port_of_loading && (
-                              <div><span className="text-muted-foreground">Loading:</span> <span className="text-foreground">{blData.port_of_loading}</span></div>
+                            {blData.shipper && (
+                              <div><span className="text-slate-500">Shipper:</span> <span className="text-slate-900">{blData.shipper}</span></div>
                             )}
                             {blData.port_of_discharge && (
-                              <div><span className="text-muted-foreground">Discharge:</span> <span className="text-foreground">{blData.port_of_discharge}</span></div>
+                              <div><span className="text-slate-500">Discharge:</span> <span className="text-slate-900">{blData.port_of_discharge}</span></div>
                             )}
-                            {blData.bl_number && (
-                              <div><span className="text-muted-foreground">BL#:</span> <span className="text-foreground">{blData.bl_number}</span></div>
+                            {blData.port_of_loading && (
+                              <div><span className="text-slate-500">Loading:</span> <span className="text-slate-900">{blData.port_of_loading}</span></div>
                             )}
                             {blData.vessel_name && (
-                              <div><span className="text-muted-foreground">Vessel:</span> <span className="text-foreground">{blData.vessel_name}</span></div>
+                              <div><span className="text-slate-500">Vessel:</span> <span className="text-slate-900">{blData.vessel_name}</span></div>
+                            )}
+                            {blData.bl_number && (
+                              <div><span className="text-slate-500">BL #:</span> <span className="text-slate-900">{blData.bl_number}</span></div>
+                            )}
+                            {blData.notify_party && (
+                              <div><span className="text-slate-500">Notify:</span> <span className="text-slate-900 truncate">{blData.notify_party}</span></div>
                             )}
                             {blData.container_numbers?.length > 0 && (
-                              <div><span className="text-muted-foreground">Container:</span> <span className="text-foreground">{blData.container_numbers.join(', ')}</span></div>
+                              <div className="sm:col-span-2"><span className="text-slate-500">Container:</span> <span className="text-slate-900">{blData.container_numbers.join(', ')}</span></div>
                             )}
                             {blData.description && (
-                              <div className="col-span-2"><span className="text-muted-foreground">Goods:</span> <span className="text-foreground">{blData.description}</span></div>
+                              <div className="sm:col-span-2"><span className="text-slate-500">Goods:</span> <span className="text-slate-900">{blData.description}</span></div>
                             )}
                           </div>
                         )}
@@ -1799,332 +1835,468 @@ const generateInvoicePDF = async (calc: {
                     </motion.div>
                   )}
                 </AnimatePresence>
+
+                {/* AI Powered note */}
+                <div className="rounded-xl border border-purple-100 bg-gradient-to-r from-purple-50 to-pink-50 p-3 flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm shrink-0">
+                    <Sparkles className="w-4 h-4 text-purple-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">AI-Powered Extraction</p>
+                    <p className="text-xs text-slate-500">Our AI extracts key fields from your BL automatically.</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
-
           </motion.div>
 
-          {/* RIGHT: Invoice Details + Preview + Generate */}
+          {/* RIGHT COLUMN */}
           <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="space-y-4 sm:space-y-6 min-w-0"
+            className="space-y-5 min-w-0"
           >
-            {/* Step 2: Details */}
-            <AnimatePresence>
-              {step >= 2 ? (
-                <motion.div
-                  key="step2"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                >
-                  <Card className="border-border/50 shadow-sm lg:sticky lg:top-24">
-                    <CardHeader className="bg-gradient-to-r from-accent/5 to-transparent p-4 sm:p-6">
-                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                        <Calculator className="w-5 h-5 text-primary" />
-                        Step 2: Invoice Details
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 sm:p-6 space-y-4">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                        <div className="space-y-2">
-                          <Label className="flex items-center gap-2 text-xs sm:text-sm">
-                            <DollarSign className="w-4 h-4 text-primary" />
-                            Company Total Price ($)
-                          </Label>
-                          <Input
-                            type="text"
-                            inputMode="decimal"
-                            placeholder="e.g. 7479"
-                            value={companyPrice}
-                            onChange={(e) => setCompanyPrice(e.target.value)}
-                            className="text-base h-10"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="flex items-center gap-2 text-xs sm:text-sm">
-                            <Hash className="w-4 h-4 text-primary" />
-                            Invoice Number
-                          </Label>
-                          <Input
-                            placeholder="e.g. FL-GR-1302"
-                            value={invoiceNumber}
-                            onChange={(e) => setInvoiceNumber(e.target.value)}
-                            className="h-10"
-                          />
-                        </div>
-                      </div>
+            <Card className="rounded-2xl border border-amber-100 shadow-sm overflow-hidden bg-white">
+              <CardHeader className="bg-gradient-to-r from-amber-50 to-transparent p-5">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center shadow-sm">
+                    <Receipt className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-base sm:text-lg text-amber-700">2. Invoice Details</CardTitle>
+                    <CardDescription className="text-xs">Review and edit invoice information</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-5 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-1.5 text-xs text-slate-600">
+                      <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+                      Company Total Price ($)
+                    </Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                        value={companyPrice}
+                        onChange={(e) => setCompanyPrice(e.target.value)}
+                        className="h-10 pl-7 rounded-lg border-slate-200"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-1.5 text-xs text-slate-600">
+                      <Hash className="w-3.5 h-3.5 text-indigo-600" />
+                      Invoice Number
+                    </Label>
+                    <Input
+                      placeholder="INV-0000-0001"
+                      value={invoiceNumber}
+                      onChange={(e) => setInvoiceNumber(e.target.value)}
+                      className="h-10 rounded-lg border-slate-200"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-1.5 text-xs text-slate-600">
+                      <Package className="w-3.5 h-3.5 text-purple-600" />
+                      Bales
+                    </Label>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      value={balesCount}
+                      onChange={(e) => setBalesCount(e.target.value)}
+                      className="h-10 rounded-lg border-slate-200"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-1.5 text-xs text-slate-600">
+                      <FileText className="w-3.5 h-3.5 text-rose-600" />
+                      Invoice Date
+                    </Label>
+                    <Input
+                      placeholder="DD/MM/YYYY"
+                      value={invoiceDate}
+                      onChange={(e) => setInvoiceDate(e.target.value)}
+                      className="h-10 rounded-lg border-slate-200"
+                    />
+                  </div>
+                </div>
 
-                      <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                        <div className="space-y-2">
-                          <Label className="flex items-center gap-2 text-xs sm:text-sm">
-                            <Package className="w-4 h-4 text-primary" />
-                            Bales
-                          </Label>
+                {/* Editable BL Fields */}
+                {blData && (
+                  <details className="group rounded-xl border border-slate-200 bg-slate-50/60 open:bg-white">
+                    <summary className="cursor-pointer list-none p-4 flex items-center gap-2 select-none">
+                      <Wand2 className="w-4 h-4 text-indigo-600" />
+                      <h4 className="text-sm font-semibold text-slate-900 flex-1">Edit Invoice Fields</h4>
+                      <ArrowRight className="w-4 h-4 text-slate-400 transition-transform group-open:rotate-90" />
+                    </summary>
+                    <div className="px-4 pb-4 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-slate-600">Shipper</Label>
+                          <Input value={blData.shipper ?? ''} onChange={(e) => setBlData({ ...blData, shipper: e.target.value })} className="h-9 rounded-lg" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-slate-600">Shipper Address</Label>
+                          <Input value={blData.shipper_address ?? ''} onChange={(e) => setBlData({ ...blData, shipper_address: e.target.value })} className="h-9 rounded-lg" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-slate-600">Consignee</Label>
+                          <Input value={blData.consignee ?? ''} onChange={(e) => setBlData({ ...blData, consignee: e.target.value })} className="h-9 rounded-lg" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-slate-600">Consignee Address</Label>
+                          <Input value={blData.consignee_address ?? ''} onChange={(e) => setBlData({ ...blData, consignee_address: e.target.value })} className="h-9 rounded-lg" />
+                        </div>
+                        <div className="space-y-1 sm:col-span-2">
+                          <Label className="text-xs text-slate-600">Notify Party (Name & Address)</Label>
+                          <Input value={blData.notify_party ?? ''} onChange={(e) => setBlData({ ...blData, notify_party: e.target.value })} className="h-9 rounded-lg" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-slate-600">Port of Loading</Label>
+                          <Input value={blData.port_of_loading ?? ''} onChange={(e) => setBlData({ ...blData, port_of_loading: e.target.value })} className="h-9 rounded-lg" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-slate-600">Port of Discharge</Label>
+                          <Input value={blData.port_of_discharge ?? ''} onChange={(e) => setBlData({ ...blData, port_of_discharge: e.target.value })} className="h-9 rounded-lg" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-slate-600">Vessel / Flight</Label>
+                          <Input value={blData.vessel_name ?? ''} onChange={(e) => setBlData({ ...blData, vessel_name: e.target.value })} className="h-9 rounded-lg" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-slate-600">HS Code</Label>
+                          <Input value={blData.hs_code ?? ''} onChange={(e) => setBlData({ ...blData, hs_code: e.target.value })} className="h-9 rounded-lg" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-slate-600">BL Number</Label>
+                          <Input value={blData.bl_number ?? ''} onChange={(e) => setBlData({ ...blData, bl_number: e.target.value })} className="h-9 rounded-lg" />
+                        </div>
+                        <div className="space-y-1 sm:col-span-2">
+                          <Label className="text-xs text-slate-600">Container Numbers (comma separated)</Label>
+                          <Input value={blData.container_numbers?.join(', ') ?? ''} onChange={(e) => setBlData({ ...blData, container_numbers: cleanContainerList(e.target.value.split(',')) })} className="h-9 rounded-lg" />
+                        </div>
+                        <div className="space-y-1 sm:col-span-2">
+                          <Label className="text-xs text-slate-600">Goods Description</Label>
+                          <Input value={blData.description ?? ''} onChange={(e) => setBlData({ ...blData, description: e.target.value })} className="h-9 rounded-lg" />
+                        </div>
+                        <div className="space-y-1 sm:col-span-2">
+                          <Label className="text-xs text-slate-600">Shipping Marks</Label>
+                          <Input value={blData.shipping_marks ?? ''} onChange={(e) => setBlData({ ...blData, shipping_marks: e.target.value })} className="h-9 rounded-lg" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-slate-600">Weight (KGS)</Label>
                           <Input
                             type="number"
-                            placeholder="e.g. 32"
-                            value={balesCount}
-                            onChange={(e) => setBalesCount(e.target.value)}
-                            className="h-10"
+                            value={blData.kgs ?? ''}
+                            onChange={(e) => setBlData({ ...blData, kgs: e.target.value ? parseFloat(e.target.value) : null })}
+                            className="h-9 rounded-lg"
                           />
                         </div>
-                        <div className="space-y-2">
-                          <Label className="flex items-center gap-2 text-xs sm:text-sm">
-                            <FileText className="w-4 h-4 text-primary" />
-                            Invoice Date
-                          </Label>
-                          <Input
-                            placeholder="DD-MM-YYYY"
-                            value={invoiceDate}
-                            onChange={(e) => setInvoiceDate(e.target.value)}
-                            className="h-10"
-                          />
+                        <div className="space-y-1">
+                          <Label className="text-xs text-slate-600">Packages Text</Label>
+                          <Input value={blData.packages ?? ''} onChange={(e) => setBlData({ ...blData, packages: e.target.value })} className="h-9 rounded-lg" />
                         </div>
                       </div>
+                    </div>
+                  </details>
+                )}
 
-                      {/* Editable BL fields — collapsible on mobile */}
-                      {blData && (
-                        <details className="group rounded-xl border border-border/50 bg-muted/30 open:bg-muted/40">
-                          <summary className="cursor-pointer list-none p-3 sm:p-4 flex items-center gap-2 select-none">
-                            <Sparkles className="w-4 h-4 text-primary" />
-                            <h4 className="text-sm font-semibold text-foreground flex-1">Edit Invoice Fields</h4>
-                            <span className="text-xs text-muted-foreground group-open:hidden">Tap to edit</span>
-                            <ArrowRight className="w-4 h-4 text-muted-foreground transition-transform group-open:rotate-90" />
-                          </summary>
-                          <div className="px-3 sm:px-4 pb-4 space-y-3">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <div className="space-y-1">
-                                <Label className="text-xs">Shipper</Label>
-                                <Input value={blData.shipper ?? ''} onChange={(e) => setBlData({ ...blData, shipper: e.target.value })} className="h-9" />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs">Shipper Address</Label>
-                                <Input value={blData.shipper_address ?? ''} onChange={(e) => setBlData({ ...blData, shipper_address: e.target.value })} className="h-9" />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs">Consignee</Label>
-                                <Input value={blData.consignee ?? ''} onChange={(e) => setBlData({ ...blData, consignee: e.target.value })} className="h-9" />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs">Consignee Address</Label>
-                                <Input value={blData.consignee_address ?? ''} onChange={(e) => setBlData({ ...blData, consignee_address: e.target.value })} className="h-9" />
-                              </div>
-                              <div className="space-y-1 sm:col-span-2">
-                                <Label className="text-xs">Notify Party (Name & Address)</Label>
-                                <Input
-                                  value={blData.notify_party ?? ''}
-                                  onChange={(e) => setBlData({ ...blData, notify_party: e.target.value })}
-                                  className="h-9"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs">Port of Loading</Label>
-                                <Input value={blData.port_of_loading ?? ''} onChange={(e) => setBlData({ ...blData, port_of_loading: e.target.value })} className="h-9" />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs">Port of Discharge</Label>
-                                <Input value={blData.port_of_discharge ?? ''} onChange={(e) => setBlData({ ...blData, port_of_discharge: e.target.value })} className="h-9" />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs">Vessel / Flight</Label>
-                                <Input value={blData.vessel_name ?? ''} onChange={(e) => setBlData({ ...blData, vessel_name: e.target.value })} className="h-9" />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs">HS Code</Label>
-                                <Input value={blData.hs_code ?? ''} onChange={(e) => setBlData({ ...blData, hs_code: e.target.value })} className="h-9" />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs">BL Number</Label>
-                                <Input value={blData.bl_number ?? ''} onChange={(e) => setBlData({ ...blData, bl_number: e.target.value })} className="h-9" />
-                              </div>
-                              <div className="space-y-1 sm:col-span-2">
-                                <Label className="text-xs">Container Numbers (comma separated)</Label>
-                                <Input
-                                  value={blData.container_numbers?.join(', ') ?? ''}
-                                  onChange={(e) => setBlData({ ...blData, container_numbers: cleanContainerList(e.target.value.split(',')) })}
-                                  className="h-9"
-                                />
-                              </div>
-                              <div className="space-y-1 sm:col-span-2">
-                                <Label className="text-xs">Goods Description</Label>
-                                <Input value={blData.description ?? ''} onChange={(e) => setBlData({ ...blData, description: e.target.value })} className="h-9" />
-                              </div>
-                              <div className="space-y-1 sm:col-span-2">
-                                <Label className="text-xs">Shipping Marks</Label>
-                                <Input value={blData.shipping_marks ?? ''} onChange={(e) => setBlData({ ...blData, shipping_marks: e.target.value })} className="h-9" />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs">Weight (KGS)</Label>
-                                <Input
-                                  type="number"
-                                  value={blData.kgs ?? ''}
-                                  onChange={(e) => setBlData({ ...blData, kgs: e.target.value ? parseFloat(e.target.value) : null })}
-                                  className="h-9"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs">Packages Text</Label>
-                                <Input value={blData.packages ?? ''} onChange={(e) => setBlData({ ...blData, packages: e.target.value })} className="h-9" />
-                              </div>
-                            </div>
+                {/* Invoice Template upload */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-xs text-slate-600">
+                    <FileUp className="w-3.5 h-3.5 text-indigo-600" />
+                    Original Invoice Template (AI Exact Match)
+                  </Label>
+                  <input ref={templateInputRef} type="file" accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp" onChange={handleTemplateUpload} className="hidden" />
+                  <div
+                    onClick={() => !templateFile && templateInputRef.current?.click()}
+                    className="border-2 border-dashed border-indigo-200 rounded-xl p-4 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/40 transition-all"
+                  >
+                    {extractingTemplate ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+                        <span className="text-sm text-slate-500">Analyzing template layout...</span>
+                      </div>
+                    ) : templateFile ? (
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center shrink-0">
+                            <FileText className="w-5 h-5 text-rose-600" />
                           </div>
-                        </details>
-                      )}
-
-                      {/* Template upload */}
-                      <div className="space-y-2">
-                        <Label className="flex items-center gap-2 text-xs sm:text-sm">
-                          <FileUp className="w-4 h-4 text-primary" />
-                            Original Invoice Template (AI Exact Match)
-                        </Label>
-                         <input ref={templateInputRef} type="file" accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp" onChange={handleTemplateUpload} className="hidden" />
-                        <div
-                          onClick={() => !templateFile && templateInputRef.current?.click()}
-                          className="border border-dashed border-border rounded-lg p-3 sm:p-4 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all text-sm"
-                        >
-                          {extractingTemplate ? (
-                            <div className="flex items-center justify-center gap-2">
-                              <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                              <span className="text-muted-foreground">Analyzing template layout...</span>
-                            </div>
-                          ) : templateFile ? (
-                            <div className="flex flex-col items-center justify-center gap-2 sm:flex-row sm:gap-3">
-                              <div className="flex items-center justify-center gap-2 min-w-0">
-                                <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
-                                <span className="text-foreground truncate">{templateFile.name}</span>
-                              </div>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="gap-2"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void removeSavedTemplate();
-                                }}
-                              >
-                                <RotateCcw className="w-4 h-4" />
-                                Remove
-                              </Button>
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground text-xs sm:text-sm">
-                               Upload PDF or Word template — PDF gets overlay, DOCX uses Adobe merge tags
-                            </span>
-                          )}
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-900 truncate">{templateFile.name}</p>
+                            <p className="text-xs text-slate-500">{(templateFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                          </div>
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                         </div>
-                      </div>
-
-                      {/* Calculation Preview */}
-                      {calc && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className="bg-gradient-to-br from-primary/5 to-accent/5 rounded-xl p-3 sm:p-4 border border-primary/20"
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 text-rose-600 border-rose-200 hover:bg-rose-50"
+                          onClick={(e) => { e.stopPropagation(); void removeSavedTemplate(); }}
                         >
-                          <h4 className="text-xs sm:text-sm font-semibold text-foreground mb-2 sm:mb-3 flex items-center gap-2">
-                            <Eye className="w-4 h-4 text-primary" />
-                            Calculation Preview
-                          </h4>
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 text-center">
-                            <div className="rounded-lg bg-background/60 p-2">
-                              <p className="text-[10px] sm:text-xs text-muted-foreground">Weight</p>
-                              <p className="text-sm sm:text-lg font-bold text-foreground">{calc.kgs} KG</p>
-                            </div>
-                            <div className="rounded-lg bg-background/60 p-2">
-                              <p className="text-[10px] sm:text-xs text-muted-foreground">Bales</p>
-                              <p className="text-sm sm:text-lg font-bold text-foreground">{balesCount || '-'}</p>
-                            </div>
-                            <div className="rounded-lg bg-background/60 p-2">
-                              <p className="text-[10px] sm:text-xs text-muted-foreground">Unit Price</p>
-                              <p className="text-sm sm:text-lg font-bold text-primary">${calc.unitPriceText}/KG</p>
-                            </div>
-                            <div className="rounded-lg bg-background/60 p-2">
-                              <p className="text-[10px] sm:text-xs text-muted-foreground">Total</p>
-                              <p className="text-sm sm:text-lg font-bold text-foreground">${calc.totalPriceDisplay}</p>
-                            </div>
-                          </div>
-                        </motion.div>
-                      )}
-
-                      {/* Desktop Generate button (mobile uses sticky bar) */}
-                      <Button
-                        onClick={generateInvoice}
-                        disabled={!calc || generating}
-                        className="w-full gap-2 hidden lg:inline-flex"
-                        size="lg"
-                      >
-                        {generating ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Generating Invoice...
-                          </>
-                        ) : (
-                          <>
-                            <Download className="w-4 h-4" />
-                            Generate & Download Invoice PDF
-                          </>
-                        )}
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="step2-placeholder"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="hidden lg:block"
-                >
-                  <Card className="border-border/50 border-dashed shadow-none bg-muted/20">
-                    <CardContent className="p-8 text-center text-sm text-muted-foreground">
-                      <Calculator className="w-10 h-10 text-muted-foreground/40 mx-auto mb-2" />
-                      Upload and extract a BL on the left to enter invoice details here.
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Step 3: Success */}
-            <AnimatePresence>
-              {step === 3 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                >
-                  <Card className="border-green-500/20 bg-green-500/5">
-                    <CardContent className="p-4 sm:p-6 text-center">
-                      <CheckCircle2 className="w-10 h-10 sm:w-12 sm:h-12 text-green-500 mx-auto mb-2 sm:mb-3" />
-                      <h3 className="text-base sm:text-lg font-bold text-foreground mb-1">Invoice Generated Successfully!</h3>
-                      <p className="text-xs sm:text-sm text-muted-foreground mb-4">Your invoice PDF has been downloaded.</p>
-                      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center">
-                        <Button variant="outline" onClick={resetAll} className="gap-2">
-                          <RotateCcw className="w-4 h-4" />
-                          Generate Another
-                        </Button>
-                        <Button onClick={generateInvoice} className="gap-2">
-                          <Download className="w-4 h-4" />
-                          Download Again
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          Remove
                         </Button>
                       </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                    ) : (
+                      <div className="text-center">
+                        <Upload className="w-6 h-6 text-indigo-400 mx-auto mb-1" />
+                        <p className="text-sm text-slate-500">Upload PDF or Word template — PDF gets overlay, DOCX uses Adobe merge tags</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </motion.div>
+        </div>
+
+        {/* Workflow chips */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-6 sm:mt-8 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3"
+        >
+          {[
+            { label: 'BL Upload', icon: Upload, color: 'from-indigo-500 to-purple-500', done: !!blFile },
+            { label: 'AI Extraction', icon: Sparkles, color: 'from-purple-500 to-pink-500', done: !!blData },
+            { label: 'Excel Match', icon: FileSpreadsheet, color: 'from-emerald-500 to-teal-500', done: !!matchedRow },
+            { label: 'Calculations', icon: Calculator, color: 'from-amber-500 to-orange-500', done: !!calc },
+            { label: 'Template Mapping', icon: Layers, color: 'from-sky-500 to-indigo-500', done: !!templateFile },
+            { label: 'PDF Generation', icon: FileCheck2, color: 'from-rose-500 to-pink-500', done: step === 3 },
+            { label: 'NOC Tracking', icon: ShieldCheck, color: 'from-emerald-500 to-green-500', done: step === 3 },
+          ].map((c) => (
+            <div key={c.label} className="rounded-2xl border border-slate-100 bg-white p-3 flex flex-col items-center gap-2 shadow-sm">
+              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${c.color} text-white flex items-center justify-center shadow-sm`}>
+                <c.icon className="w-5 h-5" />
+              </div>
+              <span className="text-xs font-medium text-slate-700 text-center">{c.label}</span>
+              {c.done ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              ) : (
+                <span className="w-4 h-4 rounded-full border-2 border-slate-200" />
+              )}
+            </div>
+          ))}
+        </motion.div>
+
+        {/* Bottom 3 cards: Matched / Calculations / NOC */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-6">
+          {/* Matched Data */}
+          <Card className="rounded-2xl border border-slate-100 shadow-sm overflow-hidden bg-white">
+            <CardHeader className="p-5 pb-3">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-base text-slate-900">3. Matched Data (Excel)</CardTitle>
+                {matchedRow && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                    Auto Matched
+                  </span>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="p-5 pt-0 space-y-2.5">
+              {[
+                { label: 'Invoice Number', value: matchedRow?.invoice || invoiceNumber || '—', color: 'text-emerald-600', dot: 'bg-emerald-500' },
+                { label: 'Company Price', value: matchedRow?.price ? `$ ${matchedRow.price}` : (companyPrice ? `$ ${companyPrice}` : '—'), color: 'text-emerald-600', dot: 'bg-emerald-500' },
+                { label: 'Unit Price', value: calc ? `$ ${calc.unitPriceText}` : '—', color: 'text-emerald-600', dot: 'bg-emerald-500' },
+                { label: 'Currency', value: 'USD', color: 'text-amber-600', dot: 'bg-amber-500' },
+              ].map((r) => (
+                <div key={r.label} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${r.dot}`} />
+                    <span className="text-sm text-slate-600">{r.label}</span>
+                  </div>
+                  <span className="text-sm font-semibold text-slate-900">{r.value}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Calculations */}
+          <Card className="rounded-2xl border border-slate-100 shadow-sm overflow-hidden bg-white">
+            <CardHeader className="p-5 pb-3">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-base text-slate-900">4. Calculations</CardTitle>
+                {calc && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                    Auto Calculated
+                  </span>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="p-5 pt-0 space-y-2.5">
+              <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span className="text-sm text-slate-600">Weight (KGS)</span>
+                </div>
+                <span className="text-sm font-semibold text-slate-900">{calc ? calc.kgs : '—'}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                  <span className="text-sm text-slate-600">Unit Price</span>
+                </div>
+                <span className="text-sm font-semibold text-slate-900">{calc ? `$ ${calc.unitPriceText}` : '—'}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-rose-500" />
+                  <span className="text-sm text-slate-600">Amount</span>
+                </div>
+                <span className="text-sm font-semibold text-slate-900">{calc ? `$ ${calc.totalPriceDisplay}` : '—'}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100 px-3 py-3">
+                <span className="text-sm font-semibold text-amber-700">Total Amount (USD)</span>
+                <span className="text-base font-bold text-amber-700">{calc ? `$ ${calc.totalPriceDisplay}` : '—'}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* NOC Tracker */}
+          <Card className="rounded-2xl border border-slate-100 shadow-sm overflow-hidden bg-white">
+            <CardHeader className="p-5 pb-3">
+              <CardTitle className="text-base text-slate-900">5. NOC Tracker</CardTitle>
+              <CardDescription className="text-xs">Track NOC status for this invoice</CardDescription>
+            </CardHeader>
+            <CardContent className="p-5 pt-0 space-y-3">
+              <div className="rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 px-3 py-3 flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                <span className="text-sm font-semibold text-emerald-700">
+                  {step === 3 ? 'NOC Ready to Track' : 'Pending Generation'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">NOC Number</span>
+                <span className="font-medium text-slate-900">{invoiceNumber || '—'}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">Invoice Date</span>
+                <span className="font-medium text-slate-900">{invoiceDate || '—'}</span>
+              </div>
+              <Button
+                variant="outline"
+                className="w-full mt-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 gap-2"
+                onClick={() => navigate('/noc-tracker')}
+              >
+                <Eye className="w-4 h-4" />
+                View NOC Details
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Generate + Download row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
+          <Card className="rounded-2xl border-0 shadow-md overflow-hidden bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 text-white relative">
+            <div className="absolute -right-6 -bottom-6 opacity-20">
+              <FileText className="w-40 h-40" />
+            </div>
+            <CardContent className="p-6 relative">
+              <div className="flex items-center gap-2 mb-1">
+                <Sparkles className="w-4 h-4" />
+                <h3 className="font-bold text-lg">6. Generate Invoice</h3>
+              </div>
+              <p className="text-sm text-white/80 mb-4">Generate PDF invoice using template</p>
+              <Button
+                onClick={generateInvoice}
+                disabled={!calc || generating}
+                className="bg-white text-indigo-700 hover:bg-white/90 gap-2 font-semibold shadow-md hidden lg:inline-flex"
+                size="lg"
+              >
+                {generating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="w-4 h-4" />
+                    Generate PDF Invoice
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border border-slate-100 shadow-sm overflow-hidden bg-white relative">
+            <div className="absolute -right-6 -bottom-6 opacity-10">
+              <Download className="w-40 h-40 text-indigo-500" />
+            </div>
+            <CardContent className="p-6 relative">
+              <div className="flex items-center gap-2 mb-1">
+                <FileCheck2 className="w-4 h-4 text-emerald-600" />
+                <h3 className="font-bold text-lg text-slate-900">7. Download Invoice</h3>
+              </div>
+              <p className="text-sm text-slate-500 mb-4">Download generated invoice</p>
+              <Button
+                onClick={generateInvoice}
+                disabled={!calc || generating}
+                variant="outline"
+                className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 gap-2 font-semibold hidden lg:inline-flex"
+                size="lg"
+              >
+                <Download className="w-4 h-4" />
+                Download PDF
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Success */}
+        <AnimatePresence>
+          {step === 3 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-6"
+            >
+              <Card className="rounded-2xl border border-emerald-200 bg-emerald-50/60 shadow-sm">
+                <CardContent className="p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl bg-emerald-100 flex items-center justify-center">
+                      <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-900">Invoice Generated Successfully!</p>
+                      <p className="text-sm text-slate-500">Your invoice PDF has been downloaded.</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={resetAll} className="gap-2">
+                      <RotateCcw className="w-4 h-4" /> Generate Another
+                    </Button>
+                    <Button onClick={generateInvoice} className="gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
+                      <Download className="w-4 h-4" /> Download Again
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Footer security note */}
+        <div className="mt-6 rounded-2xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 flex items-center gap-2 text-xs text-indigo-700">
+          <ShieldCheck className="w-4 h-4" />
+          All data is securely saved and will remain available across refresh.
         </div>
 
         {/* Mobile sticky action bar */}
         {step >= 2 && (
-          <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+          <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
             <Button
               onClick={generateInvoice}
               disabled={!calc || generating}
-              className="w-full gap-2 h-12 text-sm font-semibold shadow-lg"
+              className="w-full gap-2 h-12 text-sm font-semibold shadow-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white"
               size="lg"
             >
               {generating ? (
@@ -2150,3 +2322,4 @@ const generateInvoicePDF = async (calc: {
     </div>
   );
 }
+
