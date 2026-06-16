@@ -1,10 +1,10 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   Upload, Loader2, CheckCircle2, X, Download, AlertCircle, UploadCloud,
   FileText, Brain, Link2, Calculator, FileCheck2, Info,
+  Play, Trash2, BarChart3, Eye, Clock, XCircle, FileIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
