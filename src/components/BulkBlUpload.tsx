@@ -409,6 +409,13 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
     );
   };
 
+  const features = [
+    { icon: Brain, label: 'AI Extraction', sub: 'Smart data extraction', color: 'bg-sky-100 text-sky-600' },
+    { icon: Link2, label: 'Accurate Matching', sub: 'Excel auto matching', color: 'bg-emerald-100 text-emerald-600' },
+    { icon: Calculator, label: 'Auto Calculations', sub: 'Weights, prices & amounts', color: 'bg-amber-100 text-amber-600' },
+    { icon: FileCheck2, label: 'Invoice Generation', sub: 'PDF with template mapping', color: 'bg-violet-100 text-violet-600' },
+  ];
+
   const progressFor = (s: BulkStatus) => {
     if (s === 'done' || s === 'matched') return 100;
     if (s === 'processing') return 60;
