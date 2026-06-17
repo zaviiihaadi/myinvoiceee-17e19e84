@@ -274,12 +274,13 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
 
       updateItem(item.id, {
         status: 'processing',
-        message: 'Generating PDF…',
+        message: 'Generating invoice…',
         containerNumber,
         blNumber,
         invoiceNumber: invNum,
         companyPrice: matched.price,
         weight,
+        progress: 75,
       });
 
       // 7. Same template routing as single BL (overlay for PDF, Adobe for DOCX/built-in)
