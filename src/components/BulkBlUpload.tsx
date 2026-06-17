@@ -615,8 +615,8 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
               </Button>
               <Button
                 variant="outline"
-                onClick={downloadAll}
-                disabled={generatedCount === 0}
+                onClick={() => toast.message(`${summary.completed} completed · ${summary.failed} failed · ${summary.pending + summary.processing} pending`)}
+                disabled={items.length === 0}
                 className="h-12 rounded-xl border-indigo-200 bg-white text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 gap-2 font-semibold"
               >
                 <BarChart3 className="w-4 h-4" />
