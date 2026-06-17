@@ -214,6 +214,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
           blNumber,
           blData,
           weight: isFinite(weight) ? weight : undefined,
+          progress: 100,
         };
         updateItem(item.id, failed);
         return failed;
