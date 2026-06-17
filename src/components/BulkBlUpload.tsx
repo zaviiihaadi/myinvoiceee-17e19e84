@@ -148,14 +148,27 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
       toast.error('Only PDF, JPG, JPEG, PNG allowed.');
       return;
     }
-    setItems(
-      files.map((f, i) => ({
-        id: `${Date.now()}-${i}`,
-        file: f,
-        status: 'pending' as BulkStatus,
-      })),
-    );
+    setItems((prev) => {
+      const merged = [
+        ...prev,
+        ...files.map((f, i) => ({
+          id: `${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`,
+          file: f,
+          status: 'pending' as BulkStatus,
+          progress: 0,
+          uploadedAt: Date.now(),
+        })),
+      ];
+      if (merged.length > MAX_BULK_FILES) {
+        toast.error(`Maximum ${MAX_BULK_FILES} files total.`);
+        return merged.slice(0, MAX_BULK_FILES);
+      }
+      return merged;
+    });
   };
+
+  const removeItem = (id: string) =>
+    setItems((prev) => prev.filter((x) => x.id !== id));
 
   const clearAll = () => setItems([]);
 
