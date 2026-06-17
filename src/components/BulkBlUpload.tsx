@@ -182,10 +182,12 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
 
       // 1. AI Extraction (same edge function as single BL)
       const base64 = await readBase64(item.file);
+      updateItem(item.id, { progress: 35, message: 'AI extracting…' });
       const { data: rawData, error } = await supabase.functions.invoke('extract-bl-data', {
         body: { fileBase64: base64, mimeType: item.file.type },
       });
       if (error) throw error;
+      updateItem(item.id, { progress: 50, message: 'Data extracted', extractedAt: Date.now() });
 
       // 2. Same normalization as single BL (containers + notify party + description)
       const blData = normalizeExtractedBlData(rawData);
