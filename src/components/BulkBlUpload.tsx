@@ -325,6 +325,8 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
         pdfBase64 = res.pdfBase64;
       }
 
+      updateItem(item.id, { progress: 90, message: 'Creating NOC…', generatedAt: Date.now() });
+
       // 8. Same NOC auto-create (one row per container in the BL)
       try {
         const { data: authData } = await supabase.auth.getUser();
@@ -354,12 +356,14 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
         weight,
         blData,
         pdfBase64,
+        progress: 100,
+        nocAt: Date.now(),
       };
       updateItem(item.id, done);
       return done;
     } catch (err: any) {
       console.error('Bulk BL processing failed:', err);
-      const failed: BulkBlItem = { ...item, status: 'failed', message: err?.message || 'Failed' };
+      const failed: BulkBlItem = { ...item, status: 'failed', message: err?.message || 'Failed', progress: 100 };
       updateItem(item.id, failed);
       return failed;
     }
