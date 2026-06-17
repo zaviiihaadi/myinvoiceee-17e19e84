@@ -725,7 +725,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
                       </div>
                       <div className="flex items-center gap-2 justify-end">
                         <button
-                          onClick={() => viewFile(it)}
+                          onClick={() => setViewItem(it)}
                           className="w-9 h-9 rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 flex items-center justify-center transition-colors"
                           title="View"
                         >
@@ -777,7 +777,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
                       </div>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => viewFile(it)}
+                          onClick={() => setViewItem(it)}
                           className="flex-1 h-10 rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 flex items-center justify-center gap-2 text-sm font-medium transition-colors"
                         >
                           <Eye className="w-4 h-4" /> View
