@@ -411,15 +411,44 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
     downloadPdf(item.pdfBase64, `Invoice_${container}.pdf`);
   };
 
-  const downloadAll = () => {
+  const downloadAll = async () => {
     const done = items.filter((i) => i.pdfBase64);
     if (done.length === 0) {
       toast.error('No generated invoices to download.');
       return;
     }
-    done.forEach((it, idx) => {
-      setTimeout(() => downloadOne(it), idx * 250);
-    });
+    try {
+      setZipping(true);
+      setZipProgress(0);
+      const { default: JSZip } = await import('jszip');
+      const zip = new JSZip();
+      for (let i = 0; i < done.length; i++) {
+        const it = done[i];
+        const container = it.containerNumber
+          ? sanitize(it.containerNumber)
+          : `file_${i + 1}`;
+        const bin = atob(it.pdfBase64!);
+        const bytes = new Uint8Array(bin.length);
+        for (let j = 0; j < bin.length; j++) bytes[j] = bin.charCodeAt(j);
+        zip.file(`Invoice_${container}.pdf`, bytes);
+        setZipProgress(Math.round(((i + 1) / done.length) * 100));
+      }
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Invoices_${new Date().toISOString().split('T')[0]}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`Downloaded ${done.length} invoices as ZIP.`);
+    } catch (e: any) {
+      toast.error(e?.message || 'ZIP download failed.');
+    } finally {
+      setZipping(false);
+      setZipProgress(0);
+    }
   };
 
   const statusBadge = (s: BulkStatus) => {
