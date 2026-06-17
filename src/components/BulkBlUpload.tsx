@@ -178,7 +178,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
 
   const processBL = async (item: BulkBlItem): Promise<BulkBlItem> => {
     try {
-      updateItem(item.id, { status: 'processing', message: 'Extracting…' });
+      updateItem(item.id, { status: 'processing', message: 'Uploading file…', progress: 25, uploadedAt: Date.now() });
 
       // 1. AI Extraction (same edge function as single BL)
       const base64 = await readBase64(item.file);
