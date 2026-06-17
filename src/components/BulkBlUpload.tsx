@@ -232,6 +232,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
           invoiceNumber: matched.invoice,
           companyPrice: matched.price,
           blData,
+          progress: 100,
         };
         updateItem(item.id, failed);
         return failed;
