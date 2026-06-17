@@ -678,7 +678,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
 
             <AnimatePresence initial={false}>
               {items.map((it, idx) => {
-                const pct = progressFor(it.status);
+                const pct = progressFor(it);
                 const canDownload = !!it.pdfBase64;
                 return (
                   <motion.div
