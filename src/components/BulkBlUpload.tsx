@@ -51,6 +51,11 @@ interface BulkBlItem {
   weight?: number;
   blData?: any;
   pdfBase64?: string;
+  progress?: number;
+  uploadedAt?: number;
+  extractedAt?: number;
+  generatedAt?: number;
+  nocAt?: number;
 }
 
 const normalizeKey = (s: string) =>
