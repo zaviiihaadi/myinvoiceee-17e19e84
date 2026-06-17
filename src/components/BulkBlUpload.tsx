@@ -477,10 +477,11 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
     { icon: FileCheck2, label: 'Invoice Generation', sub: 'PDF with template mapping', color: 'bg-violet-100 text-violet-600' },
   ];
 
-  const progressFor = (s: BulkStatus) => {
-    if (s === 'done' || s === 'matched') return 100;
-    if (s === 'processing') return 60;
-    if (s === 'failed' || s === 'no_match') return 100;
+  const progressFor = (item: BulkBlItem) => {
+    if (typeof item.progress === 'number') return item.progress;
+    if (item.status === 'done' || item.status === 'matched') return 100;
+    if (item.status === 'failed' || item.status === 'no_match') return 100;
+    if (item.status === 'processing') return 50;
     return 0;
   };
 
