@@ -809,6 +809,210 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
             </AnimatePresence>
           </div>
         )}
+
+        {/* Download All Invoices (ZIP) */}
+        {hasItems && generatedCount > 0 && (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+            <Button
+              onClick={downloadAll}
+              disabled={zipping}
+              className="w-full h-14 rounded-2xl gap-2 text-base font-semibold bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 hover:opacity-95 shadow-lg shadow-violet-500/30 relative overflow-hidden"
+            >
+              {zipping ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Zipping {zipProgress}%
+                </>
+              ) : (
+                <>
+                  <Download className="w-5 h-5" />
+                  Download All Invoices ({generatedCount})
+                </>
+              )}
+            </Button>
+          </motion.div>
+        )}
+      </div>
+
+      {/* File Details Dialog */}
+      <Dialog open={!!viewItem} onOpenChange={(o) => !o && setViewItem(null)}>
+        <DialogContent className="max-w-md p-0 overflow-hidden bg-white rounded-3xl">
+          {viewItem && (
+            <FileDetailsPanel
+              item={viewItem}
+              onClose={() => setViewItem(null)}
+              onDownload={() => downloadOne(viewItem)}
+              onView={() => viewFile(viewItem)}
+              onShare={async () => {
+                try {
+                  if (viewItem.pdfBase64 && (navigator as any).share) {
+                    const bin = atob(viewItem.pdfBase64);
+                    const bytes = new Uint8Array(bin.length);
+                    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                    const file = new File([bytes], `Invoice_${viewItem.containerNumber || ''}.pdf`, { type: 'application/pdf' });
+                    await (navigator as any).share({ files: [file], title: viewItem.invoiceNumber || 'Invoice' });
+                  } else if (viewItem.invoiceNumber) {
+                    await navigator.clipboard.writeText(viewItem.invoiceNumber);
+                    toast.success('Invoice number copied');
+                  }
+                } catch (e) { /* user cancelled */ }
+              }}
+              onDelete={() => { removeItem(viewItem.id); setViewItem(null); toast.success('File removed'); }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function FileDetailsPanel({
+  item, onClose, onDownload, onView, onShare, onDelete,
+}: {
+  item: BulkBlItem;
+  onClose: () => void;
+  onDownload: () => void;
+  onView: () => void;
+  onShare: () => void;
+  onDelete: () => void;
+}) {
+  const fmt = (t?: number) =>
+    t ? new Date(t).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Pending';
+  const progress = typeof item.progress === 'number' ? item.progress : 0;
+  const isDone = item.status === 'done';
+  const isFailed = item.status === 'failed' || item.status === 'no_match';
+  const steps = [
+    { label: 'File Uploaded', done: !!item.uploadedAt, t: item.uploadedAt },
+    { label: 'AI Processing Started', done: !!item.uploadedAt && item.status !== 'pending', t: item.uploadedAt },
+    { label: 'Data Extracted', done: !!item.extractedAt, t: item.extractedAt },
+    { label: 'Invoice Generated', done: !!item.generatedAt, t: item.generatedAt },
+    { label: 'NOC Created', done: !!item.nocAt, t: item.nocAt },
+    { label: 'Completed', done: isDone, t: item.nocAt },
+  ];
+  return (
+    <div className="max-h-[85vh] overflow-y-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+        <button onClick={onClose} className="w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center">
+          <ArrowLeft className="w-4 h-4 text-slate-600" />
+        </button>
+        <p className="text-sm font-semibold text-slate-700">File Details</p>
+        <div className="w-9" />
+      </div>
+
+      {/* Hero */}
+      <div className="px-5 py-6 bg-gradient-to-b from-indigo-50/60 to-white text-center">
+        <div className="w-24 h-24 mx-auto rounded-3xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex items-center justify-center shadow-xl shadow-indigo-500/40 relative">
+          <FileText className="w-10 h-10" />
+          {isDone && (
+            <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-md">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+          )}
+        </div>
+        {item.invoiceNumber && (
+          <span className="inline-block mt-4 px-3 py-1 rounded-full bg-violet-100 text-violet-700 text-xs font-semibold">
+            {item.invoiceNumber}
+          </span>
+        )}
+        <h3 className="mt-2 text-lg font-bold text-slate-900 break-all">{item.file.name}</h3>
+        <p className="text-xs text-slate-500 mt-1">
+          {item.blNumber || '—'} • {item.containerNumber || '—'}
+        </p>
+        <p className="text-xs text-slate-400 mt-1">
+          {formatBytes(item.file.size)} • Uploaded {fmt(item.uploadedAt)}
+        </p>
+      </div>
+
+      {/* Progress */}
+      <div className="px-5 pb-4">
+        <div className="rounded-2xl bg-indigo-50/60 border border-indigo-100 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-semibold text-indigo-700">Processing Progress</p>
+            <p className="text-sm font-bold text-indigo-700">{progress}%</p>
+          </div>
+          <div className="h-2 rounded-full bg-white overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${progress}%` }}
+              transition={{ duration: 0.5 }}
+              className={`h-full rounded-full ${isFailed ? 'bg-red-400' : 'bg-gradient-to-r from-indigo-500 to-violet-500'}`}
+            />
+          </div>
+          <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+            <Sparkles className="w-3 h-3 text-indigo-500" />
+            {item.message || 'Waiting…'}
+          </p>
+        </div>
+      </div>
+
+      {/* Invoice Info */}
+      {(item.invoiceNumber || item.companyPrice || item.containerNumber || item.blNumber) && (
+        <div className="px-5 pb-4">
+          <div className="rounded-2xl border border-slate-200 p-4 space-y-3">
+            <p className="text-sm font-bold text-slate-800">Invoice Information</p>
+            {[
+              ['Invoice #', item.invoiceNumber],
+              ['Company Price', item.companyPrice ? `$${item.companyPrice}` : null],
+              ['Container', item.containerNumber],
+              ['BL #', item.blNumber],
+            ].filter(([, v]) => !!v).map(([k, v]) => (
+              <div key={k} className="flex items-center justify-between gap-3">
+                <span className="text-xs text-slate-500">{k}</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-sm font-semibold text-slate-800 truncate">{v}</span>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(String(v)); toast.success('Copied'); }}
+                    className="text-slate-400 hover:text-indigo-600"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Timeline */}
+      <div className="px-5 pb-4">
+        <div className="rounded-2xl border border-slate-200 p-4">
+          <p className="text-sm font-bold text-slate-800 mb-3">Status Timeline</p>
+          <div className="space-y-3">
+            {steps.map((s, i) => (
+              <div key={s.label} className="flex items-start gap-3">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
+                  s.done ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'
+                }`}>
+                  {s.done ? <CheckCircle2 className="w-4 h-4" /> : <Clock className="w-3.5 h-3.5" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-medium ${s.done ? 'text-slate-800' : 'text-slate-400'}`}>{s.label}</p>
+                  <p className="text-xs text-slate-400">{s.done ? fmt(s.t) : 'Pending'}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="px-5 pb-6">
+        <p className="text-sm font-bold text-slate-800 mb-3">Quick Actions</p>
+        <div className="space-y-2">
+          <button onClick={onView} className="w-full h-11 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 flex items-center gap-3 px-4 text-sm font-semibold transition">
+            <Eye className="w-4 h-4" /> View Extracted Data
+          </button>
+          <button onClick={onDownload} disabled={!item.pdfBase64} className="w-full h-11 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 disabled:opacity-40 flex items-center gap-3 px-4 text-sm font-semibold transition">
+            <Download className="w-4 h-4" /> Download Invoice
+          </button>
+          <button onClick={onShare} className="w-full h-11 rounded-xl bg-violet-50 text-violet-600 hover:bg-violet-100 flex items-center gap-3 px-4 text-sm font-semibold transition">
+            <Share2 className="w-4 h-4" /> Share Invoice
+          </button>
+          <button onClick={onDelete} className="w-full h-11 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 flex items-center gap-3 px-4 text-sm font-semibold transition">
+            <Trash2 className="w-4 h-4" /> Delete File
+          </button>
+        </div>
       </div>
     </div>
   );
