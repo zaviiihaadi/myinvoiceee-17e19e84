@@ -18,6 +18,7 @@ import {
   Sparkles, Ship, FileUp, Eye, Package, RotateCcw, FileSpreadsheet, X,
   Truck, ShieldCheck, Wand2, Receipt, FileCheck2, Layers,
 } from 'lucide-react';
+import { GmailBlSearch } from '@/components/GmailBlSearch';
 
 
 interface ExcelRow {
@@ -1848,6 +1849,15 @@ const generateInvoicePDF = async (calc: {
                 </div>
               </CardContent>
             </Card>
+
+            <GmailBlSearch
+              onAddFile={(file) => {
+                setBlFile(file);
+                setBlData(null);
+                toast.success(`Added ${file.name} from Gmail`);
+              }}
+              addButtonLabel="Add BL to Processing"
+            />
           </motion.div>
 
           {/* RIGHT COLUMN */}
