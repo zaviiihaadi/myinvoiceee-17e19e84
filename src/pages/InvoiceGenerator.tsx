@@ -1848,6 +1848,15 @@ const generateInvoicePDF = async (calc: {
                 </div>
               </CardContent>
             </Card>
+
+            <GmailBlSearch
+              onAddFile={(file) => {
+                setBlFile(file);
+                setBlData(null);
+                toast.success(`Added ${file.name} from Gmail`);
+              }}
+              addButtonLabel="Add BL to Processing"
+            />
           </motion.div>
 
           {/* RIGHT COLUMN */}
