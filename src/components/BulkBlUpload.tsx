@@ -567,6 +567,13 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
           className="hidden"
         />
 
+        <GmailBlSearch
+          onAddFile={(file) => addFromGmail(file)}
+          addButtonLabel="Add to List"
+          title="Search from Gmail"
+          addDisabled={items.length >= MAX_BULK_FILES || processing}
+        />
+
         {/* Upload dropzone */}
         <motion.div
           initial={{ opacity: 0, y: 8 }}
