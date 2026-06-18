@@ -21,6 +21,7 @@ import {
   normalizeDateString,
   todayDDMMYY,
 } from '@/pages/InvoiceGenerator';
+import { GmailBlSearch } from '@/components/GmailBlSearch';
 
 const MAX_BULK_FILES = 10;
 const ACCEPTED_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
@@ -171,6 +172,25 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
     setItems((prev) => prev.filter((x) => x.id !== id));
 
   const clearAll = () => setItems([]);
+
+  const addFromGmail = (file: File) => {
+    setItems((prev) => {
+      if (prev.length >= MAX_BULK_FILES) {
+        toast.error(`Maximum ${MAX_BULK_FILES} files total.`);
+        return prev;
+      }
+      return [
+        ...prev,
+        {
+          id: `${Date.now()}-gm-${Math.random().toString(36).slice(2, 6)}`,
+          file,
+          status: 'pending' as BulkStatus,
+          progress: 0,
+          uploadedAt: Date.now(),
+        },
+      ];
+    });
+  };
 
   const updateItem = (id: string, patch: Partial<BulkBlItem>) => {
     setItems((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
