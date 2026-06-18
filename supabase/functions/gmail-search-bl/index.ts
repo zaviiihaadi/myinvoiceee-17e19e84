@@ -22,10 +22,7 @@ function bytesToB64(bytes: Uint8Array): string {
 
 async function gw(path: string, token: string, connKey: string): Promise<Response> {
   return fetch(`${GATEWAY}${path}`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'X-Connection-Api-Key': connKey,
-    },
+    headers: { 'Authorization': `Bearer ${token}`, 'X-Connection-Api-Key': connKey },
   });
 }
 
@@ -81,67 +78,14 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const blNumber = String(body?.blNumber || '').trim();
-    const fetchAttachment = body?.fetchAttachment !== false;
-    if (!blNumber) {
-      return new Response(JSON.stringify({ error: 'blNumber required' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    const messageId = body?.messageId ? String(body.messageId) : '';
+    const attachmentId = body?.attachmentId ? String(body.attachmentId) : '';
 
-    // Search emails with the BL number in subject/body/attachment name
-    const q = encodeURIComponent(`("${blNumber}" OR filename:"${blNumber}") has:attachment`);
-    const listRes = await gw(`/users/me/messages?maxResults=5&q=${q}`, LOVABLE_API_KEY, GOOGLE_MAIL_API_KEY);
-    if (!listRes.ok) {
-      const t = await listRes.text();
-      return new Response(JSON.stringify({ error: `Gmail search failed [${listRes.status}]`, detail: t }), {
-        status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-    const list = await listRes.json();
-    const messages = list?.messages || [];
-    if (messages.length === 0) {
-      return new Response(JSON.stringify({ found: false }), {
-        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Walk matches until we find one with a usable attachment
-    for (const m of messages) {
-      const mRes = await gw(`/users/me/messages/${m.id}?format=full`, LOVABLE_API_KEY, GOOGLE_MAIL_API_KEY);
-      if (!mRes.ok) continue;
-      const msg = await mRes.json();
-      const atts = collectAttachments(msg.payload);
-      if (atts.length === 0) continue;
-
-      // Prefer PDF, fall back to images
-      const preferred = atts.find((a) => /pdf/i.test(a.mimeType) || /\.pdf$/i.test(a.filename))
-        || atts.find((a) => /^image\//i.test(a.mimeType) || /\.(png|jpe?g)$/i.test(a.filename))
-        || atts[0];
-
-      const headers = msg.payload?.headers || [];
-      const meta = {
-        id: msg.id,
-        from: headerVal(headers, 'From'),
-        subject: headerVal(headers, 'Subject'),
-        date: headerVal(headers, 'Date'),
-        snippet: msg.snippet || '',
-        attachment: {
-          filename: preferred.filename,
-          mimeType: preferred.mimeType,
-          size: preferred.body?.size || 0,
-        },
-      };
-
-      if (!fetchAttachment) {
-        return new Response(JSON.stringify({ found: true, ...meta }), {
-          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
+    // ===== Mode 1: Download a specific attachment =====
+    if (messageId && attachmentId) {
       const aRes = await gw(
-        `/users/me/messages/${msg.id}/attachments/${preferred.body!.attachmentId}`,
-        LOVABLE_API_KEY,
-        GOOGLE_MAIL_API_KEY,
+        `/users/me/messages/${messageId}/attachments/${attachmentId}`,
+        LOVABLE_API_KEY, GOOGLE_MAIL_API_KEY,
       );
       if (!aRes.ok) {
         const t = await aRes.text();
@@ -152,17 +96,75 @@ Deno.serve(async (req) => {
       const aJson = await aRes.json();
       const bytes = b64urlToBytes(aJson.data || '');
       const base64 = bytesToB64(bytes);
-
-      return new Response(JSON.stringify({
-        found: true,
-        ...meta,
-        attachment: { ...meta.attachment, base64 },
-      }), {
+      return new Response(JSON.stringify({ base64 }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    return new Response(JSON.stringify({ found: false }), {
+    // ===== Mode 2: List matches =====
+    if (!blNumber) {
+      return new Response(JSON.stringify({ error: 'blNumber required' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const q = encodeURIComponent(`("${blNumber}" OR filename:"${blNumber}") has:attachment`);
+    const listRes = await gw(`/users/me/messages?maxResults=10&q=${q}`, LOVABLE_API_KEY, GOOGLE_MAIL_API_KEY);
+    if (!listRes.ok) {
+      const t = await listRes.text();
+      return new Response(JSON.stringify({ error: `Gmail search failed [${listRes.status}]`, detail: t }), {
+        status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const list = await listRes.json();
+    const messages = list?.messages || [];
+    if (messages.length === 0) {
+      return new Response(JSON.stringify({ found: false, matches: [] }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Resolve every match in parallel — metadata + preferred attachment ref only (no bytes)
+    const detailed = await Promise.all(messages.map(async (m: any) => {
+      try {
+        const mRes = await gw(`/users/me/messages/${m.id}?format=full`, LOVABLE_API_KEY, GOOGLE_MAIL_API_KEY);
+        if (!mRes.ok) return null;
+        const msg = await mRes.json();
+        const atts = collectAttachments(msg.payload);
+        if (atts.length === 0) return null;
+
+        const preferred = atts.find((a) => /pdf/i.test(a.mimeType) || /\.pdf$/i.test(a.filename))
+          || atts.find((a) => /^image\//i.test(a.mimeType) || /\.(png|jpe?g)$/i.test(a.filename))
+          || atts[0];
+
+        const headers = msg.payload?.headers || [];
+        const dateStr = headerVal(headers, 'Date');
+        const internalMs = Number(msg.internalDate || 0);
+        const parsedMs = dateStr ? Date.parse(dateStr) : NaN;
+        const dateMs = isFinite(parsedMs) ? parsedMs : internalMs;
+
+        return {
+          id: msg.id,
+          from: headerVal(headers, 'From'),
+          subject: headerVal(headers, 'Subject'),
+          date: dateStr,
+          dateMs,
+          snippet: msg.snippet || '',
+          attachment: {
+            filename: preferred.filename,
+            mimeType: preferred.mimeType,
+            size: preferred.body?.size || 0,
+            attachmentId: preferred.body?.attachmentId || '',
+          },
+        };
+      } catch {
+        return null;
+      }
+    }));
+
+    const matches = detailed.filter(Boolean).sort((a: any, b: any) => (b.dateMs || 0) - (a.dateMs || 0));
+
+    return new Response(JSON.stringify({ found: matches.length > 0, matches }), {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (e) {

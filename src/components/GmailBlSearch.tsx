@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Search, Loader2, FileText, CheckCircle2, Plus, X, Calendar, User } from 'lucide-react';
+import {
+  Mail, Search, Loader2, FileText, CheckCircle2, Plus, X,
+  Calendar, User, ArrowDownUp, Download as DownloadIcon, StopCircle,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
@@ -11,23 +14,20 @@ interface GmailMatch {
   from: string;
   subject: string;
   date: string;
+  dateMs: number;
   snippet: string;
   attachment: {
     filename: string;
     mimeType: string;
     size: number;
-    base64: string;
+    attachmentId: string;
   };
 }
 
 interface GmailBlSearchProps {
-  /** Callback receives the File built from Gmail attachment */
   onAddFile: (file: File, meta: { blNumber: string; emailSubject: string; from: string }) => void;
-  /** Button label after a match is found */
   addButtonLabel?: string;
-  /** Optional title override */
   title?: string;
-  /** Optional disabled flag for the add button (e.g. when at max bulk count) */
   addDisabled?: boolean;
 }
 
@@ -38,6 +38,49 @@ function b64ToBlob(b64: string, mime: string): Blob {
   return new Blob([bytes], { type: mime });
 }
 
+function escapeRegExp(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function Highlight({ text, term }: { text: string; term: string }) {
+  if (!text) return null;
+  if (!term.trim()) return <>{text}</>;
+  const re = new RegExp(`(${escapeRegExp(term.trim())})`, 'ig');
+  const parts = text.split(re);
+  return (
+    <>
+      {parts.map((p, i) =>
+        re.test(p) ? (
+          <mark
+            key={i}
+            className="bg-yellow-200/80 text-slate-900 font-semibold rounded px-0.5"
+          >
+            {p}
+          </mark>
+        ) : (
+          <span key={i}>{p}</span>
+        )
+      )}
+    </>
+  );
+}
+
+const fmtSize = (n: number) => {
+  if (!n) return '';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(2)} MB`;
+};
+
+const fmtDate = (ms: number, fallback: string) => {
+  if (!ms || !isFinite(ms)) return fallback || '—';
+  try {
+    return new Date(ms).toLocaleString();
+  } catch {
+    return fallback || '—';
+  }
+};
+
 export function GmailBlSearch({
   onAddFile,
   addButtonLabel = 'Add BL to Processing',
@@ -46,8 +89,20 @@ export function GmailBlSearch({
 }: GmailBlSearchProps) {
   const [blNumber, setBlNumber] = useState('');
   const [loading, setLoading] = useState(false);
-  const [match, setMatch] = useState<GmailMatch | null>(null);
+  const [matches, setMatches] = useState<GmailMatch[]>([]);
   const [searched, setSearched] = useState(false);
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
+  const [addingId, setAddingId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const abortRef = useRef<AbortController | null>(null);
+
+  const sortedMatches = useMemo(() => {
+    const copy = [...matches];
+    copy.sort((a, b) =>
+      sortDir === 'desc' ? (b.dateMs || 0) - (a.dateMs || 0) : (a.dateMs || 0) - (b.dateMs || 0)
+    );
+    return copy;
+  }, [matches, sortDir]);
 
   const runSearch = async () => {
     const q = blNumber.trim();
@@ -55,55 +110,74 @@ export function GmailBlSearch({
       toast.error('Enter a BL number to search');
       return;
     }
+    // Cancel any in-flight search
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
-    setMatch(null);
+    setMatches([]);
     setSearched(false);
+    setSearchTerm(q);
     try {
       const { data, error } = await supabase.functions.invoke('gmail-search-bl', {
         body: { blNumber: q },
       });
+      if (controller.signal.aborted) return;
       if (error) throw error;
       setSearched(true);
-      if (!data?.found) {
+      const list: GmailMatch[] = data?.matches || [];
+      setMatches(list);
+      if (list.length === 0) {
         toast.info('No matching email found in Gmail.');
-        return;
+      } else {
+        toast.success(`${list.length} email${list.length === 1 ? '' : 's'} found`);
       }
-      setMatch(data as GmailMatch);
-      toast.success('Email found in Gmail');
     } catch (e: any) {
+      if (controller.signal.aborted) return;
       console.error(e);
       toast.error(e?.message || 'Gmail search failed');
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
+      if (abortRef.current === controller) abortRef.current = null;
     }
   };
 
-  const handleAdd = () => {
-    if (!match) return;
+  const cancelSearch = () => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+    setLoading(false);
+    toast.message('Search cancelled');
+  };
+
+  const handleAdd = async (match: GmailMatch) => {
+    if (addDisabled) return;
+    setAddingId(match.id);
     try {
-      const blob = b64ToBlob(match.attachment.base64, match.attachment.mimeType || 'application/pdf');
-      const file = new File([blob], match.attachment.filename || `${blNumber}.pdf`, {
-        type: match.attachment.mimeType || 'application/pdf',
+      const { data, error } = await supabase.functions.invoke('gmail-search-bl', {
+        body: { messageId: match.id, attachmentId: match.attachment.attachmentId },
       });
+      if (error) throw error;
+      const base64 = data?.base64 as string | undefined;
+      if (!base64) throw new Error('Empty attachment');
+      const blob = b64ToBlob(base64, match.attachment.mimeType || 'application/pdf');
+      const file = new File(
+        [blob],
+        match.attachment.filename || `${blNumber || 'bl'}.pdf`,
+        { type: match.attachment.mimeType || 'application/pdf' },
+      );
       onAddFile(file, {
         blNumber: blNumber.trim(),
         emailSubject: match.subject,
         from: match.from,
       });
-      // Clear after add so they can search next
-      setMatch(null);
-      setBlNumber('');
-      setSearched(false);
     } catch (e: any) {
       toast.error(e?.message || 'Could not add file');
+    } finally {
+      setAddingId(null);
     }
-  };
-
-  const fmtSize = (n: number) => {
-    if (!n) return '';
-    if (n < 1024) return `${n} B`;
-    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-    return `${(n / 1024 / 1024).toFixed(2)} MB`;
   };
 
   return (
@@ -116,10 +190,21 @@ export function GmailBlSearch({
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-orange-500 text-white flex items-center justify-center shadow-md shadow-rose-500/30">
           <Mail className="w-5 h-5" />
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h3 className="text-base sm:text-lg font-bold text-slate-900">{title}</h3>
           <p className="text-xs text-slate-500">Find BL attachments straight from your inbox</p>
         </div>
+        {matches.length > 1 && (
+          <button
+            type="button"
+            onClick={() => setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))}
+            className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white"
+            title="Toggle sort by date"
+          >
+            <ArrowDownUp className="w-3.5 h-3.5" />
+            {sortDir === 'desc' ? 'Newest' : 'Oldest'}
+          </button>
+        )}
       </div>
 
       <div className="p-5 space-y-4">
@@ -135,15 +220,37 @@ export function GmailBlSearch({
               disabled={loading}
             />
           </div>
-          <Button
-            onClick={runSearch}
-            disabled={loading || !blNumber.trim()}
-            className="h-11 px-5 gap-2 bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white shadow-md"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            {loading ? 'Searching…' : 'Search Gmail'}
-          </Button>
+          {loading ? (
+            <Button
+              onClick={cancelSearch}
+              variant="outline"
+              className="h-11 px-5 gap-2 border-rose-200 text-rose-600 hover:bg-rose-50"
+            >
+              <StopCircle className="w-4 h-4" /> Cancel
+            </Button>
+          ) : (
+            <Button
+              onClick={runSearch}
+              disabled={!blNumber.trim()}
+              className="h-11 px-5 gap-2 bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white shadow-md"
+            >
+              <Search className="w-4 h-4" /> Search Gmail
+            </Button>
+          )}
         </div>
+
+        {matches.length > 1 && (
+          <div className="sm:hidden flex justify-end">
+            <button
+              type="button"
+              onClick={() => setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white"
+            >
+              <ArrowDownUp className="w-3.5 h-3.5" />
+              Sort: {sortDir === 'desc' ? 'Newest first' : 'Oldest first'}
+            </button>
+          </div>
+        )}
 
         <AnimatePresence mode="wait">
           {loading && (
@@ -154,74 +261,93 @@ export function GmailBlSearch({
             >
               <Loader2 className="w-6 h-6 text-rose-500 animate-spin mx-auto mb-2" />
               <p className="text-sm text-slate-600">Scanning your inbox…</p>
+              <p className="text-xs text-slate-400 mt-1">Tap Cancel to stop</p>
             </motion.div>
           )}
 
-          {!loading && match && (
+          {!loading && sortedMatches.length > 0 && (
             <motion.div
-              key="match"
-              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50/70 to-white p-4 space-y-3"
+              key="list"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="space-y-3"
             >
               <div className="flex items-center gap-2 text-emerald-700 font-semibold text-sm">
-                <CheckCircle2 className="w-4 h-4" /> Email Found
-              </div>
-              <div className="grid sm:grid-cols-2 gap-2 text-sm">
-                <div className="flex items-start gap-2">
-                  <User className="w-4 h-4 text-slate-400 mt-0.5" />
-                  <div className="min-w-0">
-                    <p className="text-xs text-slate-500">Sender</p>
-                    <p className="text-slate-900 truncate">{match.from || '—'}</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-2">
-                  <Calendar className="w-4 h-4 text-slate-400 mt-0.5" />
-                  <div className="min-w-0">
-                    <p className="text-xs text-slate-500">Date</p>
-                    <p className="text-slate-900 truncate">{match.date || '—'}</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-2 sm:col-span-2">
-                  <Mail className="w-4 h-4 text-slate-400 mt-0.5" />
-                  <div className="min-w-0">
-                    <p className="text-xs text-slate-500">Subject</p>
-                    <p className="text-slate-900 truncate">{match.subject || '—'}</p>
-                  </div>
-                </div>
+                <CheckCircle2 className="w-4 h-4" />
+                {sortedMatches.length} match{sortedMatches.length === 1 ? '' : 'es'} found
               </div>
 
-              <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3">
-                <div className="w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center shrink-0">
-                  <FileText className="w-5 h-5 text-rose-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-slate-900 truncate">{match.attachment.filename}</p>
-                  <p className="text-xs text-slate-500">
-                    {match.attachment.mimeType} {match.attachment.size ? `· ${fmtSize(match.attachment.size)}` : ''}
-                  </p>
-                </div>
-              </div>
+              {sortedMatches.map((m) => (
+                <motion.div
+                  key={m.id}
+                  layout
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/60 p-4 space-y-3 hover:border-emerald-200 hover:shadow-sm transition"
+                >
+                  <div className="grid sm:grid-cols-2 gap-2 text-sm">
+                    <div className="flex items-start gap-2 min-w-0">
+                      <User className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs text-slate-500">Sender</p>
+                        <p className="text-slate-900 truncate">{m.from || '—'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2 min-w-0">
+                      <Calendar className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs text-slate-500">Date</p>
+                        <p className="text-slate-900 truncate">{fmtDate(m.dateMs, m.date)}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2 min-w-0 sm:col-span-2">
+                      <Mail className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs text-slate-500">Subject</p>
+                        <p className="text-slate-900 truncate">
+                          <Highlight text={m.subject || '—'} term={searchTerm} />
+                        </p>
+                      </div>
+                    </div>
+                    {m.snippet && (
+                      <div className="sm:col-span-2 text-xs text-slate-500 line-clamp-2 pl-6">
+                        <Highlight text={m.snippet} term={searchTerm} />
+                      </div>
+                    )}
+                  </div>
 
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Button
-                  onClick={handleAdd}
-                  disabled={addDisabled}
-                  className="flex-1 gap-2 h-11 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-md"
-                >
-                  <Plus className="w-4 h-4" /> {addButtonLabel}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => { setMatch(null); setSearched(false); }}
-                  className="h-11 gap-2"
-                >
-                  <X className="w-4 h-4" /> Discard
-                </Button>
-              </div>
+                  <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3">
+                    <div className="w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center shrink-0">
+                      <FileText className="w-5 h-5 text-rose-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-slate-900 truncate">
+                        <Highlight text={m.attachment.filename} term={searchTerm} />
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {m.attachment.mimeType}
+                        {m.attachment.size ? ` · ${fmtSize(m.attachment.size)}` : ''}
+                      </p>
+                    </div>
+                    <Button
+                      onClick={() => handleAdd(m)}
+                      disabled={addDisabled || addingId === m.id}
+                      size="sm"
+                      className="gap-1.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white"
+                    >
+                      {addingId === m.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Plus className="w-3.5 h-3.5" />
+                      )}
+                      {addingId === m.id ? 'Adding…' : addButtonLabel}
+                    </Button>
+                  </div>
+                </motion.div>
+              ))}
             </motion.div>
           )}
 
-          {!loading && !match && searched && (
+          {!loading && searched && sortedMatches.length === 0 && (
             <motion.div
               key="empty"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
