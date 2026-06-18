@@ -18,6 +18,7 @@ import {
   Sparkles, Ship, FileUp, Eye, Package, RotateCcw, FileSpreadsheet, X,
   Truck, ShieldCheck, Wand2, Receipt, FileCheck2, Layers,
 } from 'lucide-react';
+import { GmailBlSearch } from '@/components/GmailBlSearch';
 
 
 interface ExcelRow {
