@@ -5,7 +5,7 @@ import {
   Upload, Loader2, CheckCircle2, X, Download, AlertCircle, UploadCloud,
   FileText, Brain, Link2, Calculator, FileCheck2, Info, Share2, Copy,
   Play, Trash2, BarChart3, Eye, Clock, XCircle, FileIcon, Package, ArrowLeft,
-  Sparkles,
+  Sparkles, Mail,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
