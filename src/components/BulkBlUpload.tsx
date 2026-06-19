@@ -568,44 +568,97 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
           className="hidden"
         />
 
-        <GmailBlSearch
-          onAddFile={(file) => addFromGmail(file)}
-          addButtonLabel="Add to List"
-          title="Search from Gmail"
-          addDisabled={items.length >= MAX_BULK_FILES || processing}
-        />
+        {/* Source toggle: Upload BL vs Search from Email */}
+        <div className="rounded-2xl p-1.5 bg-slate-100/80 border border-slate-200 grid grid-cols-2 gap-1.5">
+          {([
+            { id: 'upload', title: 'Upload BL', sub: 'Upload files from device', Icon: UploadCloud, grad: 'from-indigo-600 via-violet-600 to-blue-500' },
+            { id: 'email', title: 'Search from Email', sub: 'Search BL from Gmail', Icon: Mail, grad: 'from-rose-500 via-fuchsia-500 to-orange-500' },
+          ] as const).map((opt) => {
+            const active = sourceMode === opt.id;
+            return (
+              <motion.button
+                key={opt.id}
+                type="button"
+                onClick={() => setSourceMode(opt.id)}
+                whileTap={{ scale: 0.98 }}
+                className={`relative overflow-hidden rounded-xl px-3 sm:px-5 py-3 sm:py-4 text-left transition-all ${
+                  active
+                    ? `bg-gradient-to-r ${opt.grad} text-white shadow-lg shadow-indigo-500/25`
+                    : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                  <div className={`w-9 h-9 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                    active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    <opt.Icon className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className={`text-sm sm:text-base font-bold leading-tight ${active ? 'text-white' : 'text-slate-900'}`}>
+                      {opt.title}
+                    </p>
+                    <p className={`text-[11px] sm:text-xs leading-tight mt-0.5 ${active ? 'text-white/85' : 'text-slate-500'}`}>
+                      {opt.sub}
+                    </p>
+                  </div>
+                </div>
+              </motion.button>
+            );
+          })}
+        </div>
 
-        {/* Upload dropzone */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          onClick={() => !processing && inputRef.current?.click()}
-          className="relative border-2 border-dashed border-indigo-200 rounded-2xl px-6 py-8 sm:py-10 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/40 transition-all bg-gradient-to-br from-indigo-50/40 to-white"
-        >
-          <motion.div
-            animate={{ y: [0, -6, 0] }}
-            transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
-            className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-white border border-indigo-100 flex items-center justify-center shadow-sm"
-          >
-            <UploadCloud className="w-7 h-7 text-indigo-500" />
-          </motion.div>
-          <p className="text-base sm:text-lg font-bold text-slate-800">Upload up to {MAX_BULK_FILES} BL files</p>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1">PDF, JPG, JPEG, PNG</p>
-          <Button
-            type="button"
-            disabled={processing}
-            className="mt-5 gap-2 px-6 py-2.5 h-auto bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-lg shadow-indigo-500/30"
-          >
-            <Upload className="w-4 h-4" />
-            {hasItems ? 'Upload More' : 'Choose Files'}
-          </Button>
-          {hasItems && (
-            <p className="mt-4 text-xs sm:text-sm text-slate-600">
-              <span className="font-bold text-indigo-600">{items.length}</span> of{' '}
-              <span className="font-bold text-violet-600">{MAX_BULK_FILES}</span> files uploaded
-            </p>
+        <AnimatePresence mode="wait">
+          {sourceMode === 'email' ? (
+            <motion.div
+              key="email-mode"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25 }}
+            >
+              <GmailBlSearch
+                onAddFile={(file) => addFromGmail(file)}
+                addButtonLabel="Add to List"
+                title="Search from Gmail"
+                addDisabled={items.length >= MAX_BULK_FILES || processing}
+              />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="upload-mode"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25 }}
+              onClick={() => !processing && inputRef.current?.click()}
+              className="relative border-2 border-dashed border-indigo-200 rounded-2xl px-6 py-8 sm:py-10 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/40 transition-all bg-gradient-to-br from-indigo-50/40 to-white"
+            >
+              <motion.div
+                animate={{ y: [0, -6, 0] }}
+                transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+                className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-white border border-indigo-100 flex items-center justify-center shadow-sm"
+              >
+                <UploadCloud className="w-7 h-7 text-indigo-500" />
+              </motion.div>
+              <p className="text-base sm:text-lg font-bold text-slate-800">Upload up to {MAX_BULK_FILES} BL files</p>
+              <p className="text-xs sm:text-sm text-slate-400 mt-1">PDF, JPG, JPEG, PNG</p>
+              <Button
+                type="button"
+                disabled={processing}
+                className="mt-5 gap-2 px-6 py-2.5 h-auto bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-lg shadow-indigo-500/30"
+              >
+                <Upload className="w-4 h-4" />
+                {hasItems ? 'Upload More' : 'Choose Files'}
+              </Button>
+              {hasItems && (
+                <p className="mt-4 text-xs sm:text-sm text-slate-600">
+                  <span className="font-bold text-indigo-600">{items.length}</span> of{' '}
+                  <span className="font-bold text-violet-600">{MAX_BULK_FILES}</span> files uploaded
+                </p>
+              )}
+            </motion.div>
           )}
-        </motion.div>
+        </AnimatePresence>
 
         {/* Summary cards */}
         <AnimatePresence>
