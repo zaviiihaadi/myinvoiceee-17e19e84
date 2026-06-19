@@ -135,6 +135,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
   const [zipping, setZipping] = useState(false);
   const [zipProgress, setZipProgress] = useState(0);
   const [viewItem, setViewItem] = useState<BulkBlItem | null>(null);
+  const [sourceMode, setSourceMode] = useState<'upload' | 'email'>('upload');
 
   const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
