@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { motion, AnimatePresence, useMotionValue, animate as motionAnimate } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import {
   Upload, Loader2, CheckCircle2, X, Download, AlertCircle, UploadCloud,
@@ -802,7 +802,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
                             className={`h-full rounded-full ${progressColor(it.status)}`}
                           />
                         </div>
-                        <span className="text-xs font-semibold text-slate-500 w-10 text-right">{pct}%</span>
+                        <AnimatedPercent value={pct} className="text-xs font-semibold text-slate-600 w-10 text-right tabular-nums" />
                       </div>
                       <div className="flex items-center gap-2 justify-end">
                         <button
@@ -846,7 +846,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
                       </div>
                       <div className="flex items-center justify-between gap-3">
                         {statusBadge(it.status)}
-                        <span className="text-xs font-semibold text-slate-500">{pct}%</span>
+                        <AnimatedPercent value={pct} className="text-xs font-semibold text-slate-600 tabular-nums" />
                       </div>
                       <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
                         <motion.div
@@ -1010,7 +1010,7 @@ function FileDetailsPanel({
         <div className="rounded-2xl bg-indigo-50/60 border border-indigo-100 p-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-semibold text-indigo-700">Processing Progress</p>
-            <p className="text-sm font-bold text-indigo-700">{progress}%</p>
+            <AnimatedPercent value={progress} className="text-sm font-bold text-indigo-700 tabular-nums" />
           </div>
           <div className="h-2 rounded-full bg-white overflow-hidden">
             <motion.div
@@ -1141,4 +1141,19 @@ function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function AnimatedPercent({ value, className }: { value: number; className?: string }) {
+  const mv = useMotionValue(0);
+  const [display, setDisplay] = useState(0);
+  useEffect(() => {
+    const controls = motionAnimate(mv, value, {
+      duration: 0.9,
+      ease: 'easeOut',
+      onUpdate: (v) => setDisplay(Math.round(v)),
+    });
+    return () => controls.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  return <span className={className}>{display}%</span>;
 }
