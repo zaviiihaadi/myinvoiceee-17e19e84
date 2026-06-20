@@ -1010,7 +1010,7 @@ function FileDetailsPanel({
         <div className="rounded-2xl bg-indigo-50/60 border border-indigo-100 p-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-semibold text-indigo-700">Processing Progress</p>
-            <p className="text-sm font-bold text-indigo-700">{progress}%</p>
+            <AnimatedPercent value={progress} className="text-sm font-bold text-indigo-700 tabular-nums" />
           </div>
           <div className="h-2 rounded-full bg-white overflow-hidden">
             <motion.div
