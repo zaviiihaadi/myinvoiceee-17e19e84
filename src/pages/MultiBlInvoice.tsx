@@ -346,74 +346,77 @@ export default function MultiBlInvoice() {
           </div>
         </div>
 
-        {/* Two upload cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+        {/* Two compact glassmorphism cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
           {/* Excel card */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05 }}
-            whileHover={{ y: -2 }}
-            className="rounded-2xl bg-white border border-emerald-100 shadow-[0_4px_24px_-12px_rgba(16,185,129,0.25)] overflow-hidden"
+            whileHover={{ y: -3, scale: 1.005 }}
+            className={`relative rounded-2xl overflow-hidden backdrop-blur-xl transition-all duration-500 ${
+              excelReady
+                ? 'bg-gradient-to-br from-emerald-500 via-green-500 to-teal-500 border border-emerald-300/50 shadow-[0_10px_30px_-8px_rgba(16,185,129,0.55)]'
+                : 'bg-white/70 border border-emerald-100 shadow-[0_4px_20px_-8px_rgba(16,185,129,0.18)]'
+            }`}
           >
-            <div className="p-5 sm:p-6 bg-gradient-to-br from-emerald-50/80 to-transparent">
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-sm">
+            {excelReady && (
+              <div className="absolute inset-0 pointer-events-none opacity-30 bg-[radial-gradient(circle_at_top_right,_white,_transparent_60%)]" />
+            )}
+            <input
+              ref={excelInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={handleExcelUpload}
+              className="hidden"
+            />
+            <div className="relative p-4 sm:p-5">
+              {!excelReady ? (
+                <div className="flex items-center gap-3.5">
+                  <motion.div
+                    whileHover={{ rotate: -8, scale: 1.08 }}
+                    className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-green-500 text-white flex items-center justify-center shadow-md shrink-0"
+                  >
                     <FileSpreadsheet className="w-6 h-6" />
+                  </motion.div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">Excel Auto Fill</h3>
+                    <p className="text-xs text-slate-500 leading-tight mt-0.5">Upload company price mapping</p>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-emerald-700">Excel Auto-Fill</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">Shared with Single BL. Persists across refresh.</p>
-                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => !excelLoading && excelInputRef.current?.click()}
+                    disabled={excelLoading}
+                    className="h-9 px-3 rounded-lg bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-md shrink-0 gap-1.5"
+                  >
+                    {excelLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                    <span className="hidden sm:inline">Upload</span>
+                  </Button>
                 </div>
-                {excelReady && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Uploaded
-                  </span>
-                )}
-              </div>
-
-              <input
-                ref={excelInputRef}
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                onChange={handleExcelUpload}
-                className="hidden"
-              />
-
-              <div
-                onClick={() => !excelLoading && excelInputRef.current?.click()}
-                className="border-2 border-dashed border-emerald-200 rounded-xl p-6 sm:p-8 text-center cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/50 transition-all bg-white/60"
-              >
-                <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-white border border-emerald-200 flex items-center justify-center shadow-sm">
-                  {excelLoading ? (
-                    <Loader2 className="w-5 h-5 text-emerald-500 animate-spin" />
-                  ) : (
-                    <UploadCloud className="w-5 h-5 text-emerald-500" />
-                  )}
-                </div>
-                <p className="text-sm font-semibold text-slate-700">Click to upload Excel</p>
-                <p className="text-xs text-slate-400 mt-1">.xlsx, .xls, .csv</p>
-              </div>
-
-              {excelReady && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mt-3 flex items-center gap-3 p-3 rounded-xl bg-white border border-emerald-100"
-                >
-                  <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                    <FileSpreadsheet className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-800 truncate">{excelFileName}</p>
-                    <p className="text-xs text-slate-400">{excelFileSize ? formatBytes(excelFileSize) : `${excelRows.length} rows`}</p>
+              ) : (
+                <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center gap-3 text-white">
+                  <motion.div
+                    initial={{ scale: 0, rotate: -90 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+                    className="w-12 h-12 rounded-xl bg-white/25 backdrop-blur flex items-center justify-center shrink-0 ring-2 ring-white/40"
+                  >
+                    <CheckCircle2 className="w-7 h-7" strokeWidth={2.5} />
+                  </motion.div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold leading-tight flex items-center gap-1.5">
+                      Excel Uploaded
+                      <Sparkles className="w-3.5 h-3.5" />
+                    </p>
+                    <p className="text-xs text-white/90 truncate" title={excelFileName || ''}>{excelFileName}</p>
+                    <p className="text-[11px] text-white/80 mt-0.5">
+                      {excelFileSize ? formatBytes(excelFileSize) : `${excelRows.length} rows`} · {excelRows.length} rows
+                    </p>
                   </div>
                   <button
                     onClick={removeExcel}
-                    className="w-9 h-9 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center transition-colors shrink-0"
+                    className="w-9 h-9 rounded-lg bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-colors shrink-0 backdrop-blur"
                     aria-label="Remove Excel"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -428,71 +431,70 @@ export default function MultiBlInvoice() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            whileHover={{ y: -2 }}
-            className="rounded-2xl bg-white border border-purple-100 shadow-[0_4px_24px_-12px_rgba(139,92,246,0.25)] overflow-hidden"
+            whileHover={{ y: -3, scale: 1.005 }}
+            className={`relative rounded-2xl overflow-hidden backdrop-blur-xl transition-all duration-500 ${
+              templateReady
+                ? 'bg-gradient-to-br from-violet-600 via-purple-600 to-blue-600 border border-violet-300/50 shadow-[0_10px_30px_-8px_rgba(139,92,246,0.55)]'
+                : 'bg-white/70 border border-purple-100 shadow-[0_4px_20px_-8px_rgba(139,92,246,0.18)]'
+            }`}
           >
-            <div className="p-5 sm:p-6 bg-gradient-to-br from-purple-50/80 to-transparent">
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-11 h-11 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center shadow-sm">
+            {templateReady && (
+              <div className="absolute inset-0 pointer-events-none opacity-30 bg-[radial-gradient(circle_at_top_left,_white,_transparent_60%)]" />
+            )}
+            <input
+              ref={templateInputRef}
+              type="file"
+              accept=".pdf,.docx,.doc"
+              onChange={handleTemplateUpload}
+              className="hidden"
+            />
+            <div className="relative p-4 sm:p-5">
+              {!templateReady ? (
+                <div className="flex items-center gap-3.5">
+                  <motion.div
+                    whileHover={{ rotate: 8, scale: 1.08 }}
+                    className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white flex items-center justify-center shadow-md shrink-0"
+                  >
                     <FileText className="w-6 h-6" />
+                  </motion.div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">Invoice Template</h3>
+                    <p className="text-xs text-slate-500 leading-tight mt-0.5">Upload invoice template</p>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-purple-700">Invoice Template</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">PDF, DOCX or DOC. Persists across refresh.</p>
-                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => !extractingTemplate && templateInputRef.current?.click()}
+                    disabled={extractingTemplate}
+                    className="h-9 px-3 rounded-lg bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white shadow-md shrink-0 gap-1.5"
+                  >
+                    {extractingTemplate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                    <span className="hidden sm:inline">Upload</span>
+                  </Button>
                 </div>
-                {templateReady && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 text-xs font-medium">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Uploaded
-                  </span>
-                )}
-              </div>
-
-              <input
-                ref={templateInputRef}
-                type="file"
-                accept=".pdf,.docx,.doc"
-                onChange={handleTemplateUpload}
-                className="hidden"
-              />
-
-              <div
-                onClick={() => !extractingTemplate && templateInputRef.current?.click()}
-                className="border-2 border-dashed border-purple-200 rounded-xl p-6 sm:p-8 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50/50 transition-all bg-white/60"
-              >
-                <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-white border border-purple-200 flex items-center justify-center shadow-sm">
-                  {extractingTemplate ? (
-                    <Loader2 className="w-5 h-5 text-purple-500 animate-spin" />
-                  ) : (
-                    <UploadCloud className="w-5 h-5 text-purple-500" />
-                  )}
-                </div>
-                <p className="text-sm font-semibold text-slate-700">Click to upload template</p>
-                <p className="text-xs text-slate-400 mt-1">PDF / DOCX / DOC</p>
-              </div>
-
-              {templateReady && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mt-3 flex items-center gap-3 p-3 rounded-xl bg-white border border-purple-100"
-                >
-                  <div className="w-9 h-9 rounded-lg bg-red-50 text-red-500 flex items-center justify-center shrink-0">
-                    <FileText className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-800 truncate">{templateFile!.name}</p>
-                    <p className="text-xs text-slate-400">
-                      {extractingTemplate
-                        ? 'Mapping fields…'
-                        : `${formatBytes(templateFile!.size)}${templateLayout ? ' · AI mapped' : ''}`}
+              ) : (
+                <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center gap-3 text-white">
+                  <motion.div
+                    initial={{ scale: 0, rotate: 90 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+                    className="w-12 h-12 rounded-xl bg-white/25 backdrop-blur flex items-center justify-center shrink-0 ring-2 ring-white/40"
+                  >
+                    <CheckCircle2 className="w-7 h-7" strokeWidth={2.5} />
+                  </motion.div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold leading-tight flex items-center gap-1.5">
+                      Template Ready
+                      <Sparkles className="w-3.5 h-3.5" />
+                    </p>
+                    <p className="text-xs text-white/90 truncate" title={templateFile!.name}>{templateFile!.name}</p>
+                    <p className="text-[11px] text-white/80 mt-0.5">
+                      {formatBytes(templateFile!.size)}{templateLayout ? ' · AI mapped' : ''}{extractingTemplate ? ' · mapping…' : ''}
                     </p>
                   </div>
                   <button
                     onClick={removeTemplate}
-                    className="w-9 h-9 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center transition-colors shrink-0"
+                    className="w-9 h-9 rounded-lg bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-colors shrink-0 backdrop-blur"
                     aria-label="Remove template"
                   >
                     <Trash2 className="w-4 h-4" />
