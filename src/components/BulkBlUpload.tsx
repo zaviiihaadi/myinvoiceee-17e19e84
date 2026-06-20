@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { motion, AnimatePresence, useMotionValue, animate as motionAnimate } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import {
   Upload, Loader2, CheckCircle2, X, Download, AlertCircle, UploadCloud,
