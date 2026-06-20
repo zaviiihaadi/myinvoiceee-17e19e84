@@ -802,7 +802,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
                             className={`h-full rounded-full ${progressColor(it.status)}`}
                           />
                         </div>
-                        <span className="text-xs font-semibold text-slate-500 w-10 text-right">{pct}%</span>
+                        <AnimatedPercent value={pct} className="text-xs font-semibold text-slate-600 w-10 text-right tabular-nums" />
                       </div>
                       <div className="flex items-center gap-2 justify-end">
                         <button
