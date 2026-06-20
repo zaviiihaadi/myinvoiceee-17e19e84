@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import {
-  ArrowLeft, FileSpreadsheet, FileText, X, CheckCircle2,
-  Loader2, Layers, ShieldCheck, Sparkles, Lightbulb, Trash2, UploadCloud,
+  ArrowLeft, FileSpreadsheet, FileText, CheckCircle2,
+  Loader2, Layers, ShieldCheck, Sparkles, Lightbulb, Trash2, UploadCloud, Upload,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Header } from '@/components/Header';
