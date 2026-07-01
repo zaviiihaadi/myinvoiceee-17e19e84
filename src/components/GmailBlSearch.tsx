@@ -10,6 +10,12 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
+interface GmailAttachment {
+  filename: string;
+  mimeType: string;
+  size: number;
+  attachmentId: string;
+}
 interface GmailMatch {
   id: string;
   from: string;
@@ -17,12 +23,8 @@ interface GmailMatch {
   date: string;
   dateMs: number;
   snippet: string;
-  attachment: {
-    filename: string;
-    mimeType: string;
-    size: number;
-    attachmentId: string;
-  };
+  attachment: GmailAttachment;
+  attachments?: GmailAttachment[];
 }
 
 interface GmailBlSearchProps {
