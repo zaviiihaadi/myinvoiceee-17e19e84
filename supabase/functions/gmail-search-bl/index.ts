@@ -108,8 +108,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    const q = encodeURIComponent(`("${blNumber}" OR filename:"${blNumber}") has:attachment`);
-    const listRes = await gw(`/users/me/messages?maxResults=10&q=${q}`, LOVABLE_API_KEY, GOOGLE_MAIL_API_KEY);
+    // Broader query: match BL/container in subject, body, or filename.
+    const q = encodeURIComponent(
+      `("${blNumber}" OR subject:"${blNumber}" OR filename:"${blNumber}") has:attachment`,
+    );
+    const listRes = await gw(`/users/me/messages?maxResults=15&q=${q}`, LOVABLE_API_KEY, GOOGLE_MAIL_API_KEY);
     if (!listRes.ok) {
       const t = await listRes.text();
       return new Response(JSON.stringify({ error: `Gmail search failed [${listRes.status}]`, detail: t }), {
@@ -124,24 +127,33 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Resolve every match in parallel — metadata + preferred attachment ref only (no bytes)
+    const isUsable = (a: AttPart) =>
+      /pdf/i.test(a.mimeType) ||
+      /^image\//i.test(a.mimeType) ||
+      /\.(pdf|png|jpe?g)$/i.test(a.filename);
+
+    // Resolve every match in parallel — metadata + ALL usable attachments (no bytes)
     const detailed = await Promise.all(messages.map(async (m: any) => {
       try {
         const mRes = await gw(`/users/me/messages/${m.id}?format=full`, LOVABLE_API_KEY, GOOGLE_MAIL_API_KEY);
         if (!mRes.ok) return null;
         const msg = await mRes.json();
-        const atts = collectAttachments(msg.payload);
+        const allAtts = collectAttachments(msg.payload);
+        const atts = allAtts.filter(isUsable);
         if (atts.length === 0) return null;
-
-        const preferred = atts.find((a) => /pdf/i.test(a.mimeType) || /\.pdf$/i.test(a.filename))
-          || atts.find((a) => /^image\//i.test(a.mimeType) || /\.(png|jpe?g)$/i.test(a.filename))
-          || atts[0];
 
         const headers = msg.payload?.headers || [];
         const dateStr = headerVal(headers, 'Date');
         const internalMs = Number(msg.internalDate || 0);
         const parsedMs = dateStr ? Date.parse(dateStr) : NaN;
         const dateMs = isFinite(parsedMs) ? parsedMs : internalMs;
+
+        const attachments = atts.map((a) => ({
+          filename: a.filename,
+          mimeType: a.mimeType,
+          size: a.body?.size || 0,
+          attachmentId: a.body?.attachmentId || '',
+        }));
 
         return {
           id: msg.id,
@@ -150,12 +162,9 @@ Deno.serve(async (req) => {
           date: dateStr,
           dateMs,
           snippet: msg.snippet || '',
-          attachment: {
-            filename: preferred.filename,
-            mimeType: preferred.mimeType,
-            size: preferred.body?.size || 0,
-            attachmentId: preferred.body?.attachmentId || '',
-          },
+          attachments,
+          // Backwards-compat: preferred single attachment
+          attachment: attachments[0],
         };
       } catch {
         return null;
