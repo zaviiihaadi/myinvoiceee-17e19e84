@@ -20,6 +20,7 @@ import {
   formatCalculatedDecimal,
   normalizeDateString,
   todayDDMMYY,
+  buildInvoiceGoodsDescription,
 } from '@/pages/InvoiceGenerator';
 import { GmailBlSearch } from '@/components/GmailBlSearch';
 
@@ -180,6 +181,13 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
         toast.error(`Maximum ${MAX_BULK_FILES} files total.`);
         return prev;
       }
+      const dup = prev.some(
+        (p) => p.file.name === file.name && p.file.size === file.size,
+      );
+      if (dup) {
+        toast.info(`"${file.name}" is already in the list.`);
+        return prev;
+      }
       return [
         ...prev,
         {
@@ -284,7 +292,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
         port_of_loading: blData?.port_of_loading || '',
         port_of_discharge: blData?.port_of_discharge || '',
         hs_code: blData?.hs_code || '',
-        goods_description: blData?.description || '',
+        goods_description: buildInvoiceGoodsDescription(blData?.description || '', calc.kgs),
         gross_weight: `${calc.kgs}KGS`,
         unit_price: `${calc.unitPriceText}US$ Per KG`,
         amount: `${calc.totalPriceText}$`,

@@ -10,6 +10,12 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
+interface GmailAttachment {
+  filename: string;
+  mimeType: string;
+  size: number;
+  attachmentId: string;
+}
 interface GmailMatch {
   id: string;
   from: string;
@@ -17,12 +23,8 @@ interface GmailMatch {
   date: string;
   dateMs: number;
   snippet: string;
-  attachment: {
-    filename: string;
-    mimeType: string;
-    size: number;
-    attachmentId: string;
-  };
+  attachment: GmailAttachment;
+  attachments?: GmailAttachment[];
 }
 
 interface GmailBlSearchProps {
@@ -243,28 +245,34 @@ export function GmailBlSearch({
     }
   };
 
-  const handleAdd = async (match: GmailMatch) => {
+  const handleAdd = async (match: GmailMatch, att?: GmailAttachment) => {
     if (addDisabled) return;
-    setAddingId(match.id);
+    const attachment = att || match.attachment;
+    if (!attachment?.attachmentId) {
+      toast.error('Attachment is missing');
+      return;
+    }
+    const key = `${match.id}::${attachment.attachmentId}`;
+    setAddingId(key);
     try {
       const { data, error } = await supabase.functions.invoke('gmail-search-bl', {
-        body: { messageId: match.id, attachmentId: match.attachment.attachmentId },
+        body: { messageId: match.id, attachmentId: attachment.attachmentId },
       });
       if (error) throw error;
       const base64 = data?.base64 as string | undefined;
       if (!base64) throw new Error('Empty attachment');
-      const blob = b64ToBlob(base64, match.attachment.mimeType || 'application/pdf');
+      const blob = b64ToBlob(base64, attachment.mimeType || 'application/pdf');
       const file = new File(
         [blob],
-        match.attachment.filename || `${query || 'bl'}.pdf`,
-        { type: match.attachment.mimeType || 'application/pdf' },
+        attachment.filename || `${query || 'bl'}.pdf`,
+        { type: attachment.mimeType || 'application/pdf' },
       );
       onAddFile(file, {
         blNumber: query.trim(),
         emailSubject: match.subject,
         from: match.from,
       });
-      toast.success('Added to processing list');
+      toast.success(`Added "${attachment.filename}"`);
     } catch (e: any) {
       toast.error(e?.message || 'Could not add file');
     } finally {
@@ -558,36 +566,47 @@ export function GmailBlSearch({
                     </span>
                   </div>
 
-                  {/* Attachment row */}
-                  <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-gradient-to-r from-slate-50/80 to-white p-3">
-                    <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${extColor(m.attachment.mimeType)} text-white flex flex-col items-center justify-center shrink-0 shadow-md`}>
-                      <FileText className="w-4 h-4" />
-                      <span className="text-[8px] font-extrabold leading-none mt-0.5">
-                        {extFromMime(m.attachment.mimeType)}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-slate-900 truncate">
-                        <Highlight text={m.attachment.filename} terms={searchedTerms} />
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {extFromMime(m.attachment.mimeType)} Document
-                        {m.attachment.size ? ` · ${fmtSize(m.attachment.size)}` : ''}
-                      </p>
-                    </div>
-                    <Button
-                      onClick={() => handleAdd(m)}
-                      disabled={addDisabled || addingId === m.id}
-                      size="sm"
-                      className="h-10 px-4 rounded-xl gap-1.5 font-bold text-white bg-[linear-gradient(95deg,#7C3AED_0%,#C026D3_50%,#3B82F6_100%)] hover:opacity-95 shadow-md shadow-violet-500/30"
-                    >
-                      {addingId === m.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Plus className="w-4 h-4" />
-                      )}
-                      {addingId === m.id ? 'Adding…' : addButtonLabel}
-                    </Button>
+                  {/* Attachments (each with its own Add button) */}
+                  <div className="space-y-2">
+                    {(m.attachments && m.attachments.length > 0 ? m.attachments : [m.attachment]).map((att) => {
+                      const key = `${m.id}::${att.attachmentId}`;
+                      const isAdding = addingId === key;
+                      return (
+                        <div
+                          key={key}
+                          className="flex items-center gap-3 rounded-xl border border-slate-100 bg-gradient-to-r from-slate-50/80 to-white p-3"
+                        >
+                          <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${extColor(att.mimeType)} text-white flex flex-col items-center justify-center shrink-0 shadow-md`}>
+                            <FileText className="w-4 h-4" />
+                            <span className="text-[8px] font-extrabold leading-none mt-0.5">
+                              {extFromMime(att.mimeType)}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-slate-900 truncate">
+                              <Highlight text={att.filename} terms={searchedTerms} />
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {extFromMime(att.mimeType)} Document
+                              {att.size ? ` · ${fmtSize(att.size)}` : ''}
+                            </p>
+                          </div>
+                          <Button
+                            onClick={() => handleAdd(m, att)}
+                            disabled={addDisabled || isAdding}
+                            size="sm"
+                            className="h-10 px-4 rounded-xl gap-1.5 font-bold text-white bg-[linear-gradient(95deg,#7C3AED_0%,#C026D3_50%,#3B82F6_100%)] hover:opacity-95 shadow-md shadow-violet-500/30"
+                          >
+                            {isAdding ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Plus className="w-4 h-4" />
+                            )}
+                            {isAdding ? 'Adding…' : addButtonLabel}
+                          </Button>
+                        </div>
+                      );
+                    })}
                   </div>
                 </motion.div>
               ))}
