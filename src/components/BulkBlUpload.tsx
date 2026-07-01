@@ -181,6 +181,13 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
         toast.error(`Maximum ${MAX_BULK_FILES} files total.`);
         return prev;
       }
+      const dup = prev.some(
+        (p) => p.file.name === file.name && p.file.size === file.size,
+      );
+      if (dup) {
+        toast.info(`"${file.name}" is already in the list.`);
+        return prev;
+      }
       return [
         ...prev,
         {
