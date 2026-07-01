@@ -20,6 +20,7 @@ import {
   formatCalculatedDecimal,
   normalizeDateString,
   todayDDMMYY,
+  buildInvoiceGoodsDescription,
 } from '@/pages/InvoiceGenerator';
 import { GmailBlSearch } from '@/components/GmailBlSearch';
 
