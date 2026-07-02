@@ -32,6 +32,11 @@ interface GmailBlSearchProps {
   addButtonLabel?: string;
   title?: string;
   addDisabled?: boolean;
+  /** When true, uploading an image auto-detects ALL BL/Container numbers,
+   *  searches Gmail for each, and automatically adds every match to the list. */
+  autoAddOnImageSearch?: boolean;
+  /** Fired after the image-based batch finishes, with lists of found / missing numbers. */
+  onImageSearchComplete?: (result: { found: string[]; missing: string[] }) => void;
 }
 
 const ACCEPTED_IMG = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
