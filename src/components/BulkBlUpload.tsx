@@ -996,6 +996,14 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Completion Dialog */}
+      <CompletionDialog
+        open={completionOpen}
+        onOpenChange={setCompletionOpen}
+        stats={completionStats}
+        onDownloadAll={() => { setCompletionOpen(false); downloadAll(); }}
+      />
     </div>
   );
 }
