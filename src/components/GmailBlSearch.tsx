@@ -218,6 +218,26 @@ export function GmailBlSearch({
     toast.message('Search cancelled');
   };
 
+  const fetchAttachmentFile = async (
+    match: GmailMatch,
+    att: GmailAttachment,
+  ): Promise<File | null> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('gmail-search-bl', {
+        body: { messageId: match.id, attachmentId: att.attachmentId },
+      });
+      if (error) throw error;
+      const base64 = data?.base64 as string | undefined;
+      if (!base64) return null;
+      const blob = b64ToBlob(base64, att.mimeType || 'application/pdf');
+      return new File([blob], att.filename || 'bl.pdf', {
+        type: att.mimeType || 'application/pdf',
+      });
+    } catch {
+      return null;
+    }
+  };
+
   const handleImageExtract = async (file: File) => {
     if (!ACCEPTED_IMG.includes(file.type)) {
       toast.error('Upload a PDF, JPG, JPEG, or PNG');
@@ -236,21 +256,84 @@ export function GmailBlSearch({
       if (error) throw error;
       const bl = (data?.bl_number || '').toString().trim();
       const containers: string[] = Array.isArray(data?.container_numbers) ? data.container_numbers : [];
-      const container = (containers[0] || '').toString().trim();
-      if (!bl && !container) {
+      const containerFirst = (containers[0] || '').toString().trim();
+      if (!bl && containers.length === 0) {
         toast.error('Could not detect BL or container number');
         return;
       }
-      setQuery(bl || container);
-      toast.success(`Detected ${bl ? `BL: ${bl}` : ''}${bl && container ? ' · ' : ''}${container ? `Container: ${container}` : ''}`);
-      await runSearch({ bl, container });
+
+      // Non-auto mode (Single BL): keep existing single-search behaviour.
+      if (!autoAddOnImageSearch) {
+        setQuery(bl || containerFirst);
+        toast.success(
+          `Detected ${bl ? `BL: ${bl}` : ''}${bl && containerFirst ? ' · ' : ''}${containerFirst ? `Container: ${containerFirst}` : ''}`,
+        );
+        await runSearch({ bl, container: containerFirst });
+        return;
+      }
+
+      // AUTO MODE (Multi BL): search each detected number one-by-one and auto-add every match.
+      const allCandidates = [bl, ...containers]
+        .map((s) => (s || '').toString().trim())
+        .filter(Boolean);
+      const seen = new Set<string>();
+      const unique = allCandidates.filter((n) => {
+        const k = n.toUpperCase().replace(/[\s\-_.,:;#'"]/g, '');
+        if (!k || seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+
+      toast.message(`Detected ${unique.length} number${unique.length === 1 ? '' : 's'} — searching Gmail…`);
+      setLoading(true);
+      setSearchedTerms(unique);
+
+      const found: string[] = [];
+      const missing: string[] = [];
+      const addedKeys = new Set<string>();
+
+      for (const num of unique) {
+        try {
+          const list = await runOne(num);
+          if (list.length === 0) {
+            missing.push(num);
+            continue;
+          }
+          // Take the newest match with a usable attachment.
+          const sorted = [...list].sort((a, b) => (b.dateMs || 0) - (a.dateMs || 0));
+          let addedForThis = false;
+          for (const m of sorted) {
+            const atts = m.attachments && m.attachments.length > 0 ? m.attachments : [m.attachment];
+            const att = atts.find((a) => !!a?.attachmentId);
+            if (!att) continue;
+            const key = `${m.id}::${att.attachmentId}`;
+            if (addedKeys.has(key)) { addedForThis = true; break; }
+            const f = await fetchAttachmentFile(m, att);
+            if (!f) continue;
+            addedKeys.add(key);
+            onAddFile(f, { blNumber: num, emailSubject: m.subject, from: m.from });
+            addedForThis = true;
+            break;
+          }
+          if (addedForThis) found.push(num);
+          else missing.push(num);
+        } catch (e) {
+          missing.push(num);
+        }
+      }
+
+      setLoading(false);
+      setSearched(true);
+      onImageSearchComplete?.({ found, missing });
     } catch (e: any) {
       console.error(e);
       toast.error(e?.message || 'Extraction failed');
     } finally {
       setExtracting(false);
+      setLoading(false);
     }
   };
+
 
   const handleAdd = async (match: GmailMatch, att?: GmailAttachment) => {
     if (addDisabled) return;
