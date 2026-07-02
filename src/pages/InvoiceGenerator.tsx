@@ -1008,9 +1008,10 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const unitPriceNum = truncatedUnitPrice < 0.42 ? 0.42 : truncatedUnitPrice;
     const unitPriceTextExact = unitPriceNum.toFixed(2); // always 2 decimals after truncation: 0.40, 0.53, 1.00
 
-    // Total = displayed unit price × weight, truncated to 3 decimals with no post-rounding
+    // Total = displayed unit price × weight, truncated to 3 decimals with no post-rounding.
+    // Display: strip trailing zeros so 1250.500 shows as 1250.5 (calculation unchanged).
     const computedTotalRaw = multiplyDecimalStrings(unitPriceTextExact, normalizedWeight, 3) ?? parsedAmount.normalized;
-    const computedTotalText = formatCalculatedDecimal(computedTotalRaw, 3);
+    const computedTotalText = formatCalculatedDecimal(computedTotalRaw, 0);
 
     return {
       unitPrice: unitPriceNum,

@@ -24,7 +24,7 @@ import {
 } from '@/pages/InvoiceGenerator';
 import { GmailBlSearch } from '@/components/GmailBlSearch';
 
-const MAX_BULK_FILES = 10;
+const MAX_BULK_FILES = 20;
 const ACCEPTED_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
 
 interface ExcelRow {
@@ -119,7 +119,8 @@ function singleBlCalculate(blData: any, companyPriceStr: string) {
 
   const computedTotalRaw =
     multiplyDecimalStrings(unitPriceText, normalizedWeight, 3) ?? parsedAmount.normalized;
-  const totalPriceText = formatCalculatedDecimal(computedTotalRaw, 3);
+  // Strip trailing zeros for display (e.g. 1250.500 -> 1250.5). Calculation is unchanged.
+  const totalPriceText = formatCalculatedDecimal(computedTotalRaw, 0);
 
   return {
     unitPrice: unitPriceNum,
@@ -137,6 +138,10 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
   const [zipProgress, setZipProgress] = useState(0);
   const [viewItem, setViewItem] = useState<BulkBlItem | null>(null);
   const [sourceMode, setSourceMode] = useState<'upload' | 'email'>('upload');
+  const [completionOpen, setCompletionOpen] = useState(false);
+  const [completionStats, setCompletionStats] = useState<{ total: number; success: number; failed: number }>({ total: 0, success: 0, failed: 0 });
+  const autoRunRef = useRef(false);
+  const processedIdsRef = useRef<Set<string>>(new Set());
 
   const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -399,22 +404,52 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
   };
 
   const processAll = async () => {
-    if (items.length === 0) return;
+    // Only process items that haven't been processed yet (supports auto-trigger on new uploads)
+    const pending = items.filter(
+      (i) => !processedIdsRef.current.has(i.id) && (i.status === 'pending' || i.status === 'processing'),
+    );
+    if (pending.length === 0) return;
     if (excelRows.length === 0) {
       toast.error('Please upload the Excel file first (Excel Auto-Fill section).');
       return;
     }
     setProcessing(true);
+    let success = 0;
+    let failed = 0;
     try {
-      // Run the exact single-BL workflow once per file, independently
-      for (const item of items) {
-        await processBL(item);
+      for (const item of pending) {
+        processedIdsRef.current.add(item.id);
+        const result = await processBL(item);
+        if (result.status === 'done' || result.status === 'matched') success += 1;
+        else failed += 1;
       }
+      setCompletionStats({ total: pending.length, success, failed });
+      setCompletionOpen(true);
       toast.success('Bulk processing finished.');
     } finally {
       setProcessing(false);
     }
   };
+
+  // AUTO-START PROCESSING: whenever new pending items appear (uploaded PDFs or Gmail auto-adds)
+  // and Excel is available, kick off processing without waiting for the user to click.
+  useEffect(() => {
+    if (processing) return;
+    if (excelRows.length === 0) return;
+    const hasNewPending = items.some(
+      (i) => i.status === 'pending' && !processedIdsRef.current.has(i.id),
+    );
+    if (!hasNewPending) return;
+    if (autoRunRef.current) return;
+    autoRunRef.current = true;
+    const t = setTimeout(() => {
+      autoRunRef.current = false;
+      processAll();
+    }, 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, processing, excelRows.length]);
+
 
   const downloadPdf = (base64: string, filename: string) => {
     const bin = atob(base64);
@@ -629,6 +664,16 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
                 addButtonLabel="Add to List"
                 title="Search from Gmail"
                 addDisabled={items.length >= MAX_BULK_FILES || processing}
+                autoAddOnImageSearch
+                onImageSearchComplete={({ found, missing }) => {
+                  if (missing.length === 0) {
+                    toast.success(`All matching BL files have been found and added successfully. (${found.length})`);
+                  } else {
+                    toast.warning(
+                      `Found: ${found.length} · Missing: ${missing.length}. Missing: ${missing.join(', ')}`,
+                    );
+                  }
+                }}
               />
             </motion.div>
           ) : (
@@ -951,6 +996,14 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Completion Dialog */}
+      <CompletionDialog
+        open={completionOpen}
+        onOpenChange={setCompletionOpen}
+        stats={completionStats}
+        onDownloadAll={() => { setCompletionOpen(false); downloadAll(); }}
+      />
     </div>
   );
 }
@@ -1155,13 +1208,107 @@ function AnimatedPercent({ value, className }: { value: number; className?: stri
   const mv = useMotionValue(0);
   const [display, setDisplay] = useState(0);
   useEffect(() => {
+    const from = mv.get();
+    const delta = Math.max(1, Math.abs(value - from));
+    // 40ms per 1% → smooth 1,2,3…100 counter, capped so big jumps still feel snappy.
+    const duration = Math.min(2.8, Math.max(0.35, delta * 0.04));
     const controls = motionAnimate(mv, value, {
-      duration: 0.9,
-      ease: 'easeOut',
+      duration,
+      ease: 'linear',
       onUpdate: (v) => setDisplay(Math.round(v)),
     });
     return () => controls.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
   return <span className={className}>{display}%</span>;
+}
+
+function CompletionDialog({
+  open, onOpenChange, stats, onDownloadAll,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  stats: { total: number; success: number; failed: number };
+  onDownloadAll: () => void;
+}) {
+  // Simple animated "confetti" — small colored squares that fall & fade.
+  const confettiColors = ['#7C3AED', '#C026D3', '#3B82F6', '#F59E0B', '#10B981', '#EF4444'];
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md p-0 overflow-hidden bg-transparent border-0 shadow-none">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+          className="relative rounded-3xl bg-white/80 backdrop-blur-xl border border-white/60 shadow-[0_30px_80px_-20px_rgba(124,58,237,0.5)] overflow-hidden"
+        >
+          {/* Confetti layer */}
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            {open && Array.from({ length: 24 }).map((_, i) => {
+              const left = Math.random() * 100;
+              const delay = Math.random() * 0.4;
+              const duration = 1.6 + Math.random() * 1.4;
+              const color = confettiColors[i % confettiColors.length];
+              const size = 6 + Math.round(Math.random() * 6);
+              return (
+                <motion.span
+                  key={i}
+                  initial={{ y: -20, opacity: 0, rotate: 0 }}
+                  animate={{ y: 360, opacity: [0, 1, 1, 0], rotate: 360 }}
+                  transition={{ duration, delay, ease: 'easeIn' }}
+                  style={{ left: `${left}%`, width: size, height: size, background: color }}
+                  className="absolute top-0 rounded-sm"
+                />
+              );
+            })}
+          </div>
+
+          {/* Gradient header */}
+          <div className="relative px-6 pt-8 pb-6 text-center bg-gradient-to-br from-violet-50 via-white to-blue-50">
+            <motion.div
+              initial={{ scale: 0.5, rotate: -20 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 14, delay: 0.05 }}
+              className="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-white flex items-center justify-center shadow-xl shadow-emerald-500/40"
+            >
+              <CheckCircle2 className="w-11 h-11" />
+            </motion.div>
+            <h3 className="mt-4 text-2xl font-extrabold text-slate-900 tracking-tight">
+              🎉 Processing Complete!
+            </h3>
+            <p className="mt-1 text-sm text-slate-600">
+              <span className="font-bold text-emerald-600">{stats.success}</span> of{' '}
+              <span className="font-bold text-slate-900">{stats.total}</span> BLs processed successfully.
+            </p>
+            {stats.failed > 0 && (
+              <p className="mt-1 text-xs text-rose-600 font-semibold">
+                {stats.failed} failed / no match
+              </p>
+            )}
+            <p className="mt-2 text-xs text-slate-400">All invoices are ready.</p>
+          </div>
+
+          {/* Actions */}
+          <div className="relative p-5 space-y-2 bg-white/70 backdrop-blur-sm border-t border-white/50">
+            <Button
+              onClick={onDownloadAll}
+              disabled={stats.success === 0}
+              className="w-full h-12 rounded-xl gap-2 text-base font-bold text-white bg-[linear-gradient(95deg,#7C3AED_0%,#C026D3_50%,#3B82F6_100%)] hover:opacity-95 shadow-lg shadow-violet-500/30"
+            >
+              <Download className="w-5 h-5" />
+              Download All
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="w-full h-11 rounded-xl font-semibold border-slate-200"
+            >
+              Close
+            </Button>
+          </div>
+        </motion.div>
+      </DialogContent>
+    </Dialog>
+  );
 }
