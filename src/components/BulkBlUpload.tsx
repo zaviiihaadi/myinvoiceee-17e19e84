@@ -664,6 +664,16 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
                 addButtonLabel="Add to List"
                 title="Search from Gmail"
                 addDisabled={items.length >= MAX_BULK_FILES || processing}
+                autoAddOnImageSearch
+                onImageSearchComplete={({ found, missing }) => {
+                  if (missing.length === 0) {
+                    toast.success(`All matching BL files have been found and added successfully. (${found.length})`);
+                  } else {
+                    toast.warning(
+                      `Found: ${found.length} · Missing: ${missing.length}. Missing: ${missing.join(', ')}`,
+                    );
+                  }
+                }}
               />
             </motion.div>
           ) : (
