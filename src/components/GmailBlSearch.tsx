@@ -122,6 +122,8 @@ export function GmailBlSearch({
   addButtonLabel = 'Add to List',
   title = 'Search from Gmail',
   addDisabled = false,
+  autoAddOnImageSearch = false,
+  onImageSearchComplete,
 }: GmailBlSearchProps) {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
