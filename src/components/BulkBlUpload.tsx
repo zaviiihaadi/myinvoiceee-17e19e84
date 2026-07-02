@@ -24,7 +24,7 @@ import {
 } from '@/pages/InvoiceGenerator';
 import { GmailBlSearch } from '@/components/GmailBlSearch';
 
-const MAX_BULK_FILES = 10;
+const MAX_BULK_FILES = 20;
 const ACCEPTED_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
 
 interface ExcelRow {
