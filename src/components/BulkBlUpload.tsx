@@ -119,7 +119,8 @@ function singleBlCalculate(blData: any, companyPriceStr: string) {
 
   const computedTotalRaw =
     multiplyDecimalStrings(unitPriceText, normalizedWeight, 3) ?? parsedAmount.normalized;
-  const totalPriceText = formatCalculatedDecimal(computedTotalRaw, 3);
+  // Strip trailing zeros for display (e.g. 1250.500 -> 1250.5). Calculation is unchanged.
+  const totalPriceText = formatCalculatedDecimal(computedTotalRaw, 0);
 
   return {
     unitPrice: unitPriceNum,
