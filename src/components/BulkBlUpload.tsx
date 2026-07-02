@@ -404,22 +404,52 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
   };
 
   const processAll = async () => {
-    if (items.length === 0) return;
+    // Only process items that haven't been processed yet (supports auto-trigger on new uploads)
+    const pending = items.filter(
+      (i) => !processedIdsRef.current.has(i.id) && (i.status === 'pending' || i.status === 'processing'),
+    );
+    if (pending.length === 0) return;
     if (excelRows.length === 0) {
       toast.error('Please upload the Excel file first (Excel Auto-Fill section).');
       return;
     }
     setProcessing(true);
+    let success = 0;
+    let failed = 0;
     try {
-      // Run the exact single-BL workflow once per file, independently
-      for (const item of items) {
-        await processBL(item);
+      for (const item of pending) {
+        processedIdsRef.current.add(item.id);
+        const result = await processBL(item);
+        if (result.status === 'done' || result.status === 'matched') success += 1;
+        else failed += 1;
       }
+      setCompletionStats({ total: pending.length, success, failed });
+      setCompletionOpen(true);
       toast.success('Bulk processing finished.');
     } finally {
       setProcessing(false);
     }
   };
+
+  // AUTO-START PROCESSING: whenever new pending items appear (uploaded PDFs or Gmail auto-adds)
+  // and Excel is available, kick off processing without waiting for the user to click.
+  useEffect(() => {
+    if (processing) return;
+    if (excelRows.length === 0) return;
+    const hasNewPending = items.some(
+      (i) => i.status === 'pending' && !processedIdsRef.current.has(i.id),
+    );
+    if (!hasNewPending) return;
+    if (autoRunRef.current) return;
+    autoRunRef.current = true;
+    const t = setTimeout(() => {
+      autoRunRef.current = false;
+      processAll();
+    }, 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, processing, excelRows.length]);
+
 
   const downloadPdf = (base64: string, filename: string) => {
     const bin = atob(base64);
