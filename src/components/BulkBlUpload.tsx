@@ -138,6 +138,10 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
   const [zipProgress, setZipProgress] = useState(0);
   const [viewItem, setViewItem] = useState<BulkBlItem | null>(null);
   const [sourceMode, setSourceMode] = useState<'upload' | 'email'>('upload');
+  const [completionOpen, setCompletionOpen] = useState(false);
+  const [completionStats, setCompletionStats] = useState<{ total: number; success: number; failed: number }>({ total: 0, success: 0, failed: 0 });
+  const autoRunRef = useRef(false);
+  const processedIdsRef = useRef<Set<string>>(new Set());
 
   const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
