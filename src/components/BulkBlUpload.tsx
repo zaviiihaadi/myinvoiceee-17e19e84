@@ -1156,9 +1156,13 @@ function AnimatedPercent({ value, className }: { value: number; className?: stri
   const mv = useMotionValue(0);
   const [display, setDisplay] = useState(0);
   useEffect(() => {
+    const from = mv.get();
+    const delta = Math.max(1, Math.abs(value - from));
+    // 40ms per 1% → smooth 1,2,3…100 counter, capped so big jumps still feel snappy.
+    const duration = Math.min(2.8, Math.max(0.35, delta * 0.04));
     const controls = motionAnimate(mv, value, {
-      duration: 0.9,
-      ease: 'easeOut',
+      duration,
+      ease: 'linear',
       onUpdate: (v) => setDisplay(Math.round(v)),
     });
     return () => controls.stop();
