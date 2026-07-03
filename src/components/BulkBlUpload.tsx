@@ -142,6 +142,14 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
   const [completionStats, setCompletionStats] = useState<{ total: number; success: number; failed: number }>({ total: 0, success: 0, failed: 0 });
   const autoRunRef = useRef(false);
   const processedIdsRef = useRef<Set<string>>(new Set());
+  // Tracks which items have finished the SMOOTH progress animation (display reached 100).
+  // The download button unlocks only after the animation completes.
+  const [displayReady, setDisplayReady] = useState<Record<string, boolean>>({});
+  const markDisplay = (id: string, v: number) => {
+    if (v >= 100) {
+      setDisplayReady((prev) => (prev[id] ? prev : { ...prev, [id]: true }));
+    }
+  };
 
   const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
