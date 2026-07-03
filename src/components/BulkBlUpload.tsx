@@ -906,16 +906,15 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
                       </div>
                       <div className="flex items-center justify-between gap-3">
                         {statusBadge(it.status)}
-                        <AnimatedPercent value={pct} className="text-xs font-semibold text-slate-600 tabular-nums" />
                       </div>
-                      <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${pct}%` }}
-                          transition={{ duration: 0.5 }}
-                          className={`h-full rounded-full ${progressColor(it.status)}`}
-                        />
-                      </div>
+                      <PremiumProgressBar
+                        value={pct}
+                        status={it.status}
+                        message={it.message}
+                        compact
+                        showLabel
+                        onDisplayChange={(v) => markDisplay(it.id, v)}
+                      />
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => setViewItem(it)}
