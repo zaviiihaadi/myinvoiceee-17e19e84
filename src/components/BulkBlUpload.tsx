@@ -1074,25 +1074,22 @@ function FileDetailsPanel({
 
       {/* Progress */}
       <div className="px-5 pb-4">
-        <div className="rounded-2xl bg-indigo-50/60 border border-indigo-100 p-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-semibold text-indigo-700">Processing Progress</p>
-            <AnimatedPercent value={progress} className="text-sm font-bold text-indigo-700 tabular-nums" />
+        <div className="rounded-2xl bg-gradient-to-br from-indigo-50/70 via-white to-violet-50/60 border border-indigo-100 p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-indigo-700 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-violet-500" />
+              Processing Progress
+            </p>
           </div>
-          <div className="h-2 rounded-full bg-white overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.5 }}
-              className={`h-full rounded-full ${isFailed ? 'bg-red-400' : 'bg-gradient-to-r from-indigo-500 to-violet-500'}`}
-            />
-          </div>
-          <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-indigo-500" />
-            {item.message || 'Waiting…'}
-          </p>
+          <PremiumProgressBar
+            value={progress}
+            status={item.status}
+            message={item.message}
+            showLabel
+          />
         </div>
       </div>
+
 
       {/* Invoice Info */}
       {(item.invoiceNumber || item.companyPrice || item.containerNumber || item.blNumber) && (
