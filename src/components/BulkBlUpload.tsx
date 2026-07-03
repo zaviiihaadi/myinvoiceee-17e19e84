@@ -142,6 +142,14 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
   const [completionStats, setCompletionStats] = useState<{ total: number; success: number; failed: number }>({ total: 0, success: 0, failed: 0 });
   const autoRunRef = useRef(false);
   const processedIdsRef = useRef<Set<string>>(new Set());
+  // Tracks which items have finished the SMOOTH progress animation (display reached 100).
+  // The download button unlocks only after the animation completes.
+  const [displayReady, setDisplayReady] = useState<Record<string, boolean>>({});
+  const markDisplay = (id: string, v: number) => {
+    if (v >= 100) {
+      setDisplayReady((prev) => (prev[id] ? prev : { ...prev, [id]: true }));
+    }
+  };
 
   const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -813,7 +821,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
             <AnimatePresence initial={false}>
               {items.map((it, idx) => {
                 const pct = progressFor(it);
-                const canDownload = !!it.pdfBase64;
+                const canDownload = !!it.pdfBase64 && !!displayReady[it.id];
                 return (
                   <motion.div
                     key={it.id}
@@ -846,16 +854,15 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
                         </div>
                       </div>
                       <div>{statusBadge(it.status)}</div>
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${pct}%` }}
-                            transition={{ duration: 0.5 }}
-                            className={`h-full rounded-full ${progressColor(it.status)}`}
-                          />
-                        </div>
-                        <AnimatedPercent value={pct} className="text-xs font-semibold text-slate-600 w-10 text-right tabular-nums" />
+                      <div className="min-w-0">
+                        <PremiumProgressBar
+                          value={pct}
+                          status={it.status}
+                          message={it.message}
+                          compact
+                          showLabel
+                          onDisplayChange={(v) => markDisplay(it.id, v)}
+                        />
                       </div>
                       <div className="flex items-center gap-2 justify-end">
                         <button
@@ -899,16 +906,15 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
                       </div>
                       <div className="flex items-center justify-between gap-3">
                         {statusBadge(it.status)}
-                        <AnimatedPercent value={pct} className="text-xs font-semibold text-slate-600 tabular-nums" />
                       </div>
-                      <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${pct}%` }}
-                          transition={{ duration: 0.5 }}
-                          className={`h-full rounded-full ${progressColor(it.status)}`}
-                        />
-                      </div>
+                      <PremiumProgressBar
+                        value={pct}
+                        status={it.status}
+                        message={it.message}
+                        compact
+                        showLabel
+                        onDisplayChange={(v) => markDisplay(it.id, v)}
+                      />
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => setViewItem(it)}
@@ -1068,25 +1074,22 @@ function FileDetailsPanel({
 
       {/* Progress */}
       <div className="px-5 pb-4">
-        <div className="rounded-2xl bg-indigo-50/60 border border-indigo-100 p-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-semibold text-indigo-700">Processing Progress</p>
-            <AnimatedPercent value={progress} className="text-sm font-bold text-indigo-700 tabular-nums" />
+        <div className="rounded-2xl bg-gradient-to-br from-indigo-50/70 via-white to-violet-50/60 border border-indigo-100 p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-indigo-700 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-violet-500" />
+              Processing Progress
+            </p>
           </div>
-          <div className="h-2 rounded-full bg-white overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.5 }}
-              className={`h-full rounded-full ${isFailed ? 'bg-red-400' : 'bg-gradient-to-r from-indigo-500 to-violet-500'}`}
-            />
-          </div>
-          <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-indigo-500" />
-            {item.message || 'Waiting…'}
-          </p>
+          <PremiumProgressBar
+            value={progress}
+            status={item.status}
+            message={item.message}
+            showLabel
+          />
         </div>
       </div>
+
 
       {/* Invoice Info */}
       {(item.invoiceNumber || item.companyPrice || item.containerNumber || item.blNumber) && (
@@ -1210,8 +1213,8 @@ function AnimatedPercent({ value, className }: { value: number; className?: stri
   useEffect(() => {
     const from = mv.get();
     const delta = Math.max(1, Math.abs(value - from));
-    // 40ms per 1% → smooth 1,2,3…100 counter, capped so big jumps still feel snappy.
-    const duration = Math.min(2.8, Math.max(0.35, delta * 0.04));
+    // 45ms per 1% → smooth, visible 1,2,3…100 counter, capped so big jumps still feel snappy.
+    const duration = Math.min(3.2, Math.max(0.4, delta * 0.045));
     const controls = motionAnimate(mv, value, {
       duration,
       ease: 'linear',
@@ -1222,6 +1225,149 @@ function AnimatedPercent({ value, className }: { value: number; className?: stri
   }, [value]);
   return <span className={className}>{display}%</span>;
 }
+
+// Premium progress bar with smooth 0→1→2…→100 counter, staged status label,
+// animated gradient, glow, shimmer sweep and success checkmark on 100%.
+function PremiumProgressBar({
+  value,
+  status,
+  message,
+  compact,
+  onDisplayChange,
+  showLabel = true,
+}: {
+  value: number;
+  status: BulkStatus;
+  message?: string;
+  compact?: boolean;
+  onDisplayChange?: (v: number) => void;
+  showLabel?: boolean;
+}) {
+  const mv = useMotionValue(0);
+  const [display, setDisplay] = useState(0);
+  const isFailed = status === 'failed' || status === 'no_match';
+  const isDone = status === 'done' || status === 'matched';
+
+  useEffect(() => {
+    const from = mv.get();
+    const target = Math.max(0, Math.min(100, value));
+    const delta = Math.max(1, Math.abs(target - from));
+    // ~55ms per 1% keeps every number visible, capped for very large jumps.
+    const duration = Math.min(4.5, Math.max(0.45, delta * 0.055));
+    const controls = motionAnimate(mv, target, {
+      duration,
+      ease: 'linear',
+      onUpdate: (v) => {
+        const r = Math.round(v);
+        setDisplay(r);
+        onDisplayChange?.(r);
+      },
+    });
+    return () => controls.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  const stageLabel = (() => {
+    if (message) return message;
+    if (isFailed) return 'Failed';
+    if (isDone && display >= 100) return 'Completed Successfully!';
+    if (display < 5) return 'Initializing…';
+    if (display < 20) return 'Reading BL…';
+    if (display < 40) return 'Extracting Data…';
+    if (display < 55) return 'Detecting Container…';
+    if (display < 70) return 'Matching Excel…';
+    if (display < 82) return 'Calculating Invoice…';
+    if (display < 94) return 'Generating PDF…';
+    if (display < 100) return 'Finalizing…';
+    return 'Completed Successfully!';
+  })();
+
+  const barH = compact ? 'h-2.5' : 'h-3';
+  const gradient = isFailed
+    ? 'bg-[linear-gradient(90deg,#f87171,#ef4444,#f87171)]'
+    : isDone
+    ? 'bg-[linear-gradient(90deg,#10b981,#34d399,#10b981)]'
+    : 'bg-[linear-gradient(90deg,#6366f1,#8b5cf6,#d946ef,#8b5cf6,#6366f1)]';
+  const glow = isFailed
+    ? 'shadow-[0_0_16px_rgba(239,68,68,0.55)]'
+    : isDone
+    ? 'shadow-[0_0_16px_rgba(16,185,129,0.55)]'
+    : 'shadow-[0_0_18px_rgba(139,92,246,0.55)]';
+
+  return (
+    <div className="w-full">
+      <div className={`relative w-full ${barH} rounded-full bg-slate-100 overflow-hidden ring-1 ring-slate-200/70`}>
+        {/* Filled gradient bar */}
+        <motion.div
+          className={`absolute inset-y-0 left-0 rounded-full ${gradient} ${glow} bg-[length:200%_100%]`}
+          style={{ width: `${display}%` }}
+          animate={{ backgroundPositionX: ['0%', '200%'] }}
+          transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+        />
+        {/* Shimmer sweep */}
+        {!isFailed && display < 100 && (
+          <motion.div
+            className="absolute inset-y-0 w-1/3 pointer-events-none"
+            style={{
+              background:
+                'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.55) 50%, transparent 100%)',
+              mixBlendMode: 'overlay',
+            }}
+            initial={{ x: '-40%' }}
+            animate={{ x: '340%' }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+          />
+        )}
+        {/* Soft outer glow pulse while active */}
+        {!isFailed && !isDone && (
+          <motion.div
+            className="absolute inset-0 rounded-full pointer-events-none"
+            animate={{ opacity: [0.35, 0.65, 0.35] }}
+            transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+            style={{ boxShadow: '0 0 22px rgba(139,92,246,0.35) inset' }}
+          />
+        )}
+      </div>
+      {showLabel && (
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <motion.p
+            key={stageLabel}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+            className={`text-xs font-medium truncate flex items-center gap-1.5 ${
+              isFailed ? 'text-rose-600' : isDone && display >= 100 ? 'text-emerald-600' : 'text-slate-600'
+            }`}
+          >
+            {isDone && display >= 100 ? (
+              <motion.span
+                initial={{ scale: 0, rotate: -30 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: 'spring', stiffness: 320, damping: 16 }}
+                className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-500 text-white shrink-0"
+              >
+                <CheckCircle2 className="w-3 h-3" />
+              </motion.span>
+            ) : !isFailed ? (
+              <Sparkles className="w-3 h-3 text-violet-500 shrink-0" />
+            ) : (
+              <AlertCircle className="w-3 h-3 shrink-0" />
+            )}
+            <span className="truncate">{stageLabel}</span>
+          </motion.p>
+          <span
+            className={`text-xs font-bold tabular-nums shrink-0 ${
+              isFailed ? 'text-rose-600' : isDone && display >= 100 ? 'text-emerald-600' : 'text-indigo-600'
+            }`}
+          >
+            {display}%
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function CompletionDialog({
   open, onOpenChange, stats, onDownloadAll,
