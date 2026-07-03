@@ -50,6 +50,11 @@ Extract ALL of these fields:
 - Shipping Marks
 - Date on the BL document (look for "DATE", "B/L DATE", "SHIPPED ON BOARD DATE", "ISSUE DATE")
 
+ADDITIONALLY, scan the ENTIRE document (including tables, lists, screenshots of Excel, and free text) and collect EVERY distinct BL Number and Container Number visible anywhere.
+
+- BL Number formats include (examples, not exhaustive): "PGSM2030042049-01", "VALUSA-1668/26", "VGLL00028672", "FL-GR-1364", "INV-2505-0001", and similar uppercase alphanumeric codes usually containing digits and possibly hyphens/slashes, length 6-24.
+- Container Number format (ISO 6346): 4 uppercase letters followed by 6-7 digits, e.g. "OOCU7704276", "MEDU7815543", "CAUU4841139", "UETU875520", "MRKU4167643", "TCKU7748567", "ONEU0152695".
+
 Return ONLY a JSON object (no markdown, no code blocks) with this exact structure:
 {
   "kgs": <number or null>,
@@ -71,10 +76,13 @@ Return ONLY a JSON object (no markdown, no code blocks) with this exact structur
   "hs_code": "<string or null>",
   "shipping_marks": "<string or null>",
   "bl_date": "<date string as found on document, e.g. '15-03-2025' or null>",
-  "raw_weight_text": "<the exact text where weight was found>"
+  "raw_weight_text": "<the exact text where weight was found>",
+  "all_bl_numbers": ["<every distinct BL/Invoice number seen anywhere in the image>"],
+  "all_container_numbers": ["<every distinct container number seen anywhere in the image>"],
+  "raw_text": "<a compact plain-text dump of every uppercase alphanumeric token / code visible in the image, separated by spaces or newlines, so downstream regex can find BL and container numbers you might have missed>"
 }
 
-If KGS cannot be found, set kgs to null. For bales, extract the number only (e.g. from "32 BALES" extract 32).`
+If KGS cannot be found, set kgs to null. For bales, extract the number only (e.g. from "32 BALES" extract 32). Deduplicate all_bl_numbers and all_container_numbers. If none, return empty arrays.`
       },
       {
         role: 'user',
