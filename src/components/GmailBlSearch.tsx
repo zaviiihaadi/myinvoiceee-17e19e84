@@ -238,6 +238,32 @@ export function GmailBlSearch({
     }
   };
 
+  // Client-side detection helpers — catch anything the AI missed.
+  const CONTAINER_RE = /\b([A-Z]{4}\s?\d{6,7})\b/g;
+  // Broad BL/Invoice pattern: uppercase alnum tokens with optional -/ separators,
+  // length 6-24, containing at least one digit. Filters out plain words.
+  const BL_RE = /\b([A-Z0-9]{2,}(?:[-/][A-Z0-9]+){0,4})\b/g;
+  const STOPWORDS = new Set([
+    'BILL','LADING','SHIPPER','CONSIGNEE','NOTIFY','PARTY','PORT','LOADING',
+    'DISCHARGE','DESTINATION','VESSEL','VOYAGE','CONTAINER','SEAL','NUMBER',
+    'DATE','GROSS','WEIGHT','KGS','BALES','PACKAGES','PKGS','MARKS','DESCRIPTION',
+    'GOODS','FREIGHT','PREPAID','COLLECT','ORIGINAL','COPY','TOTAL','HS','CODE',
+    'PIECES','CBM','M3','KG','LBS','USD','EUR','FCL','LCL','HC','GP','REEFER',
+    'YES','NO','NIL','NA','TBD','ETA','ETD','ATA','ATD',
+  ]);
+  const normKey = (s: string) =>
+    s.toUpperCase().replace(/\s+/g, '').replace(/[\s\-_.,:;#'"/]/g, '');
+  const isLikelyContainer = (s: string) => /^[A-Z]{4}\d{6,7}$/.test(s.replace(/\s+/g, '').toUpperCase());
+  const isLikelyBL = (s: string) => {
+    const up = s.toUpperCase();
+    if (STOPWORDS.has(up.replace(/[-/].*/, ''))) return false;
+    if (up.length < 6 || up.length > 24) return false;
+    if (!/\d/.test(up)) return false;
+    if (/^[A-Z]{4}\d{6,7}$/.test(up.replace(/\s+/g, ''))) return false; // that's a container
+    if (/^\d+$/.test(up)) return false;
+    return true;
+  };
+
   const handleImageExtract = async (file: File) => {
     if (!ACCEPTED_IMG.includes(file.type)) {
       toast.error('Upload a PDF, JPG, JPEG, or PNG');
@@ -254,52 +280,103 @@ export function GmailBlSearch({
         body: { fileBase64: base64, mimeType: file.type },
       });
       if (error) throw error;
-      const bl = (data?.bl_number || '').toString().trim();
-      const containers: string[] = Array.isArray(data?.container_numbers) ? data.container_numbers : [];
-      const containerFirst = (containers[0] || '').toString().trim();
-      if (!bl && containers.length === 0) {
-        toast.error('Could not detect BL or container number');
+
+      // 1) Collect from AI structured fields
+      const aiBl = (data?.bl_number || '').toString().trim();
+      const aiAllBls: string[] = Array.isArray(data?.all_bl_numbers) ? data.all_bl_numbers : [];
+      const aiContainers: string[] = Array.isArray(data?.container_numbers) ? data.container_numbers : [];
+      const aiAllContainers: string[] = Array.isArray(data?.all_container_numbers) ? data.all_container_numbers : [];
+      const rawText = (data?.raw_text || '').toString();
+
+      // 2) Client-side regex on raw_text as a safety net
+      const regexContainers: string[] = [];
+      const regexBls: string[] = [];
+      if (rawText) {
+        const c = rawText.match(CONTAINER_RE) || [];
+        c.forEach((m) => regexContainers.push(m.replace(/\s+/g, '').toUpperCase()));
+        const b = rawText.match(BL_RE) || [];
+        b.forEach((m) => { if (isLikelyBL(m)) regexBls.push(m.toUpperCase()); });
+      }
+
+      // 3) Merge + classify + dedupe
+      const containerSet = new Map<string, string>();
+      const blSet = new Map<string, string>();
+      const addContainer = (s: string) => {
+        const t = (s || '').toString().trim();
+        if (!t) return;
+        const norm = t.replace(/\s+/g, '').toUpperCase();
+        if (!isLikelyContainer(norm)) return;
+        const k = normKey(norm);
+        if (!containerSet.has(k)) containerSet.set(k, norm);
+      };
+      const addBl = (s: string) => {
+        const t = (s || '').toString().trim();
+        if (!t) return;
+        if (isLikelyContainer(t)) { addContainer(t); return; }
+        if (!isLikelyBL(t)) return;
+        const k = normKey(t);
+        if (!blSet.has(k)) blSet.set(k, t);
+      };
+      [...aiContainers, ...aiAllContainers, ...regexContainers].forEach(addContainer);
+      [aiBl, ...aiAllBls, ...regexBls].forEach(addBl);
+
+      const bls = Array.from(blSet.values());
+      const containers = Array.from(containerSet.values());
+      const containerFirst = containers[0] || '';
+      const firstBl = bls[0] || '';
+
+      if (bls.length === 0 && containers.length === 0) {
+        toast.error('Could not detect any BL or container number');
         return;
       }
 
       // Non-auto mode (Single BL): keep existing single-search behaviour.
       if (!autoAddOnImageSearch) {
-        setQuery(bl || containerFirst);
+        setQuery(firstBl || containerFirst);
         toast.success(
-          `Detected ${bl ? `BL: ${bl}` : ''}${bl && containerFirst ? ' · ' : ''}${containerFirst ? `Container: ${containerFirst}` : ''}`,
+          `Detected ${firstBl ? `BL: ${firstBl}` : ''}${firstBl && containerFirst ? ' · ' : ''}${containerFirst ? `Container: ${containerFirst}` : ''}`,
         );
-        await runSearch({ bl, container: containerFirst });
+        await runSearch({ bl: firstBl, container: containerFirst });
         return;
       }
 
-      // AUTO MODE (Multi BL): search each detected number one-by-one and auto-add every match.
-      const allCandidates = [bl, ...containers]
-        .map((s) => (s || '').toString().trim())
-        .filter(Boolean);
+      // AUTO MODE (Multi BL): search each detected number one-by-one; prefer BL, fallback to container.
+      // Build a de-duplicated ordered list: BLs first, then containers.
+      const orderedRaw = [...bls, ...containers];
       const seen = new Set<string>();
-      const unique = allCandidates.filter((n) => {
-        const k = n.toUpperCase().replace(/[\s\-_.,:;#'"]/g, '');
+      const unique = orderedRaw.filter((n) => {
+        const k = normKey(n);
         if (!k || seen.has(k)) return false;
         seen.add(k);
         return true;
       });
 
-      toast.message(`Detected ${unique.length} number${unique.length === 1 ? '' : 's'} — searching Gmail…`);
+      toast.success(
+        `✓ Detected ${bls.length} BL${bls.length === 1 ? '' : 's'} · ${containers.length} container${containers.length === 1 ? '' : 's'} — searching Gmail…`,
+      );
       setLoading(true);
       setSearchedTerms(unique);
 
       const found: string[] = [];
       const missing: string[] = [];
       const addedKeys = new Set<string>();
+      const searchedKeys = new Set<string>(); // prevent duplicate Gmail searches
 
+      let idx = 0;
       for (const num of unique) {
+        idx += 1;
+        const k = normKey(num);
+        if (searchedKeys.has(k)) continue;
+        searchedKeys.add(k);
         try {
+          toast.message(`🔎 Searching Gmail ${idx}/${unique.length}: ${num}`);
           const list = await runOne(num);
           if (list.length === 0) {
+            // If this was a BL that missed, and we have containers for the same
+            // document, try the first container as a fallback for this iteration.
             missing.push(num);
             continue;
           }
-          // Take the newest match with a usable attachment.
           const sorted = [...list].sort((a, b) => (b.dateMs || 0) - (a.dateMs || 0));
           let addedForThis = false;
           for (const m of sorted) {
@@ -313,6 +390,7 @@ export function GmailBlSearch({
             addedKeys.add(key);
             onAddFile(f, { blNumber: num, emailSubject: m.subject, from: m.from });
             addedForThis = true;
+            toast.success(`✓ Added attachment for ${num}`);
             break;
           }
           if (addedForThis) found.push(num);
@@ -324,6 +402,11 @@ export function GmailBlSearch({
 
       setLoading(false);
       setSearched(true);
+      if (found.length > 0) {
+        toast.success(`✅ Found ${found.length} / ${unique.length} matching PDF${found.length === 1 ? '' : 's'}`);
+      } else {
+        toast.error('No matching attachments found for the detected numbers');
+      }
       onImageSearchComplete?.({ found, missing });
     } catch (e: any) {
       console.error(e);
@@ -333,6 +416,7 @@ export function GmailBlSearch({
       setLoading(false);
     }
   };
+
 
 
   const handleAdd = async (match: GmailMatch, att?: GmailAttachment) => {
