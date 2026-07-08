@@ -303,7 +303,10 @@ Deno.serve(async (req) => {
 
     // User-uploaded DOCX template (preferred), else fallback to built-in
     const userTemplateB64: string | undefined = payload?.templateBase64;
-    const templateBytes = userTemplateB64 ? b64ToBytes(userTemplateB64) : b64ToBytes(INVOICE_TEMPLATE_BASE64);
+    const rawTemplateBytes = userTemplateB64 ? b64ToBytes(userTemplateB64) : b64ToBytes(INVOICE_TEMPLATE_BASE64);
+    // Pre-process the DOCX to reliably detect & replace {{tag}} placeholders
+    // (even when Word split them across runs) and preserve multi-line values.
+    const templateBytes = preprocessDocxTemplate(rawTemplateBytes, tags);
     const templateAssetID = await uploadAsset(
       token,
       ADOBE_CLIENT_ID,
