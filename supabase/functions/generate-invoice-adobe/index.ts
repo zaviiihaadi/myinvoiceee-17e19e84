@@ -1,7 +1,143 @@
 // Adobe Document Generation: merges BL data into a Word template -> PDF
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { unzipSync, zipSync, strFromU8, strToU8 } from 'npm:fflate@0.8.2';
 import { INVOICE_TEMPLATE_BASE64 } from './template.ts';
+
+// ---------- DOCX placeholder preprocessing ----------
+// Adobe Document Generation sometimes fails to detect {{tag}} placeholders when
+// Word splits them across multiple <w:r> runs. To make detection reliable and
+// to support multi-line values, we pre-process the DOCX ourselves: locate every
+// {{tag}} across split runs and substitute the mapped value with proper
+// <w:br/> line breaks preserved.
+
+function escapeXml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Build a Word-XML fragment that renders `value` with line breaks preserved
+// as <w:br/> elements inside a single <w:t xml:space="preserve"> block.
+function multilineToWordXml(value: string): string {
+  if (value === '') return '';
+  const lines = value.split(/\r?\n/);
+  return lines
+    .map((ln) => escapeXml(ln))
+    .join('</w:t><w:br/><w:t xml:space="preserve">');
+}
+
+// Replace placeholders inside a single <w:p> ... </w:p> block. This walks the
+// concatenated visible text across all <w:t> children, finds every {{tag}},
+// and rewrites the paragraph so the first <w:t> of the tag contains the
+// replacement (with <w:br/> line breaks) and the rest of the tag's characters
+// are removed. Formatting/run properties of surrounding text remain intact.
+function replaceInParagraph(paragraphXml: string, tags: Record<string, string>): string {
+  // Collect every <w:t ...>...</w:t> occurrence with indices.
+  const tRegex = /<w:t(\s[^>]*)?>([\s\S]*?)<\/w:t>/g;
+  const runs: { start: number; end: number; openTag: string; text: string; textStart: number; textEnd: number }[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = tRegex.exec(paragraphXml)) !== null) {
+    const openTag = `<w:t${m[1] ?? ''}>`;
+    const textStart = m.index + openTag.length;
+    const textEnd = textStart + m[2].length;
+    runs.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      openTag,
+      text: m[2],
+      textStart,
+      textEnd,
+    });
+  }
+  if (runs.length === 0) return paragraphXml;
+
+  // Concatenate visible text (decode &amp; &lt; &gt; approximately for search).
+  const decode = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  const encode = (s: string) => escapeXml(s);
+  const combined = runs.map((r) => decode(r.text)).join('');
+  if (!/\{\{/.test(combined)) return paragraphXml;
+
+  // Map every character position in `combined` back to the source paragraphXml offset.
+  const charSource: number[] = [];
+  for (const r of runs) {
+    const decoded = decode(r.text);
+    // Walk the encoded run char-by-char, mapping decoded chars back to raw offsets.
+    let raw = 0;
+    while (raw < r.text.length) {
+      const rest = r.text.slice(raw);
+      let consumed = 1;
+      if (rest.startsWith('&amp;')) consumed = 5;
+      else if (rest.startsWith('&lt;')) consumed = 4;
+      else if (rest.startsWith('&gt;')) consumed = 4;
+      charSource.push(r.textStart + raw);
+      raw += consumed;
+    }
+    // Sanity: if decoding math drifts, pad or trim (should not happen with basic entities).
+    while (charSource.length < (charSource.length + decoded.length) && false) break;
+  }
+
+  // Find every {{...}} in combined, resolve, and build a list of (rawStart, rawEnd, replacementXml).
+  const edits: { rawStart: number; rawEnd: number; replacement: string }[] = [];
+  const tagRe = /\{\{\s*([a-zA-Z0-9_ .\-\u00A0]+?)\s*\}\}/g;
+  let tm: RegExpExecArray | null;
+  while ((tm = tagRe.exec(combined)) !== null) {
+    const key = tm[1].trim();
+    const value = tags[key];
+    if (value === undefined) continue; // leave unknown placeholders alone
+    const startChar = tm.index;
+    const endChar = tm.index + tm[0].length - 1;
+    if (startChar >= charSource.length || endChar >= charSource.length) continue;
+    const rawStart = charSource[startChar];
+    const rawEnd = charSource[endChar] + 1; // exclusive
+    const inner = value === ''
+      ? ''
+      : multilineToWordXml(value);
+    // Wrap so that we close the current <w:t>, emit multiline, then reopen a <w:t xml:space="preserve"> for any remaining text of the same run.
+    const replacement = inner === ''
+      ? ''
+      : `</w:t><w:t xml:space="preserve">${inner}</w:t><w:t xml:space="preserve">`;
+    edits.push({ rawStart, rawEnd, replacement });
+  }
+  if (edits.length === 0) return paragraphXml;
+
+  // Apply edits from the end to preserve offsets.
+  edits.sort((a, b) => b.rawStart - a.rawStart);
+  let out = paragraphXml;
+  for (const e of edits) {
+    out = out.slice(0, e.rawStart) + e.replacement + out.slice(e.rawEnd);
+  }
+  return out;
+}
+
+function preprocessDocumentXml(xml: string, tags: Record<string, string>): string {
+  // Walk each <w:p ...> ... </w:p> paragraph.
+  return xml.replace(/<w:p(\s[^>]*)?>[\s\S]*?<\/w:p>/g, (para) => replaceInParagraph(para, tags));
+}
+
+function preprocessDocxTemplate(docxBytes: Uint8Array, tags: Record<string, string>): Uint8Array {
+  try {
+    const files = unzipSync(docxBytes);
+    const targets = ['word/document.xml', 'word/header1.xml', 'word/header2.xml', 'word/header3.xml', 'word/footer1.xml', 'word/footer2.xml', 'word/footer3.xml'];
+    let changed = false;
+    for (const name of Object.keys(files)) {
+      if (!targets.includes(name)) continue;
+      const xml = strFromU8(files[name]);
+      if (!/\{\{/.test(xml)) continue;
+      const rewritten = preprocessDocumentXml(xml, tags);
+      if (rewritten !== xml) {
+        files[name] = strToU8(rewritten);
+        changed = true;
+      }
+    }
+    if (!changed) return docxBytes;
+    return zipSync(files, { level: 6 });
+  } catch (e) {
+    console.error('preprocessDocxTemplate failed, using original template:', e);
+    return docxBytes;
+  }
+}
+// ---------- end preprocessing ----------
+
+
 
 const ADOBE_HOST = 'https://pdf-services-ue1.adobe.io';
 const ADOBE_TOKEN_URL = 'https://pdf-services-ue1.adobe.io/token';
