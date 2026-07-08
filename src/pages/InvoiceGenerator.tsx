@@ -747,23 +747,39 @@ export function todayDDMMYY(): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
-// Rule: when the BL goods description mentions both USED CLOTHING and SHOES,
-// automatically split the invoice description with SHOES fixed at 200 KGS.
-// Total weight is preserved exactly (clothing = total - 200).
+// Rule: when the BL goods description mentions USED CLOTHING, SHOES and OTHER WORN ARTICLES,
+// automatically split the invoice description into three HS-coded lines.
+// USED SHOES = 50 KGS, OTHER WORN ARTICLES = 50 KGS, MIX USED CLOTHING = total - 100.
+// Total weight is preserved exactly.
 export function buildInvoiceGoodsDescription(
   description: string | null | undefined,
   kgs: number | null | undefined,
+  rawWeightText?: string | null,
 ): string {
   const desc = (description || '').trim();
   if (!desc) return '';
   const kgsNum = Number(kgs);
-  if (!isFinite(kgsNum) || kgsNum <= 200) return desc;
-  const hasClothing = /USED\s+CLOTHING|WORN\s+ARTICLES/i.test(desc);
+  if (!isFinite(kgsNum) || kgsNum <= 100) return desc;
+  const hasClothing = /USED\s+CLOTHING/i.test(desc);
   const hasShoes = /SHOES/i.test(desc);
-  if (!hasClothing || !hasShoes) return desc;
-  const clothingWeight = kgsNum - 200;
-  const clothingStr = clothingWeight.toFixed(3);
-  return `USED CLOTHING OTHER WORN ARTICLES ${clothingStr} KGS\nUSED SHOES 200 KGS`;
+  const hasWorn = /WORN\s+ARTICLES/i.test(desc);
+  if (!hasClothing || !hasShoes || !hasWorn) return desc;
+
+  // Preserve original decimal precision from the BL if detectable.
+  let decimals = 4;
+  const src = `${rawWeightText || ''} ${desc}`;
+  const m = src.match(/(\d+)\.(\d+)/);
+  if (m) decimals = Math.min(m[2].length, 6);
+
+  const clothingStr = (kgsNum - 100).toFixed(decimals);
+  return [
+    'HS CODE: 6309.1010',
+    `MIX USED CLOTHING ${clothingStr} KGS`,
+    'HS CODE: 6309.1020',
+    'USED SHOES 50 KGS',
+    'HS CODE: 6309.1090',
+    'OTHER WORN ARTICLES 50 KGS',
+  ].join('\n');
 }
 
 export default function InvoiceGenerator() {
@@ -1210,7 +1226,7 @@ const generateInvoicePDF = async (calc: {
   drawField('hs_code', blData?.hs_code || '', 'HS CODE', 9, { maxLines: 2 });
   drawField('port_of_loading', blData?.port_of_loading || '', 'PORT OF LOADING', 9, { maxLines: 3 });
   drawField('port_of_discharge', blData?.port_of_discharge || '', 'PORT OF DISCHARGE / DESTINATION', 9, { maxLines: 3 });
-  drawField('goods_description', buildInvoiceGoodsDescription(blData?.description || '', calc.kgs), 'GOODS DESCRIPTION', 8.5, {
+  drawField('goods_description', buildInvoiceGoodsDescription(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text), 'GOODS DESCRIPTION', 8.5, {
     maxLines: resolvedLayout.has_shipping_marks === false ? 8 : 5,
   });
 
@@ -1295,7 +1311,7 @@ const generateInvoicePDF = async (calc: {
         port_of_loading: blData?.port_of_loading || '',
         port_of_discharge: blData?.port_of_discharge || '',
         hs_code: blData?.hs_code || '',
-        goods_description: buildInvoiceGoodsDescription(blData?.description || '', calc.kgs),
+        goods_description: buildInvoiceGoodsDescription(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text),
         gross_weight: `${calc.kgs}KGS`,
         unit_price: `${calc.unitPriceText}US$ Per KG`,
         amount: `${calc.totalPriceText}$`,
