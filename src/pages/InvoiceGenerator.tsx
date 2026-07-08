@@ -751,36 +751,43 @@ export function todayDDMMYY(): string {
 // automatically split the invoice description into three HS-coded lines.
 // USED SHOES = 50 KGS, OTHER WORN ARTICLES = 50 KGS, MIX USED CLOTHING = total - 100.
 // Total weight is preserved exactly.
+export function buildInvoiceGoodsDescriptionParts(
+  description: string | null | undefined,
+  kgs: number | null | undefined,
+  rawWeightText?: string | null,
+): { part1: string; part2: string; part3: string; combined: string } {
+  const empty = { part1: '', part2: '', part3: '', combined: '' };
+  const desc = (description || '').trim();
+  if (!desc) return empty;
+  const kgsNum = Number(kgs);
+  if (!isFinite(kgsNum) || kgsNum <= 100) {
+    return { part1: desc, part2: '', part3: '', combined: desc };
+  }
+  const hasClothing = /USED\s+CLOTHING/i.test(desc);
+  const hasShoes = /SHOES/i.test(desc);
+  const hasWorn = /WORN\s+ARTICLES/i.test(desc);
+  if (!hasClothing || !hasShoes || !hasWorn) {
+    return { part1: desc, part2: '', part3: '', combined: desc };
+  }
+  let decimals = 4;
+  const src = `${rawWeightText || ''} ${desc}`;
+  const m = src.match(/(\d+)\.(\d+)/);
+  if (m) decimals = Math.min(m[2].length, 6);
+  const clothingStr = (kgsNum - 100).toFixed(decimals);
+  const part1 = `HS CODE: 6309.1010\nMIX USED CLOTHING ${clothingStr} KGS`;
+  const part2 = `HS CODE: 6309.1020\nUSED SHOES 50 KGS`;
+  const part3 = `HS CODE: 6309.1090\nOTHER WORN ARTICLES 50 KGS`;
+  return { part1, part2, part3, combined: [part1, part2, part3].join('\n') };
+}
+
 export function buildInvoiceGoodsDescription(
   description: string | null | undefined,
   kgs: number | null | undefined,
   rawWeightText?: string | null,
 ): string {
-  const desc = (description || '').trim();
-  if (!desc) return '';
-  const kgsNum = Number(kgs);
-  if (!isFinite(kgsNum) || kgsNum <= 100) return desc;
-  const hasClothing = /USED\s+CLOTHING/i.test(desc);
-  const hasShoes = /SHOES/i.test(desc);
-  const hasWorn = /WORN\s+ARTICLES/i.test(desc);
-  if (!hasClothing || !hasShoes || !hasWorn) return desc;
-
-  // Preserve original decimal precision from the BL if detectable.
-  let decimals = 4;
-  const src = `${rawWeightText || ''} ${desc}`;
-  const m = src.match(/(\d+)\.(\d+)/);
-  if (m) decimals = Math.min(m[2].length, 6);
-
-  const clothingStr = (kgsNum - 100).toFixed(decimals);
-  return [
-    'HS CODE: 6309.1010',
-    `MIX USED CLOTHING ${clothingStr} KGS`,
-    'HS CODE: 6309.1020',
-    'USED SHOES 50 KGS',
-    'HS CODE: 6309.1090',
-    'OTHER WORN ARTICLES 50 KGS',
-  ].join('\n');
+  return buildInvoiceGoodsDescriptionParts(description, kgs, rawWeightText).combined;
 }
+
 
 export default function InvoiceGenerator() {
   const { user, loading: authLoading } = useAuth();
@@ -1311,7 +1318,10 @@ const generateInvoicePDF = async (calc: {
         port_of_loading: blData?.port_of_loading || '',
         port_of_discharge: blData?.port_of_discharge || '',
         hs_code: blData?.hs_code || '',
-        goods_description: buildInvoiceGoodsDescription(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text),
+        goods_description: buildInvoiceGoodsDescriptionParts(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text).combined,
+        goods_description_1: buildInvoiceGoodsDescriptionParts(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text).part1,
+        goods_description_2: buildInvoiceGoodsDescriptionParts(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text).part2,
+        goods_description_3: buildInvoiceGoodsDescriptionParts(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text).part3,
         gross_weight: `${calc.kgs}KGS`,
         unit_price: `${calc.unitPriceText}US$ Per KG`,
         amount: `${calc.totalPriceText}$`,

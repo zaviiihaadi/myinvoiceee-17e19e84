@@ -21,6 +21,7 @@ import {
   normalizeDateString,
   todayDDMMYY,
   buildInvoiceGoodsDescription,
+  buildInvoiceGoodsDescriptionParts,
 } from '@/pages/InvoiceGenerator';
 import { GmailBlSearch } from '@/components/GmailBlSearch';
 
@@ -305,7 +306,10 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
         port_of_loading: blData?.port_of_loading || '',
         port_of_discharge: blData?.port_of_discharge || '',
         hs_code: blData?.hs_code || '',
-        goods_description: buildInvoiceGoodsDescription(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text),
+        goods_description: buildInvoiceGoodsDescriptionParts(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text).combined,
+        goods_description_1: buildInvoiceGoodsDescriptionParts(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text).part1,
+        goods_description_2: buildInvoiceGoodsDescriptionParts(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text).part2,
+        goods_description_3: buildInvoiceGoodsDescriptionParts(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text).part3,
         gross_weight: `${calc.kgs}KGS`,
         unit_price: `${calc.unitPriceText}US$ Per KG`,
         amount: `${calc.totalPriceText}$`,
