@@ -1311,7 +1311,7 @@ const generateInvoicePDF = async (calc: {
         port_of_loading: blData?.port_of_loading || '',
         port_of_discharge: blData?.port_of_discharge || '',
         hs_code: blData?.hs_code || '',
-        goods_description: buildInvoiceGoodsDescription(blData?.description || '', calc.kgs),
+        goods_description: buildInvoiceGoodsDescription(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text),
         gross_weight: `${calc.kgs}KGS`,
         unit_price: `${calc.unitPriceText}US$ Per KG`,
         amount: `${calc.totalPriceText}$`,
