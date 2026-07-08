@@ -21,6 +21,7 @@ import {
   normalizeDateString,
   todayDDMMYY,
   buildInvoiceGoodsDescription,
+  buildInvoiceGoodsDescriptionParts,
 } from '@/pages/InvoiceGenerator';
 import { GmailBlSearch } from '@/components/GmailBlSearch';
 
