@@ -121,9 +121,23 @@ function computeLowConfidenceFields(parsed: any): string[] {
     const val = parsed?.[field];
     const c = typeof parsed?.[conf] === 'number' ? parsed[conf] : 0;
     const hasVal = Array.isArray(val) ? val.length > 0 : val !== null && val !== undefined && val !== '';
-    if (!hasVal || c < 0.7) low.push(field);
+    if (!hasVal || c < 0.95) low.push(field);
   }
   return low;
+}
+
+function buildMediaPart(fileBase64: string, mimeType: string) {
+  const mt = (mimeType || '').toLowerCase();
+  if (mt === 'application/pdf' || mt.endsWith('/pdf')) {
+    return {
+      type: 'file',
+      file: {
+        filename: 'document.pdf',
+        file_data: `data:application/pdf;base64,${fileBase64}`,
+      },
+    };
+  }
+  return { type: 'image_url', image_url: { url: `data:${mimeType || 'image/png'};base64,${fileBase64}` } };
 }
 
 serve(async (req) => {
@@ -143,20 +157,23 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY not configured');
 
+    const mediaPart = buildMediaPart(fileBase64, mimeType);
     const userContent = [
-      { type: 'image_url', image_url: { url: `data:${mimeType};base64,${fileBase64}` } },
+      mediaPart,
       {
         type: 'text',
-        text: 'Perform intelligent document understanding on this Bill of Lading / shipping document. Read the ENTIRE document, infer field meanings from context (not fixed labels), handle any layout, rotation, or scan quality, and return the full JSON with per-field confidence scores.',
+        text: 'Perform intelligent document understanding on this Bill of Lading / shipping document. Read the ENTIRE document (all pages), infer field meanings from context and shipping-industry conventions (NOT fixed labels or keywords), handle any carrier layout, rotation, or scan quality. Return the full JSON with per-field confidence scores. Target confidence >= 0.95 for every field; never guess — if unsure, lower the score.',
       },
     ];
 
-    // Pass 1: primary extraction
+    // Pass 1: primary extraction with Gemini 2.5 Pro for highest accuracy
     const firstRaw = await callAI(LOVABLE_API_KEY, [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: userContent },
-    ]);
+    ], 'google/gemini-2.5-pro');
     let parsed = parseJson(firstRaw) || { kgs: null, raw_weight_text: firstRaw };
+
+
 
     // Pass 2: validation pass if any critical field is low-confidence
     const lowFields = computeLowConfidenceFields(parsed);
