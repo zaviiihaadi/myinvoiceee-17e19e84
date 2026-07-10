@@ -429,34 +429,12 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
     let success = 0;
     let failed = 0;
     try {
-      // Parallel worker pool: process up to CONCURRENCY BLs simultaneously.
-      // Keeps UI responsive (each worker awaits its own async I/O) and starts
-      // downloads as soon as each item finishes, without changing per-BL logic.
-      const CONCURRENCY = 5;
-      // Mark all as claimed up-front so auto-trigger doesn't re-enqueue them.
-      pending.forEach((it) => processedIdsRef.current.add(it.id));
-
-      let cursor = 0;
-      const runWorker = async () => {
-        while (true) {
-          const idx = cursor++;
-          if (idx >= pending.length) return;
-          const item = pending[idx];
-          try {
-            const result = await processBL(item);
-            if (result.status === 'done' || result.status === 'matched') success += 1;
-            else failed += 1;
-          } catch {
-            failed += 1;
-          }
-        }
-      };
-      const workers = Array.from(
-        { length: Math.min(CONCURRENCY, pending.length) },
-        () => runWorker(),
-      );
-      await Promise.all(workers);
-
+      for (const item of pending) {
+        processedIdsRef.current.add(item.id);
+        const result = await processBL(item);
+        if (result.status === 'done' || result.status === 'matched') success += 1;
+        else failed += 1;
+      }
       setCompletionStats({ total: pending.length, success, failed });
       setCompletionOpen(true);
       toast.success('Bulk processing finished.');
@@ -464,7 +442,6 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
       setProcessing(false);
     }
   };
-
 
   // AUTO-START PROCESSING: whenever new pending items appear (uploaded PDFs or Gmail auto-adds)
   // and Excel is available, kick off processing without waiting for the user to click.
