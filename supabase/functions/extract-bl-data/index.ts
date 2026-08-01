@@ -77,10 +77,24 @@ Return ONLY a JSON object (no markdown, no code blocks) with this exact structur
   "shipping_marks": "<string or null>",
   "bl_date": "<date string as found on document, e.g. '15-03-2025' or null>",
   "raw_weight_text": "<the exact text where weight was found>",
+  "goods_categories": [
+    { "name": "<normalized invoice product name, UPPERCASE>", "kind": "clothing|shoes|other", "source_phrase": "<phrase in the BL this came from>" }
+  ],
+  "goods_confidence": <0..1 confidence that goods_categories is complete and correct>,
   "all_bl_numbers": ["<every distinct BL/Invoice number seen anywhere in the image>"],
   "all_container_numbers": ["<every distinct container number seen anywhere in the image>"],
   "raw_text": "<a compact plain-text dump of every uppercase alphanumeric token / code visible in the image, separated by spaces or newlines, so downstream regex can find BL and container numbers you might have missed>"
 }
+
+GOODS CATEGORY ANALYSIS (act as an experienced export documentation officer):
+- Read the goods description semantically. Do NOT rely on keyword or punctuation matching alone.
+- Decide how many DISTINCT logical product categories are being shipped. There is no fixed limit: it may be 1, 2, 3 or more.
+- Split shared qualifiers correctly: e.g. "USED CLOTHING, SHOES & OTHER WORN ARTICLES" -> "MIX USED CLOTHING", "USED SHOES", "OTHER WORN ARTICLES". "USED SHOES, BELTS, BAGS AND TOYS" -> "USED SHOES", "USED BELTS", "USED BAGS", "TOYS".
+- If the description names only ONE product category, return exactly one category.
+- Classify each category: "clothing" for garments/apparel/clothing, "shoes" for footwear, "other" for everything else (worn articles, bags, belts, toys, etc.).
+- Normalize clothing to "MIX USED CLOTHING" and footwear to "USED SHOES" when the shipment is second-hand/used.
+- Never invent a category that is not implied by the document. Do not guess.
+- Set goods_confidence honestly; below 0.95 means the split is uncertain.
 
 If KGS cannot be found, set kgs to null. For bales, extract the number only (e.g. from "32 BALES" extract 32). Deduplicate all_bl_numbers and all_container_numbers. If none, return empty arrays.`
       },
