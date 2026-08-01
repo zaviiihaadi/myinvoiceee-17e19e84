@@ -812,21 +812,65 @@ export function splitGoodsGroups(description: string): GoodsGroup[] {
 const hsCodeFor = (kind: GoodsGroup['kind']) =>
   kind === 'clothing' ? HS_CLOTHING : kind === 'shoes' ? HS_SHOES : HS_OTHER;
 
+// Configurable, rule-driven weight allocation for the non-primary categories.
+// The primary category (clothing when present, otherwise the first one)
+// always absorbs the remainder so the BL gross weight is preserved exactly.
+export const GOODS_WEIGHT_RULES: { byName: Record<string, number>; byKind: Record<GoodsGroup['kind'], number> } = {
+  byName: {
+    'OTHER WORN ARTICLES': 100,
+    'USED SHOES': 50,
+  },
+  byKind: { clothing: 50, shoes: 50, other: 50 },
+};
+
+const fixedWeightFor = (g: GoodsGroup) =>
+  GOODS_WEIGHT_RULES.byName[g.label.toUpperCase()] ?? GOODS_WEIGHT_RULES.byKind[g.kind];
+
+export type AiGoodsCategory = { name?: string; kind?: string };
+
+// Normalize categories produced by the AI document-intelligence pass.
+function normalizeAiCategories(categories?: AiGoodsCategory[] | null): GoodsGroup[] {
+  if (!Array.isArray(categories)) return [];
+  const seen = new Set<string>();
+  const out: GoodsGroup[] = [];
+  for (const c of categories) {
+    const label = String(c?.name || '').trim().toUpperCase();
+    if (!label) continue;
+    const raw = String(c?.kind || '').toLowerCase();
+    const kind: GoodsGroup['kind'] =
+      raw === 'clothing' || raw === 'shoes' || raw === 'other'
+        ? (raw as GoodsGroup['kind'])
+        : /SHOE|FOOTWEAR/.test(label)
+          ? 'shoes'
+          : /CLOTH|GARMENT|APPAREL/.test(label)
+            ? 'clothing'
+            : 'other';
+    const key = `${kind}|${label}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ kind, label });
+  }
+  return out;
+}
+
 export function buildInvoiceGoodsDescriptionParts(
   description: string | null | undefined,
   kgs: number | null | undefined,
   rawWeightText?: string | null,
-): { part1: string; part2: string; part3: string; combined: string } {
-  const empty = { part1: '', part2: '', part3: '', combined: '' };
+  aiCategories?: AiGoodsCategory[] | null,
+): { part1: string; part2: string; part3: string; parts: string[]; combined: string } {
+  const empty = { part1: '', part2: '', part3: '', parts: [] as string[], combined: '' };
   const desc = (description || '').trim();
   if (!desc) return empty;
 
-  const asIs = { part1: desc, part2: '', part3: '', combined: desc };
+  const asIs = { part1: desc, part2: '', part3: '', parts: [desc], combined: desc };
 
   const kgsNum = Number(kgs);
   if (!isFinite(kgsNum) || kgsNum <= 0) return asIs;
 
-  const groups = splitGoodsGroups(desc);
+  // Prefer the AI's semantic category analysis; fall back to local parsing.
+  const aiGroups = normalizeAiCategories(aiCategories);
+  const groups = aiGroups.length > 0 ? aiGroups : splitGoodsGroups(desc);
   // Single (or unrecognised) product group -> keep the original description.
   if (groups.length < 2) return asIs;
 
@@ -836,18 +880,17 @@ export function buildInvoiceGoodsDescriptionParts(
   const m = src.match(/(\d+)\.(\d+)/);
   if (m) decimals = Math.min(m[2].length, 6);
 
-  // Weight rules: every secondary group gets a fixed 50 KGS, the primary
-  // (clothing when present, otherwise the first group) absorbs the remainder
-  // so the total gross weight is always preserved exactly.
-  const FIXED = 50;
-  const secondaryCount = groups.length - 1;
-  const remainder = kgsNum - FIXED * secondaryCount;
-  if (remainder <= 0) return asIs;
-
   const primaryIndex = Math.max(0, groups.findIndex((g) => g.kind === 'clothing'));
 
+  const fixedTotal = groups.reduce(
+    (sum, g, i) => (i === primaryIndex ? sum : sum + fixedWeightFor(g)),
+    0,
+  );
+  const remainder = kgsNum - fixedTotal;
+  if (remainder <= 0) return asIs;
+
   const lines = groups.map((g, i) => {
-    const weight = i === primaryIndex ? remainder.toFixed(decimals) : String(FIXED);
+    const weight = i === primaryIndex ? remainder.toFixed(decimals) : String(fixedWeightFor(g));
     return `HS CODE: ${hsCodeFor(g.kind)}\n${g.label} ${weight} KGS`;
   });
 
@@ -855,6 +898,7 @@ export function buildInvoiceGoodsDescriptionParts(
     part1: lines[0] || '',
     part2: lines[1] || '',
     part3: lines.slice(2).join('\n') || '',
+    parts: lines,
     combined: lines.join('\n'),
   };
 }
@@ -864,8 +908,9 @@ export function buildInvoiceGoodsDescription(
   description: string | null | undefined,
   kgs: number | null | undefined,
   rawWeightText?: string | null,
+  aiCategories?: AiGoodsCategory[] | null,
 ): string {
-  return buildInvoiceGoodsDescriptionParts(description, kgs, rawWeightText).combined;
+  return buildInvoiceGoodsDescriptionParts(description, kgs, rawWeightText, aiCategories).combined;
 }
 
 
