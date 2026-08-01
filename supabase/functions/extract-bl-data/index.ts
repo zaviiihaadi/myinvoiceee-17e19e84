@@ -146,6 +146,65 @@ If KGS cannot be found, set kgs to null. For bales, extract the number only (e.g
       parsed = { kgs: null, raw_weight_text: content };
     }
 
+    // ---- Self-validation pass -------------------------------------------
+    // If the model is not confident about the goods category split, re-run a
+    // focused text-only validation on the extracted description.
+    const confidence = Number(parsed?.goods_confidence);
+    const needsValidation =
+      !!parsed?.description &&
+      (!Array.isArray(parsed?.goods_categories) ||
+        parsed.goods_categories.length === 0 ||
+        !isFinite(confidence) ||
+        confidence < 0.95);
+
+    if (needsValidation) {
+      try {
+        const validation = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-2.5-flash',
+            temperature: 0,
+            messages: [
+              {
+                role: 'system',
+                content: `You are a senior export documentation officer. Given a Bill of Lading goods description, determine the distinct logical product categories being shipped, using semantic understanding (not keyword or punctuation rules).
+
+Rules:
+- Return every distinct category, in the order they appear. No fixed limit on the count.
+- Propagate shared qualifiers (e.g. "USED CLOTHING, SHOES" means the shoes are used too).
+- kind: "clothing" (garments/apparel), "shoes" (footwear), "other" (everything else).
+- Normalize used garments to "MIX USED CLOTHING" and used footwear to "USED SHOES".
+- If only one product category is described, return exactly one.
+- Never invent categories. Never guess.
+
+Return ONLY JSON: {"goods_categories":[{"name":"...","kind":"clothing|shoes|other"}],"goods_confidence":0..1}`,
+              },
+              { role: 'user', content: `Goods description: ${parsed.description}` },
+            ],
+          }),
+        });
+
+        if (validation.ok) {
+          const vData = await validation.json();
+          const vContent = vData.choices?.[0]?.message?.content || '';
+          const vMatch = vContent.match(/\{[\s\S]*\}/);
+          const vParsed = vMatch ? JSON.parse(vMatch[0]) : null;
+          if (Array.isArray(vParsed?.goods_categories) && vParsed.goods_categories.length > 0) {
+            parsed.goods_categories = vParsed.goods_categories;
+            parsed.goods_confidence = Number(vParsed.goods_confidence) || confidence || 0.9;
+            parsed.goods_validated = true;
+          }
+        }
+      } catch (e) {
+        console.error('Goods category validation pass failed:', e);
+      }
+    }
+
+
     return new Response(JSON.stringify(parsed), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
