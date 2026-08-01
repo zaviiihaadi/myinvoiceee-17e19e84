@@ -747,10 +747,71 @@ export function todayDDMMYY(): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
-// Rule: when the BL goods description mentions USED CLOTHING, SHOES and OTHER WORN ARTICLES,
-// automatically split the invoice description into three HS-coded lines.
-// USED SHOES = 50 KGS, OTHER WORN ARTICLES = 50 KGS, MIX USED CLOTHING = total - 100.
-// Total weight is preserved exactly.
+// ---------------------------------------------------------------------------
+// Semantic Goods Description engine.
+// Instead of copying the BL description verbatim, we understand it: split the
+// sentence into distinct product groups using natural separators (, & / + AND
+// WITH ...), classify each group (clothing / footwear / other worn articles),
+// assign the matching HS code, and allocate weights while preserving the exact
+// total gross weight from the BL.
+// ---------------------------------------------------------------------------
+
+const HS_CLOTHING = '6309.1010';
+const HS_SHOES = '6309.1020';
+const HS_OTHER = '6309.1090';
+
+type GoodsGroup = { kind: 'clothing' | 'shoes' | 'other'; label: string };
+
+const stripNoise = (s: string) =>
+  s
+    .replace(/\b(SAID\s+TO\s+CONTAIN|STC|CONTAINING|CONTAINS|PACKED\s+IN|IN\s+BALES?|BALES?|PKGS?|PACKAGES?)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+// Split on any natural-language separator, keeping multiword phrases intact.
+export function splitGoodsGroups(description: string): GoodsGroup[] {
+  const cleaned = stripNoise((description || '').toUpperCase());
+  if (!cleaned) return [];
+
+  const rawTokens = cleaned
+    .split(/\s*(?:,|&|\/|\+|\bAND\b|\bWITH\b|\bPLUS\b|\bALONG\s+WITH\b|;|\n)\s*/g)
+    .map((t) => t.replace(/^[\s.\-]+|[\s.\-]+$/g, '').trim())
+    .filter((t) => t.length > 1 && !/^(OTHERS?|ETC|ITEMS?)$/.test(t));
+
+  const groups: GoodsGroup[] = [];
+  let sawUsed = false;
+
+  for (const token of rawTokens) {
+    let label = token;
+    const isUsed = /\bUSED\b|\bSECOND[- ]HAND\b|\bWORN\b/.test(label);
+    if (isUsed) sawUsed = true;
+
+    const isShoes = /\bSHOES?\b|\bFOOTWEAR\b|\bSANDALS?\b|\bBOOTS?\b|\bSNEAKERS?\b/.test(label);
+    const isClothing = /\bCLOTH(?:ING|ES)?\b|\bGARMENTS?\b|\bAPPAREL\b|\bWEARING\s+APPAREL\b/.test(label);
+    const isWorn = /\bWORN\s+ARTICLES?\b|\bOTHER\s+WORN\b/.test(label);
+
+    // Inherit the "USED" qualifier from earlier groups (e.g. "USED CLOTHING, SHOES").
+    if (!isUsed && sawUsed && !isWorn) label = `USED ${label}`;
+
+    if (isShoes) groups.push({ kind: 'shoes', label: label.includes('USED') ? 'USED SHOES' : 'SHOES' });
+    else if (isWorn) groups.push({ kind: 'other', label: 'OTHER WORN ARTICLES' });
+    else if (isClothing) groups.push({ kind: 'clothing', label: 'MIX USED CLOTHING' });
+    else groups.push({ kind: 'other', label });
+  }
+
+  // De-duplicate identical groups while keeping order.
+  const seen = new Set<string>();
+  return groups.filter((g) => {
+    const key = `${g.kind}|${g.label}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+const hsCodeFor = (kind: GoodsGroup['kind']) =>
+  kind === 'clothing' ? HS_CLOTHING : kind === 'shoes' ? HS_SHOES : HS_OTHER;
+
 export function buildInvoiceGoodsDescriptionParts(
   description: string | null | undefined,
   kgs: number | null | undefined,
@@ -759,26 +820,45 @@ export function buildInvoiceGoodsDescriptionParts(
   const empty = { part1: '', part2: '', part3: '', combined: '' };
   const desc = (description || '').trim();
   if (!desc) return empty;
+
+  const asIs = { part1: desc, part2: '', part3: '', combined: desc };
+
   const kgsNum = Number(kgs);
-  if (!isFinite(kgsNum) || kgsNum <= 100) {
-    return { part1: desc, part2: '', part3: '', combined: desc };
-  }
-  const hasClothing = /USED\s+CLOTHING/i.test(desc);
-  const hasShoes = /SHOES/i.test(desc);
-  const hasWorn = /WORN\s+ARTICLES/i.test(desc);
-  if (!hasClothing || !hasShoes || !hasWorn) {
-    return { part1: desc, part2: '', part3: '', combined: desc };
-  }
+  if (!isFinite(kgsNum) || kgsNum <= 0) return asIs;
+
+  const groups = splitGoodsGroups(desc);
+  // Single (or unrecognised) product group -> keep the original description.
+  if (groups.length < 2) return asIs;
+
+  // Preserve the BL's original decimal precision for the calculated weight.
   let decimals = 4;
   const src = `${rawWeightText || ''} ${desc}`;
   const m = src.match(/(\d+)\.(\d+)/);
   if (m) decimals = Math.min(m[2].length, 6);
-  const clothingStr = (kgsNum - 100).toFixed(decimals);
-  const part1 = `HS CODE: 6309.1010\nMIX USED CLOTHING ${clothingStr} KGS`;
-  const part2 = `HS CODE: 6309.1020\nUSED SHOES 50 KGS`;
-  const part3 = `HS CODE: 6309.1090\nOTHER WORN ARTICLES 50 KGS`;
-  return { part1, part2, part3, combined: [part1, part2, part3].join('\n') };
+
+  // Weight rules: every secondary group gets a fixed 50 KGS, the primary
+  // (clothing when present, otherwise the first group) absorbs the remainder
+  // so the total gross weight is always preserved exactly.
+  const FIXED = 50;
+  const secondaryCount = groups.length - 1;
+  const remainder = kgsNum - FIXED * secondaryCount;
+  if (remainder <= 0) return asIs;
+
+  const primaryIndex = Math.max(0, groups.findIndex((g) => g.kind === 'clothing'));
+
+  const lines = groups.map((g, i) => {
+    const weight = i === primaryIndex ? remainder.toFixed(decimals) : String(FIXED);
+    return `HS CODE: ${hsCodeFor(g.kind)}\n${g.label} ${weight} KGS`;
+  });
+
+  return {
+    part1: lines[0] || '',
+    part2: lines[1] || '',
+    part3: lines.slice(2).join('\n') || '',
+    combined: lines.join('\n'),
+  };
 }
+
 
 export function buildInvoiceGoodsDescription(
   description: string | null | undefined,
