@@ -77,10 +77,24 @@ Return ONLY a JSON object (no markdown, no code blocks) with this exact structur
   "shipping_marks": "<string or null>",
   "bl_date": "<date string as found on document, e.g. '15-03-2025' or null>",
   "raw_weight_text": "<the exact text where weight was found>",
+  "goods_categories": [
+    { "name": "<normalized invoice product name, UPPERCASE>", "kind": "clothing|shoes|other", "source_phrase": "<phrase in the BL this came from>" }
+  ],
+  "goods_confidence": <0..1 confidence that goods_categories is complete and correct>,
   "all_bl_numbers": ["<every distinct BL/Invoice number seen anywhere in the image>"],
   "all_container_numbers": ["<every distinct container number seen anywhere in the image>"],
   "raw_text": "<a compact plain-text dump of every uppercase alphanumeric token / code visible in the image, separated by spaces or newlines, so downstream regex can find BL and container numbers you might have missed>"
 }
+
+GOODS CATEGORY ANALYSIS (act as an experienced export documentation officer):
+- Read the goods description semantically. Do NOT rely on keyword or punctuation matching alone.
+- Decide how many DISTINCT logical product categories are being shipped. There is no fixed limit: it may be 1, 2, 3 or more.
+- Split shared qualifiers correctly: e.g. "USED CLOTHING, SHOES & OTHER WORN ARTICLES" -> "MIX USED CLOTHING", "USED SHOES", "OTHER WORN ARTICLES". "USED SHOES, BELTS, BAGS AND TOYS" -> "USED SHOES", "USED BELTS", "USED BAGS", "TOYS".
+- If the description names only ONE product category, return exactly one category.
+- Classify each category: "clothing" for garments/apparel/clothing, "shoes" for footwear, "other" for everything else (worn articles, bags, belts, toys, etc.).
+- Normalize clothing to "MIX USED CLOTHING" and footwear to "USED SHOES" when the shipment is second-hand/used.
+- Never invent a category that is not implied by the document. Do not guess.
+- Set goods_confidence honestly; below 0.95 means the split is uncertain.
 
 If KGS cannot be found, set kgs to null. For bales, extract the number only (e.g. from "32 BALES" extract 32). Deduplicate all_bl_numbers and all_container_numbers. If none, return empty arrays.`
       },
@@ -131,6 +145,65 @@ If KGS cannot be found, set kgs to null. For bales, extract the number only (e.g
       console.error('Failed to parse AI response:', content);
       parsed = { kgs: null, raw_weight_text: content };
     }
+
+    // ---- Self-validation pass -------------------------------------------
+    // If the model is not confident about the goods category split, re-run a
+    // focused text-only validation on the extracted description.
+    const confidence = Number(parsed?.goods_confidence);
+    const needsValidation =
+      !!parsed?.description &&
+      (!Array.isArray(parsed?.goods_categories) ||
+        parsed.goods_categories.length === 0 ||
+        !isFinite(confidence) ||
+        confidence < 0.95);
+
+    if (needsValidation) {
+      try {
+        const validation = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-2.5-flash',
+            temperature: 0,
+            messages: [
+              {
+                role: 'system',
+                content: `You are a senior export documentation officer. Given a Bill of Lading goods description, determine the distinct logical product categories being shipped, using semantic understanding (not keyword or punctuation rules).
+
+Rules:
+- Return every distinct category, in the order they appear. No fixed limit on the count.
+- Propagate shared qualifiers (e.g. "USED CLOTHING, SHOES" means the shoes are used too).
+- kind: "clothing" (garments/apparel), "shoes" (footwear), "other" (everything else).
+- Normalize used garments to "MIX USED CLOTHING" and used footwear to "USED SHOES".
+- If only one product category is described, return exactly one.
+- Never invent categories. Never guess.
+
+Return ONLY JSON: {"goods_categories":[{"name":"...","kind":"clothing|shoes|other"}],"goods_confidence":0..1}`,
+              },
+              { role: 'user', content: `Goods description: ${parsed.description}` },
+            ],
+          }),
+        });
+
+        if (validation.ok) {
+          const vData = await validation.json();
+          const vContent = vData.choices?.[0]?.message?.content || '';
+          const vMatch = vContent.match(/\{[\s\S]*\}/);
+          const vParsed = vMatch ? JSON.parse(vMatch[0]) : null;
+          if (Array.isArray(vParsed?.goods_categories) && vParsed.goods_categories.length > 0) {
+            parsed.goods_categories = vParsed.goods_categories;
+            parsed.goods_confidence = Number(vParsed.goods_confidence) || confidence || 0.9;
+            parsed.goods_validated = true;
+          }
+        }
+      } catch (e) {
+        console.error('Goods category validation pass failed:', e);
+      }
+    }
+
 
     return new Response(JSON.stringify(parsed), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
