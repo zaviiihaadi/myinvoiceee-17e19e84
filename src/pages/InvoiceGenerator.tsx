@@ -1358,7 +1358,7 @@ const generateInvoicePDF = async (calc: {
   drawField('hs_code', blData?.hs_code || '', 'HS CODE', 9, { maxLines: 2 });
   drawField('port_of_loading', blData?.port_of_loading || '', 'PORT OF LOADING', 9, { maxLines: 3 });
   drawField('port_of_discharge', blData?.port_of_discharge || '', 'PORT OF DISCHARGE / DESTINATION', 9, { maxLines: 3 });
-  drawField('goods_description', buildInvoiceGoodsDescription(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text), 'GOODS DESCRIPTION', 8.5, {
+  drawField('goods_description', buildInvoiceGoodsDescription(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text, (blData as any)?.goods_categories), 'GOODS DESCRIPTION', 8.5, {
     maxLines: resolvedLayout.has_shipping_marks === false ? 8 : 5,
   });
 
