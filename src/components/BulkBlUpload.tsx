@@ -26,6 +26,8 @@ import {
 import { GmailBlSearch } from '@/components/GmailBlSearch';
 
 const MAX_BULK_FILES = 20;
+// Configurable worker pool for TRUE parallel Multi-BL processing.
+const PARALLEL_WORKERS = 10;
 const ACCEPTED_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
 
 interface ExcelRow {
