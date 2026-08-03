@@ -506,7 +506,17 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
     downloadPdf(item.pdfBase64, `Invoice_${container}.pdf`);
   };
 
+  // Invoice_<Container>_<BL>.pdf — falls back gracefully when either value is missing.
+  const invoiceFileName = (item: BulkBlItem, index: number) => {
+    const container = item.containerNumber ? sanitize(item.containerNumber.trim()) : '';
+    const bl = item.blNumber ? sanitize(item.blNumber.trim()).replace(/\//g, '-') : '';
+    const parts = [container, bl].filter(Boolean);
+    if (parts.length === 0) return `Invoice_${index + 1}.pdf`;
+    return `Invoice_${parts.join('_')}.pdf`;
+  };
+
   const downloadAll = async () => {
+    // Keep the original upload order.
     const done = items.filter((i) => i.pdfBase64);
     if (done.length === 0) {
       toast.error('No generated invoices to download.');
@@ -515,34 +525,20 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
     try {
       setZipping(true);
       setZipProgress(0);
-      const { default: JSZip } = await import('jszip');
-      const zip = new JSZip();
       for (let i = 0; i < done.length; i++) {
         const it = done[i];
-        const container = it.containerNumber
-          ? sanitize(it.containerNumber)
-          : `file_${i + 1}`;
-        const bin = atob(it.pdfBase64!);
-        const bytes = new Uint8Array(bin.length);
-        for (let j = 0; j < bin.length; j++) bytes[j] = bin.charCodeAt(j);
-        zip.file(`Invoice_${container}.pdf`, bytes);
+        downloadPdf(it.pdfBase64!, invoiceFileName(it, i));
         setZipProgress(Math.round(((i + 1) / done.length) * 100));
+        // Small gap so browsers don't drop rapid sequential downloads.
+        await new Promise((r) => setTimeout(r, 350));
       }
-      const blob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Invoices_${new Date().toISOString().split('T')[0]}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success(`Downloaded ${done.length} invoices as ZIP.`);
+      toast.success(`Downloaded ${done.length} invoices.`);
     } catch (e: any) {
-      toast.error(e?.message || 'ZIP download failed.');
+      toast.error(e?.message || 'Download failed.');
     } finally {
       setZipping(false);
       setZipProgress(0);
+
     }
   };
 
