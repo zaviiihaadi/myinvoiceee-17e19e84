@@ -142,7 +142,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
   const [viewItem, setViewItem] = useState<BulkBlItem | null>(null);
   const [sourceMode, setSourceMode] = useState<'upload' | 'email'>('upload');
   const [completionOpen, setCompletionOpen] = useState(false);
-  const [completionStats, setCompletionStats] = useState<{ total: number; success: number; failed: number }>({ total: 0, success: 0, failed: 0 });
+  const [completionStats, setCompletionStats] = useState<{ total: number; success: number; failed: number; durationMs: number }>({ total: 0, success: 0, failed: 0, durationMs: 0 });
   const autoRunRef = useRef(false);
   const processedIdsRef = useRef<Set<string>>(new Set());
   // Tracks which items have finished the SMOOTH progress animation (display reached 100).
