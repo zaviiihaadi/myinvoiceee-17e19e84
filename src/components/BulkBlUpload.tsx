@@ -499,12 +499,9 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
 
   const downloadOne = (item: BulkBlItem) => {
     if (!item.pdfBase64) return;
-    // Same naming as single-BL (Invoice_<container>.pdf)
-    const container = item.containerNumber
-      ? sanitize(item.containerNumber)
-      : new Date().toISOString().split('T')[0].replace(/-/g, '');
-    downloadPdf(item.pdfBase64, `Invoice_${container}.pdf`);
+    downloadPdf(item.pdfBase64, invoiceFileName(item, items.indexOf(item)));
   };
+
 
   // Invoice_<Container>_<BL>.pdf — falls back gracefully when either value is missing.
   const invoiceFileName = (item: BulkBlItem, index: number) => {
