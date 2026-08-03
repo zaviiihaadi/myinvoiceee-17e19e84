@@ -1438,18 +1438,27 @@ function CompletionDialog({
               <CheckCircle2 className="w-11 h-11" />
             </motion.div>
             <h3 className="mt-4 text-2xl font-extrabold text-slate-900 tracking-tight">
-              🎉 Processing Complete!
+              ✅ All Invoices Generated Successfully
             </h3>
-            <p className="mt-1 text-sm text-slate-600">
-              <span className="font-bold text-emerald-600">{stats.success}</span> of{' '}
-              <span className="font-bold text-slate-900">{stats.total}</span> BLs processed successfully.
-            </p>
-            {stats.failed > 0 && (
-              <p className="mt-1 text-xs text-rose-600 font-semibold">
-                {stats.failed} failed / no match
-              </p>
-            )}
-            <p className="mt-2 text-xs text-slate-400">All invoices are ready.</p>
+            <div className="mt-4 grid grid-cols-2 gap-2 text-left">
+              {[
+                { label: 'Total BL Processed', value: String(stats.total), cls: 'text-slate-900' },
+                { label: 'Successful', value: String(stats.success), cls: 'text-emerald-600' },
+                { label: 'Failed', value: String(stats.failed), cls: 'text-rose-600' },
+                {
+                  label: 'Total Time',
+                  value: `${((stats.durationMs ?? 0) / 1000).toFixed(1)}s`,
+                  cls: 'text-violet-600',
+                },
+              ].map((s) => (
+                <div key={s.label} className="rounded-xl bg-white/80 border border-slate-100 px-3 py-2">
+                  <p className="text-[11px] font-medium text-slate-500">{s.label}</p>
+                  <p className={`text-lg font-extrabold ${s.cls}`}>{s.value}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-slate-400">All invoices are ready to download.</p>
+
           </div>
 
           {/* Actions */}
