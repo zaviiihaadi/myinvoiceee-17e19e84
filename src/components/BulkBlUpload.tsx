@@ -284,7 +284,22 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
       }
 
       // 5. Same field resolution as single BL (matched.invoice -> blData.bl_number fallback handled via state in single)
-      const invNum = matched.invoice || blNumber || `INV-${Date.now()}`;
+      // Invoice Number comes ONLY from the Excel row matched by Container Number.
+      const invNum = (matched.invoice || '').toString().trim();
+      if (!invNum) {
+        const failed: BulkBlItem = {
+          ...item,
+          status: 'no_match',
+          message: 'Invoice Not Found',
+          containerNumber,
+          blNumber,
+          companyPrice: matched.price,
+          blData,
+          progress: 100,
+        };
+        updateItem(item.id, failed);
+        return failed;
+      }
       const invoiceDate = blData?.bl_date ? normalizeDateString(blData.bl_date) : todayDDMMYY();
       const containerNums = containers.join(', ');
       const firstContainer = containerNumber;
