@@ -1418,6 +1418,10 @@ const generateInvoicePDF = async (calc: {
       toast.error('Please fill all required fields');
       return;
     }
+    if (!(invoiceNumber || '').trim()) {
+      toast.error('Invoice Not Found — no matching container number in Excel.');
+      return;
+    }
     setGenerating(true);
     try {
       const invNum = (invoiceNumber || '').trim();
