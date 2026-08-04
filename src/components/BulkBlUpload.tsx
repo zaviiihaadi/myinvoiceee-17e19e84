@@ -343,7 +343,9 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
       });
 
       // 7. Same template routing as single BL (overlay for PDF, Adobe for DOCX/built-in)
+      updateItem(item.id, { message: 'Generating Invoice', progress: 80 });
       const tplName = (templateFile?.name || '').toLowerCase();
+
       const isUserPdf =
         templateFile && (templateFile.type === 'application/pdf' || tplName.endsWith('.pdf'));
       const isUserDocx =
