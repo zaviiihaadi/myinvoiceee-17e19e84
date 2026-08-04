@@ -1021,8 +1021,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
           </motion.div>
         )}
 
-          </motion.div>
-        )}
+
       </div>
 
       {/* File Details Dialog */}
