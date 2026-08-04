@@ -281,24 +281,8 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
         return failed;
       }
 
-      // 5. Invoice Number comes ONLY from the matched Excel row — never from the BL Number.
-      const excelInvoice = (matched.invoice || '').trim();
-      if (excelInvoice && blNumber && excelInvoice.toUpperCase() === blNumber.toUpperCase()) {
-        console.error('Invoice mapping error: Excel invoice number equals BL number', { blNumber, excelInvoice });
-        const failed: BulkBlItem = {
-          ...item,
-          status: 'failed',
-          message: 'Invoice mapping error: Invoice No. equals BL No.',
-          containerNumber,
-          blNumber,
-          companyPrice: matched.price,
-          blData,
-          progress: 100,
-        };
-        updateItem(item.id, failed);
-        return failed;
-      }
-      const invNum = excelInvoice || 'Invoice Not Found';
+      // 5. Same field resolution as single BL (matched.invoice -> blData.bl_number fallback handled via state in single)
+      const invNum = matched.invoice || blNumber || `INV-${Date.now()}`;
       const invoiceDate = blData?.bl_date ? normalizeDateString(blData.bl_date) : todayDDMMYY();
       const containerNums = containers.join(', ');
       const firstContainer = containerNumber;
@@ -322,10 +306,10 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
         port_of_loading: blData?.port_of_loading || '',
         port_of_discharge: blData?.port_of_discharge || '',
         hs_code: blData?.hs_code || '',
-        goods_description: buildInvoiceGoodsDescriptionParts(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text, (blData as any)?.goods_categories).combined,
-        goods_description_1: buildInvoiceGoodsDescriptionParts(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text, (blData as any)?.goods_categories).part1,
-        goods_description_2: buildInvoiceGoodsDescriptionParts(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text, (blData as any)?.goods_categories).part2,
-        goods_description_3: buildInvoiceGoodsDescriptionParts(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text, (blData as any)?.goods_categories).part3,
+        goods_description: buildInvoiceGoodsDescriptionParts(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text).combined,
+        goods_description_1: buildInvoiceGoodsDescriptionParts(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text).part1,
+        goods_description_2: buildInvoiceGoodsDescriptionParts(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text).part2,
+        goods_description_3: buildInvoiceGoodsDescriptionParts(blData?.description || '', calc.kgs, (blData as any)?.raw_weight_text).part3,
         gross_weight: `${calc.kgs}KGS`,
         unit_price: `${calc.unitPriceText}US$ Per KG`,
         amount: `${calc.totalPriceText}$`,
