@@ -1122,7 +1122,7 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (data.kgs) {
         setBlData(normalizedData);
         if (data.bales) setBalesCount(String(data.bales));
-        if (data.bl_number) setInvoiceNumber(data.bl_number);
+        // Invoice Number must ONLY come from the matched Excel row — never the BL Number.
         if (data.bl_date) setInvoiceDate(normalizeDateString(data.bl_date));
         setStep(2);
         toast.success(`KGS extracted: ${data.kgs} kg`);
@@ -1179,7 +1179,7 @@ const generateInvoicePDF = async (calc: {
   totalPriceText: string;
   kgs: number;
 }) => {
-  const invNum = invoiceNumber || `INV-${Date.now()}`;
+  const invNum = invoiceNumber || 'Invoice Not Found';
   const bales = balesCount || blData?.bales || '';
   const date = invoiceDate;
   const containerNums = blData?.container_numbers?.join(', ') || '';
@@ -1420,7 +1420,14 @@ const generateInvoicePDF = async (calc: {
     }
     setGenerating(true);
     try {
-      const invNum = invoiceNumber || `INV-${Date.now()}`;
+      const invNum = invoiceNumber || 'Invoice Not Found';
+      const blNo = (blData?.bl_number || '').trim();
+      if (invNum && blNo && invNum.trim().toUpperCase() === blNo.toUpperCase()) {
+        console.error('Invoice mapping error: Invoice Number equals BL Number', { blNo, invNum });
+        toast.error('Mapping error: Invoice No. matches BL No. Please check the Excel match.');
+        setGenerating(false);
+        return;
+      }
       const containerNums = blData?.container_numbers?.join(', ') || '';
       const firstContainer = blData?.container_numbers?.[0] || '';
       const containerSize = blData?.container_size || '';
