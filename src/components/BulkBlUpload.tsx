@@ -282,7 +282,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
       }
 
       // 5. Same field resolution as single BL (matched.invoice -> blData.bl_number fallback handled via state in single)
-      const invNum = matched.invoice || blNumber || `INV-${Date.now()}`;
+      const invNum = matched.invoice || '';
       const invoiceDate = blData?.bl_date ? normalizeDateString(blData.bl_date) : todayDDMMYY();
       const containerNums = containers.join(', ');
       const firstContainer = containerNumber;
