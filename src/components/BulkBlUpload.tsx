@@ -426,22 +426,31 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
       return;
     }
     setProcessing(true);
-    let success = 0;
-    let failed = 0;
+    const startedAt = Date.now();
     try {
-      for (const item of pending) {
-        processedIdsRef.current.add(item.id);
-        const result = await processBL(item);
-        if (result.status === 'done' || result.status === 'matched') success += 1;
+      // TRUE PARALLEL PROCESSING — every BL runs independently, none waits for another.
+      pending.forEach((i) => processedIdsRef.current.add(i.id));
+      const results = await Promise.allSettled(pending.map((item) => processBL(item)));
+      let success = 0;
+      let failed = 0;
+      for (const r of results) {
+        const st = r.status === 'fulfilled' ? r.value.status : 'failed';
+        if (st === 'done' || st === 'matched') success += 1;
         else failed += 1;
       }
-      setCompletionStats({ total: pending.length, success, failed });
+      setCompletionStats({
+        total: pending.length,
+        success,
+        failed,
+        durationMs: Date.now() - startedAt,
+      });
       setCompletionOpen(true);
       toast.success('Bulk processing finished.');
     } finally {
       setProcessing(false);
     }
   };
+
 
   // AUTO-START PROCESSING: whenever new pending items appear (uploaded PDFs or Gmail auto-adds)
   // and Excel is available, kick off processing without waiting for the user to click.
