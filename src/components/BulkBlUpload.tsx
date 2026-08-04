@@ -485,11 +485,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
   }, [items, processing, excelRows.length]);
 
 
-  const downloadPdf = (base64: string, filename: string) => {
-    const bin = atob(base64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const blob = new Blob([bytes], { type: 'application/pdf' });
+  const triggerBlobDownload = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -497,16 +493,42 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  };
+
+  const downloadPdf = (base64: string, filename: string) => {
+    const bin = atob(base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    triggerBlobDownload(new Blob([bytes], { type: 'application/pdf' }), filename);
+  };
+
+  // Invoice_{Container}_{BL}.pdf / BL_{Container}_{BL}.pdf — UNKNOWN when a value is missing.
+  const buildBaseName = (item: BulkBlItem) => {
+    const container = sanitize((item.containerNumber || '').trim()) || 'UNKNOWN';
+    const bl = sanitize((item.blNumber || '').trim()) || 'UNKNOWN';
+    return `${container}_${bl}`;
   };
 
   const downloadOne = (item: BulkBlItem) => {
     if (!item.pdfBase64) return;
-    // Same naming as single-BL (Invoice_<container>.pdf)
-    const container = item.containerNumber
-      ? sanitize(item.containerNumber)
-      : new Date().toISOString().split('T')[0].replace(/-/g, '');
-    downloadPdf(item.pdfBase64, `Invoice_${container}.pdf`);
+    downloadPdf(item.pdfBase64, `Invoice_${buildBaseName(item)}.pdf`);
+  };
+
+  // Compresses BL PDFs larger than 1 MB while preserving pages, text and readability.
+  const compressBlFile = async (file: File): Promise<Blob> => {
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf || file.size <= 1024 * 1024) return file;
+    try {
+      const { PDFDocument } = await import('pdf-lib');
+      const bytes = await file.arrayBuffer();
+      const doc = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
+      const out = await doc.save({ useObjectStreams: true, addDefaultPage: false });
+      const blob = new Blob([out], { type: 'application/pdf' });
+      return blob.size > 0 && blob.size < file.size ? blob : file;
+    } catch {
+      return file;
+    }
   };
 
   const downloadAll = async () => {
@@ -518,36 +540,36 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
     try {
       setZipping(true);
       setZipProgress(0);
-      const { default: JSZip } = await import('jszip');
-      const zip = new JSZip();
       for (let i = 0; i < done.length; i++) {
         const it = done[i];
-        const container = it.containerNumber
-          ? sanitize(it.containerNumber)
-          : `file_${i + 1}`;
-        const bin = atob(it.pdfBase64!);
-        const bytes = new Uint8Array(bin.length);
-        for (let j = 0; j < bin.length; j++) bytes[j] = bin.charCodeAt(j);
-        zip.file(`Invoice_${container}.pdf`, bytes);
+        const base = buildBaseName(it);
+
+        // Original BL (compressed when over 1 MB)
+        try {
+          const blBlob = await compressBlFile(it.file);
+          const ext = (it.file.name.split('.').pop() || 'pdf').toLowerCase();
+          const blExt = ext === 'pdf' ? 'pdf' : ext;
+          triggerBlobDownload(blBlob, `BL_${base}.${blExt}`);
+        } catch (e) {
+          console.error('BL download failed:', e);
+        }
+
+        await new Promise((r) => setTimeout(r, 350));
+
+        // Generated invoice (never compressed)
+        downloadPdf(it.pdfBase64!, `Invoice_${base}.pdf`);
         setZipProgress(Math.round(((i + 1) / done.length) * 100));
+        await new Promise((r) => setTimeout(r, 350));
       }
-      const blob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Invoices_${new Date().toISOString().split('T')[0]}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success(`Downloaded ${done.length} invoices as ZIP.`);
+      toast.success(`Downloaded ${done.length} invoices with their BLs.`);
     } catch (e: any) {
-      toast.error(e?.message || 'ZIP download failed.');
+      toast.error(e?.message || 'Download failed.');
     } finally {
       setZipping(false);
       setZipProgress(0);
     }
   };
+
 
   const statusBadge = (s: BulkStatus) => {
     const map: Record<BulkStatus, { label: string; cls: string; icon: any }> = {
