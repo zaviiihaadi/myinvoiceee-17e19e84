@@ -1135,7 +1135,7 @@ const generateInvoicePDF = async (calc: {
   totalPriceText: string;
   kgs: number;
 }) => {
-  const invNum = invoiceNumber || `INV-${Date.now()}`;
+  const invNum = invoiceNumber;
   const bales = balesCount || blData?.bales || '';
   const date = invoiceDate;
   const containerNums = blData?.container_numbers?.join(', ') || '';
@@ -1376,7 +1376,7 @@ const generateInvoicePDF = async (calc: {
     }
     setGenerating(true);
     try {
-      const invNum = invoiceNumber || `INV-${Date.now()}`;
+      const invNum = invoiceNumber;
       const containerNums = blData?.container_numbers?.join(', ') || '';
       const firstContainer = blData?.container_numbers?.[0] || '';
       const containerSize = blData?.container_size || '';
