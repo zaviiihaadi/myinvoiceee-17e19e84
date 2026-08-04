@@ -1424,7 +1424,7 @@ function CompletionDialog({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  stats: { total: number; success: number; failed: number };
+  stats: { total: number; success: number; failed: number; durationMs?: number };
   onDownloadAll: () => void;
 }) {
   // Simple animated "confetti" — small colored squares that fall & fade.
