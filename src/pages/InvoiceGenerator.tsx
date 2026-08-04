@@ -1122,7 +1122,7 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (data.kgs) {
         setBlData(normalizedData);
         if (data.bales) setBalesCount(String(data.bales));
-        if (data.bl_number) setInvoiceNumber(data.bl_number);
+        // Invoice Number must ONLY come from the matched Excel row — never the BL Number.
         if (data.bl_date) setInvoiceDate(normalizeDateString(data.bl_date));
         setStep(2);
         toast.success(`KGS extracted: ${data.kgs} kg`);

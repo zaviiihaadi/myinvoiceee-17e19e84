@@ -281,8 +281,24 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
         return failed;
       }
 
-      // 5. Same field resolution as single BL (matched.invoice -> blData.bl_number fallback handled via state in single)
-      const invNum = matched.invoice || blNumber || `INV-${Date.now()}`;
+      // 5. Invoice Number comes ONLY from the matched Excel row — never from the BL Number.
+      const excelInvoice = (matched.invoice || '').trim();
+      if (excelInvoice && blNumber && excelInvoice.toUpperCase() === blNumber.toUpperCase()) {
+        console.error('Invoice mapping error: Excel invoice number equals BL number', { blNumber, excelInvoice });
+        const failed: BulkBlItem = {
+          ...item,
+          status: 'failed',
+          message: 'Invoice mapping error: Invoice No. equals BL No.',
+          containerNumber,
+          blNumber,
+          companyPrice: matched.price,
+          blData,
+          progress: 100,
+        };
+        updateItem(item.id, failed);
+        return failed;
+      }
+      const invNum = excelInvoice || 'Invoice Not Found';
       const invoiceDate = blData?.bl_date ? normalizeDateString(blData.bl_date) : todayDDMMYY();
       const containerNums = containers.join(', ');
       const firstContainer = containerNumber;
