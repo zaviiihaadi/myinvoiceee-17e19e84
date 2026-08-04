@@ -333,7 +333,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
 
       updateItem(item.id, {
         status: 'processing',
-        message: 'Generating invoice…',
+        message: 'Calculating',
         containerNumber,
         blNumber,
         invoiceNumber: invNum,
@@ -384,7 +384,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
         pdfBase64 = res.pdfBase64;
       }
 
-      updateItem(item.id, { progress: 90, message: 'Creating NOC…', generatedAt: Date.now() });
+      updateItem(item.id, { progress: 90, message: 'Converting PDF', generatedAt: Date.now() });
 
       // 8. Same NOC auto-create (one row per container in the BL)
       try {
@@ -407,7 +407,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
       const done: BulkBlItem = {
         ...item,
         status: 'done',
-        message: 'Generated',
+        message: 'Completed',
         containerNumber,
         blNumber,
         invoiceNumber: invNum,
