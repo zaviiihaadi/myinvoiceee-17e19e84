@@ -140,8 +140,11 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
   const [viewItem, setViewItem] = useState<BulkBlItem | null>(null);
   const [sourceMode, setSourceMode] = useState<'upload' | 'email'>('upload');
   const [completionOpen, setCompletionOpen] = useState(false);
-  const [completionStats, setCompletionStats] = useState<{ total: number; success: number; failed: number }>({ total: 0, success: 0, failed: 0 });
+  const [completionStats, setCompletionStats] = useState<{ total: number; success: number; failed: number; durationMs?: number }>({ total: 0, success: 0, failed: 0, durationMs: 0 });
   const autoRunRef = useRef(false);
+  // Caches AI extraction per identical file so re-processing never repeats the AI call.
+  const extractCacheRef = useRef<Map<string, Promise<any>>>(new Map());
+
   const processedIdsRef = useRef<Set<string>>(new Set());
   // Tracks which items have finished the SMOOTH progress animation (display reached 100).
   // The download button unlocks only after the animation completes.
@@ -221,16 +224,26 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
 
   const processBL = async (item: BulkBlItem): Promise<BulkBlItem> => {
     try {
-      updateItem(item.id, { status: 'processing', message: 'Uploading file…', progress: 25, uploadedAt: Date.now() });
+      updateItem(item.id, { status: 'processing', message: 'Reading BL', progress: 25, uploadedAt: Date.now() });
 
-      // 1. AI Extraction (same edge function as single BL)
+      // 1. AI Extraction (same edge function as single BL) — cached per identical file
       const base64 = await readBase64(item.file);
-      updateItem(item.id, { progress: 35, message: 'AI extracting…' });
-      const { data: rawData, error } = await supabase.functions.invoke('extract-bl-data', {
-        body: { fileBase64: base64, mimeType: item.file.type },
-      });
-      if (error) throw error;
-      updateItem(item.id, { progress: 50, message: 'Data extracted', extractedAt: Date.now() });
+      updateItem(item.id, { progress: 35, message: 'AI Extracting' });
+      const cacheKey = `${item.file.name}|${item.file.size}|${item.file.lastModified}`;
+      let extractPromise = extractCacheRef.current.get(cacheKey);
+      if (!extractPromise) {
+        extractPromise = (async () => {
+          const { data, error } = await supabase.functions.invoke('extract-bl-data', {
+            body: { fileBase64: base64, mimeType: item.file.type },
+          });
+          if (error) throw error;
+          return data;
+        })();
+        extractCacheRef.current.set(cacheKey, extractPromise);
+      }
+      const rawData = await extractPromise;
+      updateItem(item.id, { progress: 50, message: 'Matching Excel', extractedAt: Date.now() });
+
 
       // 2. Same normalization as single BL (containers + notify party + description)
       const blData = normalizeExtractedBlData(rawData);
@@ -320,7 +333,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
 
       updateItem(item.id, {
         status: 'processing',
-        message: 'Generating invoice…',
+        message: 'Calculating',
         containerNumber,
         blNumber,
         invoiceNumber: invNum,
@@ -330,7 +343,9 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
       });
 
       // 7. Same template routing as single BL (overlay for PDF, Adobe for DOCX/built-in)
+      updateItem(item.id, { message: 'Generating Invoice', progress: 80 });
       const tplName = (templateFile?.name || '').toLowerCase();
+
       const isUserPdf =
         templateFile && (templateFile.type === 'application/pdf' || tplName.endsWith('.pdf'));
       const isUserDocx =
@@ -371,7 +386,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
         pdfBase64 = res.pdfBase64;
       }
 
-      updateItem(item.id, { progress: 90, message: 'Creating NOC…', generatedAt: Date.now() });
+      updateItem(item.id, { progress: 90, message: 'Converting PDF', generatedAt: Date.now() });
 
       // 8. Same NOC auto-create (one row per container in the BL)
       try {
@@ -394,7 +409,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
       const done: BulkBlItem = {
         ...item,
         status: 'done',
-        message: 'Generated',
+        message: 'Completed',
         containerNumber,
         blNumber,
         invoiceNumber: invNum,
@@ -426,22 +441,31 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
       return;
     }
     setProcessing(true);
-    let success = 0;
-    let failed = 0;
+    const startedAt = Date.now();
     try {
-      for (const item of pending) {
-        processedIdsRef.current.add(item.id);
-        const result = await processBL(item);
-        if (result.status === 'done' || result.status === 'matched') success += 1;
+      // TRUE PARALLEL PROCESSING — every BL runs independently, none waits for another.
+      pending.forEach((i) => processedIdsRef.current.add(i.id));
+      const results = await Promise.allSettled(pending.map((item) => processBL(item)));
+      let success = 0;
+      let failed = 0;
+      for (const r of results) {
+        const st = r.status === 'fulfilled' ? r.value.status : 'failed';
+        if (st === 'done' || st === 'matched') success += 1;
         else failed += 1;
       }
-      setCompletionStats({ total: pending.length, success, failed });
+      setCompletionStats({
+        total: pending.length,
+        success,
+        failed,
+        durationMs: Date.now() - startedAt,
+      });
       setCompletionOpen(true);
       toast.success('Bulk processing finished.');
     } finally {
       setProcessing(false);
     }
   };
+
 
   // AUTO-START PROCESSING: whenever new pending items appear (uploaded PDFs or Gmail auto-adds)
   // and Excel is available, kick off processing without waiting for the user to click.
@@ -463,11 +487,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
   }, [items, processing, excelRows.length]);
 
 
-  const downloadPdf = (base64: string, filename: string) => {
-    const bin = atob(base64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const blob = new Blob([bytes], { type: 'application/pdf' });
+  const triggerBlobDownload = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -475,16 +495,42 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  };
+
+  const downloadPdf = (base64: string, filename: string) => {
+    const bin = atob(base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    triggerBlobDownload(new Blob([bytes], { type: 'application/pdf' }), filename);
+  };
+
+  // Invoice_{Container}_{BL}.pdf / BL_{Container}_{BL}.pdf — UNKNOWN when a value is missing.
+  const buildBaseName = (item: BulkBlItem) => {
+    const container = sanitize((item.containerNumber || '').trim()) || 'UNKNOWN';
+    const bl = sanitize((item.blNumber || '').trim()) || 'UNKNOWN';
+    return `${container}_${bl}`;
   };
 
   const downloadOne = (item: BulkBlItem) => {
     if (!item.pdfBase64) return;
-    // Same naming as single-BL (Invoice_<container>.pdf)
-    const container = item.containerNumber
-      ? sanitize(item.containerNumber)
-      : new Date().toISOString().split('T')[0].replace(/-/g, '');
-    downloadPdf(item.pdfBase64, `Invoice_${container}.pdf`);
+    downloadPdf(item.pdfBase64, `Invoice_${buildBaseName(item)}.pdf`);
+  };
+
+  // Compresses BL PDFs larger than 1 MB while preserving pages, text and readability.
+  const compressBlFile = async (file: File): Promise<Blob> => {
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf || file.size <= 1024 * 1024) return file;
+    try {
+      const { PDFDocument } = await import('pdf-lib');
+      const bytes = await file.arrayBuffer();
+      const doc = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
+      const out = await doc.save({ useObjectStreams: true, addDefaultPage: false });
+      const blob = new Blob([out as unknown as BlobPart], { type: 'application/pdf' });
+      return blob.size > 0 && blob.size < file.size ? blob : file;
+    } catch {
+      return file;
+    }
   };
 
   const downloadAll = async () => {
@@ -496,36 +542,36 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
     try {
       setZipping(true);
       setZipProgress(0);
-      const { default: JSZip } = await import('jszip');
-      const zip = new JSZip();
       for (let i = 0; i < done.length; i++) {
         const it = done[i];
-        const container = it.containerNumber
-          ? sanitize(it.containerNumber)
-          : `file_${i + 1}`;
-        const bin = atob(it.pdfBase64!);
-        const bytes = new Uint8Array(bin.length);
-        for (let j = 0; j < bin.length; j++) bytes[j] = bin.charCodeAt(j);
-        zip.file(`Invoice_${container}.pdf`, bytes);
+        const base = buildBaseName(it);
+
+        // Original BL (compressed when over 1 MB)
+        try {
+          const blBlob = await compressBlFile(it.file);
+          const ext = (it.file.name.split('.').pop() || 'pdf').toLowerCase();
+          const blExt = ext === 'pdf' ? 'pdf' : ext;
+          triggerBlobDownload(blBlob, `BL_${base}.${blExt}`);
+        } catch (e) {
+          console.error('BL download failed:', e);
+        }
+
+        await new Promise((r) => setTimeout(r, 350));
+
+        // Generated invoice (never compressed)
+        downloadPdf(it.pdfBase64!, `Invoice_${base}.pdf`);
         setZipProgress(Math.round(((i + 1) / done.length) * 100));
+        await new Promise((r) => setTimeout(r, 350));
       }
-      const blob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Invoices_${new Date().toISOString().split('T')[0]}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success(`Downloaded ${done.length} invoices as ZIP.`);
+      toast.success(`Downloaded ${done.length} invoices with their BLs.`);
     } catch (e: any) {
-      toast.error(e?.message || 'ZIP download failed.');
+      toast.error(e?.message || 'Download failed.');
     } finally {
       setZipping(false);
       setZipProgress(0);
     }
   };
+
 
   const statusBadge = (s: BulkStatus) => {
     const map: Record<BulkStatus, { label: string; cls: string; icon: any }> = {
@@ -954,28 +1000,30 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
           </div>
         )}
 
-        {/* Download All Invoices (ZIP) */}
+        {/* Download All — unlocked only once every BL has finished */}
         {hasItems && generatedCount > 0 && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
             <Button
               onClick={downloadAll}
-              disabled={zipping}
+              disabled={zipping || processing || items.some((i) => i.status === 'pending' || i.status === 'processing')}
               className="w-full h-14 rounded-2xl gap-2 text-base font-semibold bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 hover:opacity-95 shadow-lg shadow-violet-500/30 relative overflow-hidden"
             >
               {zipping ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Zipping {zipProgress}%
+                  Downloading {zipProgress}%
                 </>
               ) : (
                 <>
                   <Download className="w-5 h-5" />
-                  Download All Invoices ({generatedCount})
+                  Download All ({generatedCount})
                 </>
               )}
             </Button>
           </motion.div>
         )}
+
+
       </div>
 
       {/* File Details Dialog */}
@@ -1378,7 +1426,7 @@ function CompletionDialog({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  stats: { total: number; success: number; failed: number };
+  stats: { total: number; success: number; failed: number; durationMs?: number };
   onDownloadAll: () => void;
 }) {
   // Simple animated "confetti" — small colored squares that fall & fade.
@@ -1425,18 +1473,29 @@ function CompletionDialog({
               <CheckCircle2 className="w-11 h-11" />
             </motion.div>
             <h3 className="mt-4 text-2xl font-extrabold text-slate-900 tracking-tight">
-              🎉 Processing Complete!
+              ✅ All Invoices Generated Successfully
             </h3>
-            <p className="mt-1 text-sm text-slate-600">
-              <span className="font-bold text-emerald-600">{stats.success}</span> of{' '}
-              <span className="font-bold text-slate-900">{stats.total}</span> BLs processed successfully.
-            </p>
             {stats.failed > 0 && (
-              <p className="mt-1 text-xs text-rose-600 font-semibold">
+              <p className="mt-2 text-xs text-rose-600 font-semibold">
                 {stats.failed} failed / no match
               </p>
             )}
-            <p className="mt-2 text-xs text-slate-400">All invoices are ready.</p>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {[
+                { label: 'BL Processed', value: String(stats.total) },
+                { label: 'Invoices', value: String(stats.success) },
+                {
+                  label: 'Total Time',
+                  value: `${((stats.durationMs || 0) / 1000).toFixed(1)}s`,
+                },
+              ].map((s) => (
+                <div key={s.label} className="rounded-2xl bg-white/80 border border-white/70 px-2 py-3 shadow-sm">
+                  <div className="text-lg font-extrabold text-slate-900">{s.value}</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">{s.label}</div>
+                </div>
+              ))}
+            </div>
+
           </div>
 
           {/* Actions */}
