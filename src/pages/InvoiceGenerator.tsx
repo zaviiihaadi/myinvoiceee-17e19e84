@@ -1179,7 +1179,7 @@ const generateInvoicePDF = async (calc: {
   totalPriceText: string;
   kgs: number;
 }) => {
-  const invNum = (invoiceNumber || '').trim();
+  const invNum = invoiceNumber || `INV-${Date.now()}`;
   const bales = balesCount || blData?.bales || '';
   const date = invoiceDate;
   const containerNums = blData?.container_numbers?.join(', ') || '';
@@ -1418,13 +1418,9 @@ const generateInvoicePDF = async (calc: {
       toast.error('Please fill all required fields');
       return;
     }
-    if (!(invoiceNumber || '').trim()) {
-      toast.error('Invoice Not Found — no matching container number in Excel.');
-      return;
-    }
     setGenerating(true);
     try {
-      const invNum = (invoiceNumber || '').trim();
+      const invNum = invoiceNumber || `INV-${Date.now()}`;
       const containerNums = blData?.container_numbers?.join(', ') || '';
       const firstContainer = blData?.container_numbers?.[0] || '';
       const containerSize = blData?.container_size || '';
@@ -1582,13 +1578,12 @@ const generateInvoicePDF = async (calc: {
     });
     if (found) {
       setMatchedRow(found);
-      setInvoiceNumber((found.invoice || '').trim());
+      if (found.invoice) setInvoiceNumber(found.invoice);
       if (found.price) setCompanyPrice(found.price);
       toast.success(`Matched container ${found.container} from Excel.`);
     } else {
       setMatchedRow(null);
-      setInvoiceNumber('');
-      toast.error('No matching container found in Excel. Invoice Not Found.');
+      toast.error('No matching container found in Excel.');
     }
   };
 
@@ -1695,7 +1690,7 @@ const generateInvoicePDF = async (calc: {
         const found = parsed.find((row) => keys.includes(cleanContainerNumber(row.container) || normalizeContainerKey(row.container)));
         if (found) {
           setMatchedRow(found);
-          setInvoiceNumber((found.invoice || '').trim());
+          if (found.invoice) setInvoiceNumber(found.invoice);
           if (found.price) setCompanyPrice(found.price);
         }
       }
