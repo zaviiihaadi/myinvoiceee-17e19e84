@@ -142,6 +142,9 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
   const [completionOpen, setCompletionOpen] = useState(false);
   const [completionStats, setCompletionStats] = useState<{ total: number; success: number; failed: number; durationMs?: number }>({ total: 0, success: 0, failed: 0, durationMs: 0 });
   const autoRunRef = useRef(false);
+  // Caches AI extraction per identical file so re-processing never repeats the AI call.
+  const extractCacheRef = useRef<Map<string, Promise<any>>>(new Map());
+
   const processedIdsRef = useRef<Set<string>>(new Set());
   // Tracks which items have finished the SMOOTH progress animation (display reached 100).
   // The download button unlocks only after the animation completes.
