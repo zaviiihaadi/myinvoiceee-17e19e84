@@ -998,26 +998,29 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
           </div>
         )}
 
-        {/* Download All Invoices (ZIP) */}
+        {/* Download All — unlocked only once every BL has finished */}
         {hasItems && generatedCount > 0 && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
             <Button
               onClick={downloadAll}
-              disabled={zipping}
+              disabled={zipping || processing || items.some((i) => i.status === 'pending' || i.status === 'processing')}
               className="w-full h-14 rounded-2xl gap-2 text-base font-semibold bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 hover:opacity-95 shadow-lg shadow-violet-500/30 relative overflow-hidden"
             >
               {zipping ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Zipping {zipProgress}%
+                  Downloading {zipProgress}%
                 </>
               ) : (
                 <>
                   <Download className="w-5 h-5" />
-                  Download All Invoices ({generatedCount})
+                  Download All ({generatedCount})
                 </>
               )}
             </Button>
+          </motion.div>
+        )}
+
           </motion.div>
         )}
       </div>
