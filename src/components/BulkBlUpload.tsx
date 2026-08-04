@@ -221,16 +221,26 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
 
   const processBL = async (item: BulkBlItem): Promise<BulkBlItem> => {
     try {
-      updateItem(item.id, { status: 'processing', message: 'Uploading file…', progress: 25, uploadedAt: Date.now() });
+      updateItem(item.id, { status: 'processing', message: 'Reading BL', progress: 25, uploadedAt: Date.now() });
 
-      // 1. AI Extraction (same edge function as single BL)
+      // 1. AI Extraction (same edge function as single BL) — cached per identical file
       const base64 = await readBase64(item.file);
-      updateItem(item.id, { progress: 35, message: 'AI extracting…' });
-      const { data: rawData, error } = await supabase.functions.invoke('extract-bl-data', {
-        body: { fileBase64: base64, mimeType: item.file.type },
-      });
-      if (error) throw error;
-      updateItem(item.id, { progress: 50, message: 'Data extracted', extractedAt: Date.now() });
+      updateItem(item.id, { progress: 35, message: 'AI Extracting' });
+      const cacheKey = `${item.file.name}|${item.file.size}|${item.file.lastModified}`;
+      let extractPromise = extractCacheRef.current.get(cacheKey);
+      if (!extractPromise) {
+        extractPromise = (async () => {
+          const { data, error } = await supabase.functions.invoke('extract-bl-data', {
+            body: { fileBase64: base64, mimeType: item.file.type },
+          });
+          if (error) throw error;
+          return data;
+        })();
+        extractCacheRef.current.set(cacheKey, extractPromise);
+      }
+      const rawData = await extractPromise;
+      updateItem(item.id, { progress: 50, message: 'Matching Excel', extractedAt: Date.now() });
+
 
       // 2. Same normalization as single BL (containers + notify party + description)
       const blData = normalizeExtractedBlData(rawData);
