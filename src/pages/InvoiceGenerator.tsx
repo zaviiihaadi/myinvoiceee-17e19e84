@@ -1179,7 +1179,7 @@ const generateInvoicePDF = async (calc: {
   totalPriceText: string;
   kgs: number;
 }) => {
-  const invNum = invoiceNumber || `INV-${Date.now()}`;
+  const invNum = invoiceNumber || 'Invoice Not Found';
   const bales = balesCount || blData?.bales || '';
   const date = invoiceDate;
   const containerNums = blData?.container_numbers?.join(', ') || '';
@@ -1420,7 +1420,14 @@ const generateInvoicePDF = async (calc: {
     }
     setGenerating(true);
     try {
-      const invNum = invoiceNumber || `INV-${Date.now()}`;
+      const invNum = invoiceNumber || 'Invoice Not Found';
+      const blNo = (blData?.bl_number || '').trim();
+      if (invNum && blNo && invNum.trim().toUpperCase() === blNo.toUpperCase()) {
+        console.error('Invoice mapping error: Invoice Number equals BL Number', { blNo, invNum });
+        toast.error('Mapping error: Invoice No. matches BL No. Please check the Excel match.');
+        setGenerating(false);
+        return;
+      }
       const containerNums = blData?.container_numbers?.join(', ') || '';
       const firstContainer = blData?.container_numbers?.[0] || '';
       const containerSize = blData?.container_size || '';
