@@ -524,7 +524,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
       const bytes = await file.arrayBuffer();
       const doc = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
       const out = await doc.save({ useObjectStreams: true, addDefaultPage: false });
-      const blob = new Blob([out], { type: 'application/pdf' });
+      const blob = new Blob([out as unknown as BlobPart], { type: 'application/pdf' });
       return blob.size > 0 && blob.size < file.size ? blob : file;
     } catch {
       return file;
