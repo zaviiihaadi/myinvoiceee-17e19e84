@@ -1471,18 +1471,29 @@ function CompletionDialog({
               <CheckCircle2 className="w-11 h-11" />
             </motion.div>
             <h3 className="mt-4 text-2xl font-extrabold text-slate-900 tracking-tight">
-              🎉 Processing Complete!
+              ✅ All Invoices Generated Successfully
             </h3>
-            <p className="mt-1 text-sm text-slate-600">
-              <span className="font-bold text-emerald-600">{stats.success}</span> of{' '}
-              <span className="font-bold text-slate-900">{stats.total}</span> BLs processed successfully.
-            </p>
             {stats.failed > 0 && (
-              <p className="mt-1 text-xs text-rose-600 font-semibold">
+              <p className="mt-2 text-xs text-rose-600 font-semibold">
                 {stats.failed} failed / no match
               </p>
             )}
-            <p className="mt-2 text-xs text-slate-400">All invoices are ready.</p>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {[
+                { label: 'BL Processed', value: String(stats.total) },
+                { label: 'Invoices', value: String(stats.success) },
+                {
+                  label: 'Total Time',
+                  value: `${((stats.durationMs || 0) / 1000).toFixed(1)}s`,
+                },
+              ].map((s) => (
+                <div key={s.label} className="rounded-2xl bg-white/80 border border-white/70 px-2 py-3 shadow-sm">
+                  <div className="text-lg font-extrabold text-slate-900">{s.value}</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">{s.label}</div>
+                </div>
+              ))}
+            </div>
+
           </div>
 
           {/* Actions */}
