@@ -1077,7 +1077,8 @@ const handleTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (data.kgs) {
         setBlData(normalizedData);
         if (data.bales) setBalesCount(String(data.bales));
-        if (data.bl_number) setInvoiceNumber(data.bl_number);
+        // Invoice number sirf Excel (container match) se aayega — BL number use nahi hota
+        setInvoiceNumber('');
         if (data.bl_date) setInvoiceDate(normalizeDateString(data.bl_date));
         setStep(2);
         toast.success(`KGS extracted: ${data.kgs} kg`);
@@ -1134,7 +1135,7 @@ const generateInvoicePDF = async (calc: {
   totalPriceText: string;
   kgs: number;
 }) => {
-  const invNum = invoiceNumber || `INV-${Date.now()}`;
+  const invNum = invoiceNumber;
   const bales = balesCount || blData?.bales || '';
   const date = invoiceDate;
   const containerNums = blData?.container_numbers?.join(', ') || '';
@@ -1375,7 +1376,7 @@ const generateInvoicePDF = async (calc: {
     }
     setGenerating(true);
     try {
-      const invNum = invoiceNumber || `INV-${Date.now()}`;
+      const invNum = invoiceNumber;
       const containerNums = blData?.container_numbers?.join(', ') || '';
       const firstContainer = blData?.container_numbers?.[0] || '';
       const containerSize = blData?.container_size || '';
