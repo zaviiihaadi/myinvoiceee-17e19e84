@@ -144,7 +144,7 @@ serve(async (req) => {
       ? 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'
       : 'https://ai.gateway.lovable.dev/v1/chat/completions';
     const AI_KEY = GEMINI_API_KEY || LOVABLE_API_KEY;
-    const AI_MODEL = GEMINI_API_KEY ? 'gemini-2.5-flash' : 'google/gemini-3-flash-preview';
+    const AI_MODEL = GEMINI_API_KEY ? 'gemini-flash-latest' : 'google/gemini-3-flash-preview';
 
 
     const messages: any[] = [
