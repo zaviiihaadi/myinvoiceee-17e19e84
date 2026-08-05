@@ -135,10 +135,17 @@ serve(async (req) => {
       });
     }
 
+    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+    if (!GEMINI_API_KEY && !LOVABLE_API_KEY) {
+      throw new Error('No AI key configured (GEMINI_API_KEY or LOVABLE_API_KEY)');
     }
+    const AI_URL = GEMINI_API_KEY
+      ? 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'
+      : 'https://ai.gateway.lovable.dev/v1/chat/completions';
+    const AI_KEY = GEMINI_API_KEY || LOVABLE_API_KEY;
+    const AI_MODEL = GEMINI_API_KEY ? 'gemini-2.5-flash' : 'google/gemini-3-flash-preview';
+
 
     const messages: any[] = [
       {
