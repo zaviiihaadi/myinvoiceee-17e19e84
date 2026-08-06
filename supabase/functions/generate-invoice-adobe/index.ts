@@ -234,7 +234,34 @@ async function pollJob(token: string, clientId: string, location: string, timeou
   throw new Error('Adobe job timed out');
 }
 
+// Convert an uploaded PDF template into DOCX using Adobe Export PDF, so that
+// {{tag}} placeholders inside the PDF can be merged via Document Generation.
+async function exportPdfToDocx(token: string, clientId: string, pdfBytes: Uint8Array): Promise<Uint8Array> {
+  const assetID = await uploadAsset(token, clientId, pdfBytes, 'application/pdf');
+  const jobRes = await fetch(`${ADOBE_HOST}/operation/exportpdf`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'X-API-Key': clientId,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ assetID, targetFormat: 'docx' }),
+  });
+  if (jobRes.status !== 201) {
+    throw new Error(`Adobe exportpdf create failed [${jobRes.status}]: ${await jobRes.text()}`);
+  }
+  const location = jobRes.headers.get('location');
+  if (!location) throw new Error('Adobe exportpdf: no location header');
+  const result = await pollJob(token, clientId, location) as { asset?: { downloadUri?: string } };
+  const uri = result?.asset?.downloadUri;
+  if (!uri) throw new Error('Adobe exportpdf done but no downloadUri');
+  const r = await fetch(uri);
+  if (!r.ok) throw new Error(`Adobe exportpdf download failed [${r.status}]`);
+  return new Uint8Array(await r.arrayBuffer());
+}
+
 Deno.serve(async (req) => {
+
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
@@ -301,9 +328,16 @@ Deno.serve(async (req) => {
 
     const token = await getAdobeToken(ADOBE_CLIENT_ID, ADOBE_CLIENT_SECRET);
 
-    // User-uploaded DOCX template (preferred), else fallback to built-in
+    // User-uploaded template (DOCX preferred, PDF converted via Adobe Export PDF), else built-in
     const userTemplateB64: string | undefined = payload?.templateBase64;
-    const rawTemplateBytes = userTemplateB64 ? b64ToBytes(userTemplateB64) : b64ToBytes(INVOICE_TEMPLATE_BASE64);
+    const templateType: string = String(payload?.templateType ?? '').toLowerCase();
+    let rawTemplateBytes: Uint8Array;
+    if (userTemplateB64 && templateType === 'pdf') {
+      // Adobe converts the PDF template to DOCX so its {{tags}} become mergeable
+      rawTemplateBytes = await exportPdfToDocx(token, ADOBE_CLIENT_ID, b64ToBytes(userTemplateB64));
+    } else {
+      rawTemplateBytes = userTemplateB64 ? b64ToBytes(userTemplateB64) : b64ToBytes(INVOICE_TEMPLATE_BASE64);
+    }
     // Pre-process the DOCX to reliably detect & replace {{tag}} placeholders
     // (even when Word split them across runs) and preserve multi-line values.
     const templateBytes = preprocessDocxTemplate(rawTemplateBytes, tags);
@@ -313,6 +347,7 @@ Deno.serve(async (req) => {
       templateBytes,
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     );
+
 
     // Submit Document Generation job
     const jobRes = await fetch(`${ADOBE_HOST}/operation/documentgeneration`, {

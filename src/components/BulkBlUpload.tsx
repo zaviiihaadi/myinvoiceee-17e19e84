@@ -357,25 +357,37 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
 
       let pdfBase64: string | undefined;
       if (isUserPdf) {
-        const overlayData = {
-          ...adobeData,
-          shipper: [blData?.shipper, blData?.shipper_address].filter(Boolean).join('\n'),
-          consignee: [blData?.consignee, blData?.consignee_address].filter(Boolean).join('\n'),
-          notify_party: [
-            blData?.notify_party || blData?.consignee,
-            blData?.notify_party_address || blData?.consignee_address,
-          ]
-            .filter(Boolean)
-            .join('\n'),
-        };
         const templateBase64 = await readBase64(templateFile!);
-        const resolved = resolveTemplateLayout(templateLayout);
-        const { data: res, error: err } = await supabase.functions.invoke('generate-invoice-overlay', {
-          body: { templateBase64, data: overlayData, fields: resolved.fields ?? [] },
-        });
-        if (err) throw err;
-        if (!res?.success) throw new Error(res?.error || 'PDF overlay failed');
-        pdfBase64 = res.pdfBase64;
+        // Adobe first: convert the PDF template and merge {{tags}} with extracted data
+        try {
+          const { data: res, error: err } = await supabase.functions.invoke('generate-invoice-adobe', {
+            body: { data: adobeData, templateBase64, templateType: 'pdf' },
+          });
+          if (err) throw err;
+          if (!res?.success || !res?.pdfBase64) throw new Error(res?.error || 'Adobe generation failed');
+          pdfBase64 = res.pdfBase64;
+        } catch (adobeErr) {
+          console.warn('Adobe PDF template merge failed, falling back to overlay:', adobeErr);
+          const overlayData = {
+            ...adobeData,
+            shipper: [blData?.shipper, blData?.shipper_address].filter(Boolean).join('\n'),
+            consignee: [blData?.consignee, blData?.consignee_address].filter(Boolean).join('\n'),
+            notify_party: [
+              blData?.notify_party || blData?.consignee,
+              blData?.notify_party_address || blData?.consignee_address,
+            ]
+              .filter(Boolean)
+              .join('\n'),
+          };
+          const resolved = resolveTemplateLayout(templateLayout);
+          const { data: res, error: err } = await supabase.functions.invoke('generate-invoice-overlay', {
+            body: { templateBase64, data: overlayData, fields: resolved.fields ?? [] },
+          });
+          if (err) throw err;
+          if (!res?.success) throw new Error(res?.error || 'PDF overlay failed');
+          pdfBase64 = res.pdfBase64;
+        }
+
       } else {
         const templateBase64 = isUserDocx ? await readBase64(templateFile!) : undefined;
         const { data: res, error: err } = await supabase.functions.invoke('generate-invoice-adobe', {
