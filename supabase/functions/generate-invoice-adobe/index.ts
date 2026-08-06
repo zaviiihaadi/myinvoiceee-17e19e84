@@ -234,7 +234,34 @@ async function pollJob(token: string, clientId: string, location: string, timeou
   throw new Error('Adobe job timed out');
 }
 
+// Convert an uploaded PDF template into DOCX using Adobe Export PDF, so that
+// {{tag}} placeholders inside the PDF can be merged via Document Generation.
+async function exportPdfToDocx(token: string, clientId: string, pdfBytes: Uint8Array): Promise<Uint8Array> {
+  const assetID = await uploadAsset(token, clientId, pdfBytes, 'application/pdf');
+  const jobRes = await fetch(`${ADOBE_HOST}/operation/exportpdf`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'X-API-Key': clientId,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ assetID, targetFormat: 'docx' }),
+  });
+  if (jobRes.status !== 201) {
+    throw new Error(`Adobe exportpdf create failed [${jobRes.status}]: ${await jobRes.text()}`);
+  }
+  const location = jobRes.headers.get('location');
+  if (!location) throw new Error('Adobe exportpdf: no location header');
+  const result = await pollJob(token, clientId, location) as { asset?: { downloadUri?: string } };
+  const uri = result?.asset?.downloadUri;
+  if (!uri) throw new Error('Adobe exportpdf done but no downloadUri');
+  const r = await fetch(uri);
+  if (!r.ok) throw new Error(`Adobe exportpdf download failed [${r.status}]`);
+  return new Uint8Array(await r.arrayBuffer());
+}
+
 Deno.serve(async (req) => {
+
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
