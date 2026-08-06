@@ -109,7 +109,9 @@ If KGS cannot be found, set kgs to null. For bales, extract the number only (e.g
       }
     ];
 
-    const response = await fetch(AI_URL, {
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    const callAI = async () => await fetch(AI_URL, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${AI_KEY}`,
@@ -121,6 +123,20 @@ If KGS cannot be found, set kgs to null. For bales, extract the number only (e.g
         temperature: 0.1,
       }),
     });
+
+    // Retry transient rate-limit / overload errors with exponential backoff + jitter
+    let response = await callAI();
+    const MAX_RETRIES = 6;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      if (response.ok) break;
+      if (response.status !== 429 && response.status !== 503 && response.status !== 500) break;
+      const wait = Math.min(30000, 1500 * Math.pow(2, attempt)) + Math.floor(Math.random() * 1200);
+      console.log(`AI ${response.status} - retrying in ${wait}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
+      try { await response.text(); } catch { /* drain */ }
+      await sleep(wait);
+      response = await callAI();
+    }
+
 
 
     if (!response.ok) {
