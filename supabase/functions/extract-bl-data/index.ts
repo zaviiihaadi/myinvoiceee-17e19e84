@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { adobeExtractLines, parseBlText, b64ToBytes } from "./adobe.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,11 +22,39 @@ serve(async (req) => {
       });
     }
 
+    // ---- PRIMARY: Adobe PDF Extract API (no AI) for PDF documents ----
+    const ADOBE_CLIENT_ID = Deno.env.get('ADOBE_CLIENT_ID');
+    const ADOBE_CLIENT_SECRET = Deno.env.get('ADOBE_CLIENT_SECRET');
+    const ADOBE_ORG_ID = Deno.env.get('ADOBE_ORG_ID') || undefined;
+    const isPdf = (mimeType || '').toLowerCase().includes('pdf');
+
+    if (isPdf && ADOBE_CLIENT_ID && ADOBE_CLIENT_SECRET) {
+      try {
+        const lines = await adobeExtractLines(
+          b64ToBytes(fileBase64),
+          ADOBE_CLIENT_ID,
+          ADOBE_CLIENT_SECRET,
+          ADOBE_ORG_ID,
+        );
+        if (lines.length) {
+          const parsed = parseBlText(lines);
+          console.log('Adobe extract OK:', lines.length, 'lines, kgs =', parsed.kgs);
+          return new Response(JSON.stringify(parsed), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        console.warn('Adobe extract returned no text — falling back');
+      } catch (adobeErr) {
+        console.error('Adobe extract failed, falling back:', adobeErr);
+      }
+    }
+
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!GEMINI_API_KEY && !LOVABLE_API_KEY) {
       throw new Error('No AI key configured (GEMINI_API_KEY or LOVABLE_API_KEY)');
     }
+
     // Prefer the user's own Gemini key (Google OpenAI-compatible endpoint)
     const AI_URL = GEMINI_API_KEY
       ? 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'
