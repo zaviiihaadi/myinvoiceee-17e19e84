@@ -443,16 +443,20 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
     setProcessing(true);
     const startedAt = Date.now();
     try {
-      // TRUE PARALLEL PROCESSING — every BL runs independently, none waits for another.
+      // SEQUENTIAL PROCESSING — one file at a time; next starts only after the previous finishes.
       pending.forEach((i) => processedIdsRef.current.add(i.id));
-      const results = await Promise.allSettled(pending.map((item) => processBL(item)));
       let success = 0;
       let failed = 0;
-      for (const r of results) {
-        const st = r.status === 'fulfilled' ? r.value.status : 'failed';
-        if (st === 'done' || st === 'matched') success += 1;
-        else failed += 1;
+      for (const item of pending) {
+        try {
+          const res = await processBL(item);
+          if (res.status === 'done' || res.status === 'matched') success += 1;
+          else failed += 1;
+        } catch {
+          failed += 1;
+        }
       }
+
       setCompletionStats({
         total: pending.length,
         success,
