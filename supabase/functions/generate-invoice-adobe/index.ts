@@ -328,9 +328,16 @@ Deno.serve(async (req) => {
 
     const token = await getAdobeToken(ADOBE_CLIENT_ID, ADOBE_CLIENT_SECRET);
 
-    // User-uploaded DOCX template (preferred), else fallback to built-in
+    // User-uploaded template (DOCX preferred, PDF converted via Adobe Export PDF), else built-in
     const userTemplateB64: string | undefined = payload?.templateBase64;
-    const rawTemplateBytes = userTemplateB64 ? b64ToBytes(userTemplateB64) : b64ToBytes(INVOICE_TEMPLATE_BASE64);
+    const templateType: string = String(payload?.templateType ?? '').toLowerCase();
+    let rawTemplateBytes: Uint8Array;
+    if (userTemplateB64 && templateType === 'pdf') {
+      // Adobe converts the PDF template to DOCX so its {{tags}} become mergeable
+      rawTemplateBytes = await exportPdfToDocx(token, ADOBE_CLIENT_ID, b64ToBytes(userTemplateB64));
+    } else {
+      rawTemplateBytes = userTemplateB64 ? b64ToBytes(userTemplateB64) : b64ToBytes(INVOICE_TEMPLATE_BASE64);
+    }
     // Pre-process the DOCX to reliably detect & replace {{tag}} placeholders
     // (even when Word split them across runs) and preserve multi-line values.
     const templateBytes = preprocessDocxTemplate(rawTemplateBytes, tags);
@@ -340,6 +347,7 @@ Deno.serve(async (req) => {
       templateBytes,
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     );
+
 
     // Submit Document Generation job
     const jobRes = await fetch(`${ADOBE_HOST}/operation/documentgeneration`, {
