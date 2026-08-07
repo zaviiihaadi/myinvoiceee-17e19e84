@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { reportTemplateTagIssues } from '@/lib/tagValidation';
 import jsPDF from 'jspdf';
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -1429,6 +1430,7 @@ const generateInvoicePDF = async (calc: {
             body: { data: adobeData, templateBase64, templateType: 'pdf' },
           });
           if (error) throw error;
+          reportTemplateTagIssues(data?.tagReport);
           if (!data?.success || !data?.pdfBase64) throw new Error(data?.error || 'Adobe generation failed');
           pdfBase64 = data.pdfBase64;
         } catch (adobeErr) {
@@ -1459,6 +1461,7 @@ const generateInvoicePDF = async (calc: {
           body: { data: adobeData, templateBase64 },
         });
         if (error) throw error;
+        reportTemplateTagIssues(data?.tagReport);
         if (!data?.success || !data?.pdfBase64) throw new Error(data?.error || 'Adobe generation failed');
         pdfBase64 = data.pdfBase64;
       }
