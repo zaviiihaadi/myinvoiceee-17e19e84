@@ -1429,6 +1429,7 @@ const generateInvoicePDF = async (calc: {
             body: { data: adobeData, templateBase64, templateType: 'pdf' },
           });
           if (error) throw error;
+          reportTemplateTagIssues(data?.tagReport);
           if (!data?.success || !data?.pdfBase64) throw new Error(data?.error || 'Adobe generation failed');
           pdfBase64 = data.pdfBase64;
         } catch (adobeErr) {
