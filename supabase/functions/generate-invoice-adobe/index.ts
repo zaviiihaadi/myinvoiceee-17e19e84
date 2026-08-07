@@ -482,7 +482,7 @@ Deno.serve(async (req) => {
     const pdfBytes = new Uint8Array(await pdfRes.arrayBuffer());
     const pdfBase64 = bytesToB64(pdfBytes);
 
-    return new Response(JSON.stringify({ success: true, pdfBase64 }), {
+    return new Response(JSON.stringify({ success: true, pdfBase64, tagReport }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
