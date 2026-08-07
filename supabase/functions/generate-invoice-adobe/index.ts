@@ -409,9 +409,40 @@ Deno.serve(async (req) => {
     } else {
       rawTemplateBytes = userTemplateB64 ? b64ToBytes(userTemplateB64) : b64ToBytes(INVOICE_TEMPLATE_BASE64);
     }
+    // Validate {{tag}} -> extracted-field mapping BEFORE generating the PDF.
+    const tagReport = buildTagReport(
+      collectTemplateTags(rawTemplateBytes),
+      tags,
+      Object.keys(baseTags),
+    );
+    if (!tagReport.valid) {
+      console.warn('Template tag validation issues:', JSON.stringify(tagReport));
+    }
+    const strictTags = payload?.strictTags === true;
+    if (payload?.validateOnly === true || (strictTags && !tagReport.valid)) {
+      return new Response(
+        JSON.stringify({
+          success: tagReport.valid,
+          validationOnly: payload?.validateOnly === true,
+          error: tagReport.valid
+            ? undefined
+            : `Template tag mapping issues: ${[
+                tagReport.unknownTags.length ? `unknown ${tagReport.unknownTags.join(', ')}` : '',
+                tagReport.emptyTags.length ? `missing data for ${tagReport.emptyTags.join(', ')}` : '',
+              ].filter(Boolean).join(' | ')}`,
+          tagReport,
+        }),
+        {
+          status: tagReport.valid ? 200 : 422,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
     // Pre-process the DOCX to reliably detect & replace {{tag}} placeholders
     // (even when Word split them across runs) and preserve multi-line values.
     const templateBytes = preprocessDocxTemplate(rawTemplateBytes, tags);
+
     const templateAssetID = await uploadAsset(
       token,
       ADOBE_CLIENT_ID,
