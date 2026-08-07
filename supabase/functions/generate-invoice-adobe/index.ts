@@ -135,7 +135,78 @@ function preprocessDocxTemplate(docxBytes: Uint8Array, tags: Record<string, stri
     return docxBytes;
   }
 }
-// ---------- end preprocessing ----------
+
+// ---------- tag validation ----------
+// Collect every {{tag}} present in the DOCX (across split runs) so we can
+// report missing / mismatched placeholders BEFORE submitting a generation job.
+function collectParagraphTags(paragraphXml: string, out: Set<string>) {
+  const tRegex = /<w:t(\s[^>]*)?>([\s\S]*?)<\/w:t>/g;
+  const decode = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  let combined = '';
+  let m: RegExpExecArray | null;
+  while ((m = tRegex.exec(paragraphXml)) !== null) combined += decode(m[2]);
+  if (!combined.includes('{{')) return;
+  const tagRe = /\{\{\s*([a-zA-Z0-9_ .\-\u00A0]+?)\s*\}\}/g;
+  let tm: RegExpExecArray | null;
+  while ((tm = tagRe.exec(combined)) !== null) out.add(tm[1].trim());
+}
+
+function collectTemplateTags(docxBytes: Uint8Array): string[] {
+  const found = new Set<string>();
+  try {
+    const files = unzipSync(docxBytes);
+    const targets = ['word/document.xml', 'word/header1.xml', 'word/header2.xml', 'word/header3.xml', 'word/footer1.xml', 'word/footer2.xml', 'word/footer3.xml'];
+    for (const name of Object.keys(files)) {
+      if (!targets.includes(name)) continue;
+      const xml = strFromU8(files[name]);
+      if (!xml.includes('{{')) continue;
+      for (const para of xml.match(/<w:p(\s[^>]*)?>[\s\S]*?<\/w:p>/g) ?? []) {
+        collectParagraphTags(para, found);
+      }
+    }
+  } catch (e) {
+    console.error('collectTemplateTags failed:', e);
+  }
+  return Array.from(found);
+}
+
+interface TagReport {
+  templateTags: string[];
+  unknownTags: string[];   // in template, no matching extracted field
+  emptyTags: string[];     // mapped, but the extracted value is blank
+  unusedFields: string[];  // extracted values with no placeholder in template
+  valid: boolean;
+}
+
+function buildTagReport(templateTags: string[], tags: Record<string, string>, baseKeys: string[]): TagReport {
+  const unknownTags: string[] = [];
+  const emptyTags: string[] = [];
+  const usedBase = new Set<string>();
+  const normalize = (s: string) => s.toLowerCase().replace(/[\s\u00A0.\-]+/g, '_').replace(/_+/g, '_');
+  const baseByNorm = new Map(baseKeys.map((k) => [normalize(k), k]));
+
+  for (const t of templateTags) {
+    const value = tags[t] ?? tags[normalize(t)];
+    const base = baseByNorm.get(normalize(t));
+    if (value === undefined && !base) {
+      unknownTags.push(t);
+      continue;
+    }
+    if (base) usedBase.add(base);
+    if (String(value ?? '').trim() === '') emptyTags.push(t);
+  }
+
+  const unusedFields = baseKeys.filter((k) => !usedBase.has(k) && String(tags[k] ?? '').trim() !== '');
+  return {
+    templateTags,
+    unknownTags,
+    emptyTags,
+    unusedFields,
+    valid: unknownTags.length === 0 && emptyTags.length === 0,
+  };
+}
+// ---------- end tag validation ----------
+
 
 
 
