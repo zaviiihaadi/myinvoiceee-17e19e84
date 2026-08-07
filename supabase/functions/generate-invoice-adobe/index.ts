@@ -110,8 +110,17 @@ function replaceInParagraph(paragraphXml: string, tags: Record<string, string>):
 
 function preprocessDocumentXml(xml: string, tags: Record<string, string>): string {
   // Walk each <w:p ...> ... </w:p> paragraph.
-  return xml.replace(/<w:p(\s[^>]*)?>[\s\S]*?<\/w:p>/g, (para) => replaceInParagraph(para, tags));
+  let out = xml.replace(/<w:p(\s[^>]*)?>[\s\S]*?<\/w:p>/g, (para) => replaceInParagraph(para, tags));
+  // Safety net: some templates (especially PDFs converted to DOCX, text boxes or
+  // nested paragraphs) keep placeholders outside the paragraph matches above.
+  // Run one document-wide pass over the remaining {{tags}}.
+  if (/\{\{/.test(out)) {
+    const stillKnown = Object.keys(tags).some((k) => out.includes(`{{${k}}}`) || out.includes('{{'));
+    if (stillKnown) out = replaceInParagraph(out, tags);
+  }
+  return out;
 }
+
 
 function preprocessDocxTemplate(docxBytes: Uint8Array, tags: Record<string, string>): Uint8Array {
   try {
