@@ -8,6 +8,7 @@ import {
   Sparkles, Mail,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { reportTemplateTagIssues } from '@/lib/tagValidation';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import {
@@ -364,6 +365,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
             body: { data: adobeData, templateBase64, templateType: 'pdf' },
           });
           if (err) throw err;
+          reportTemplateTagIssues(res?.tagReport, item.file.name);
           if (!res?.success || !res?.pdfBase64) throw new Error(res?.error || 'Adobe generation failed');
           pdfBase64 = res.pdfBase64;
         } catch (adobeErr) {
@@ -394,6 +396,7 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
           body: { data: adobeData, templateBase64 },
         });
         if (err) throw err;
+        reportTemplateTagIssues(res?.tagReport, item.file.name);
         if (!res?.success || !res?.pdfBase64) throw new Error(res?.error || 'Adobe generation failed');
         pdfBase64 = res.pdfBase64;
       }
