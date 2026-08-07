@@ -395,7 +395,47 @@ Deno.serve(async (req) => {
       packages: String(data.packages ?? ''),
       company_name: String(data.company_name ?? ''),
     };
+
+    // ---- Smart fallbacks so a template tag never renders blank when related
+    // extracted data exists (e.g. template uses {{goods_description}} but the
+    // extractor produced goods_description_1..3, or address lives inside the
+    // party name block).
+    const firstLine = (s: string) => s.split(/\r?\n/)[0]?.trim() ?? '';
+    const restLines = (s: string) => s.split(/\r?\n/).slice(1).join('\n').trim();
+
+    const gdParts = [baseTags.goods_description_1, baseTags.goods_description_2, baseTags.goods_description_3]
+      .map((v) => v.trim())
+      .filter(Boolean);
+    if (!baseTags.goods_description.trim() && gdParts.length) {
+      baseTags.goods_description = gdParts.join('\n');
+    }
+    if (!baseTags.goods_description_1.trim() && baseTags.goods_description.trim()) {
+      baseTags.goods_description_1 = baseTags.goods_description;
+    }
+
+    for (const party of ['shipper', 'consignee', 'notify_party'] as const) {
+      const addrKey = `${party}_address`;
+      if (!baseTags[addrKey]?.trim() && baseTags[party].includes('\n')) {
+        baseTags[addrKey] = restLines(baseTags[party]);
+        baseTags[party] = firstLine(baseTags[party]);
+      }
+    }
+    if (!baseTags.notify_party.trim()) baseTags.notify_party = baseTags.consignee;
+    if (!baseTags.notify_party_address.trim()) baseTags.notify_party_address = baseTags.consignee_address;
+    if (!baseTags.company_name.trim()) baseTags.company_name = baseTags.shipper;
+    if (!baseTags.container_numbers_one.trim()) {
+      baseTags.container_numbers_one = firstLine(baseTags.container_numbers) ||
+        baseTags.container_numbers.split(/[,;/]+/)[0]?.trim() || '';
+    }
+    if (!baseTags.container_numbers.trim()) baseTags.container_numbers = baseTags.container_numbers_one;
+    if (!baseTags.shipping_marks.trim()) baseTags.shipping_marks = 'NIL';
+    if (!baseTags.container_size.trim()) {
+      const m = /\b(20|40|45)\s*(GP|HC|HQ|RF|OT|FT|')?/i.exec(String(data.container_size ?? data.container_type ?? ''));
+      baseTags.container_size = m ? m[0].toUpperCase() : '';
+    }
+
     const tags = withTagAliases(baseTags);
+
 
     const token = await getAdobeToken(ADOBE_CLIENT_ID, ADOBE_CLIENT_SECRET);
 
