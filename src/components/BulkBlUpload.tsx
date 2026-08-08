@@ -125,13 +125,17 @@ function normalizeExtractedBlData(raw: any) {
       .trim();
   }
 
+  const kgs = Number(raw?.kgs) > 0 ? Number(raw.kgs) : recoverWeightFromText(raw);
+
   return {
     ...raw,
+    kgs: kgs ?? null,
     container_numbers: cleanContainerList(raw?.container_numbers),
     notify_party: mergedNotify,
     notify_party_address: '',
     description: cleanedDescription,
   };
+
 }
 
 // Mirrors the single-BL calculateValues() exactly (same truncation + 0.42 floor + 3dp total)
