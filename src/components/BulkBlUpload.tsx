@@ -316,20 +316,31 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
       // 4. Same calculation as single BL (calculateValues)
       const calc = singleBlCalculate(blData, matched.price);
       if (!calc) {
+        const hasWeight = Number(blData?.kgs) > 0;
+        const hasPrice = !!(matched.price || '').toString().trim();
+        const reason = !hasWeight && !hasPrice
+          ? 'Weight not found in BL & price missing in Excel'
+          : !hasWeight
+            ? 'Weight (KGS) not found in BL'
+            : !hasPrice
+              ? 'Price missing in Excel row'
+              : 'Invalid weight/price value';
         const failed: BulkBlItem = {
           ...item,
           status: 'failed',
-          message: 'Missing weight/price',
+          message: reason,
           containerNumber,
           blNumber,
           invoiceNumber: matched.invoice,
           companyPrice: matched.price,
+          weight: Number(blData?.kgs) > 0 ? Number(blData.kgs) : undefined,
           blData,
           progress: 100,
         };
         updateItem(item.id, failed);
         return failed;
       }
+
 
       // 5. Same field resolution as single BL (matched.invoice -> blData.bl_number fallback handled via state in single)
       const invNum = matched.invoice || '';
