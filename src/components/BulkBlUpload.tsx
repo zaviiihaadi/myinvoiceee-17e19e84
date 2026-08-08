@@ -75,8 +75,40 @@ const readBase64 = (file: File) =>
 
 const sanitize = (s: string) => s.replace(/[\\/:*?"<>|]/g, '');
 
+// Recovers a gross weight (KGS) from raw document text when extraction missed it.
+function recoverWeightFromText(raw: any): number | null {
+  const text = [raw?.raw_weight_text, raw?.raw_text, raw?.description, raw?.packages]
+    .filter(Boolean)
+    .join('\n');
+  if (!text) return null;
+
+  const parseTok = (tok: string): number | null => {
+    let s = tok.trim().replace(/\s/g, '');
+    const lc = s.lastIndexOf(','), ld = s.lastIndexOf('.');
+    if (lc > -1 && ld > -1) s = lc > ld ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
+    else if (lc > -1) s = /,\d{3}$/.test(s) ? s.replace(/,/g, '') : s.replace(',', '.');
+    const n = parseFloat(s);
+    return isFinite(n) && n >= 50 && n <= 100000 ? n : null;
+  };
+
+  const NUM = String.raw`\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{1,3})?|\d+(?:[.,]\d{1,3})?`;
+  const patterns = [
+    new RegExp(String.raw`(?:GROSS\s*(?:WEIGHT|WT\.?)|G\.?\s*W(?:EIGHT|T)?\.?|TOTAL\s*(?:GROSS\s*)?WEIGHT|WEIGHT)\s*(?:\(?\s*KGS?\s*\)?)?\s*[:.\-=]?\s*(${NUM})`, 'gi'),
+    new RegExp(String.raw`(${NUM})\s*(?:KGS?|KILOS?|KILOGRAMS?)\b`, 'gi'),
+    new RegExp(String.raw`\bKGS?\b\s*[:.\-]?\s*(${NUM})`, 'gi'),
+  ];
+  for (const re of patterns) {
+    const hits = Array.from(text.matchAll(re))
+      .map((m) => parseTok(m[1]))
+      .filter((n): n is number => n !== null);
+    if (hits.length) return Math.max(...hits);
+  }
+  return null;
+}
+
 // Mirrors the single-BL normalization performed in InvoiceGenerator.extractBLData
 function normalizeExtractedBlData(raw: any) {
+
   const notifyName = (raw?.notify_party || '').trim();
   const notifyAddr = (raw?.notify_party_address || '').trim();
   const notifyAlreadyHasAddr = notifyAddr && notifyName.toLowerCase().includes(notifyAddr.toLowerCase());
@@ -93,13 +125,17 @@ function normalizeExtractedBlData(raw: any) {
       .trim();
   }
 
+  const kgs = Number(raw?.kgs) > 0 ? Number(raw.kgs) : recoverWeightFromText(raw);
+
   return {
     ...raw,
+    kgs: kgs ?? null,
     container_numbers: cleanContainerList(raw?.container_numbers),
     notify_party: mergedNotify,
     notify_party_address: '',
     description: cleanedDescription,
   };
+
 }
 
 // Mirrors the single-BL calculateValues() exactly (same truncation + 0.42 floor + 3dp total)
@@ -280,20 +316,31 @@ export function BulkBlUpload({ excelRows, templateFile, templateLayout }: BulkBl
       // 4. Same calculation as single BL (calculateValues)
       const calc = singleBlCalculate(blData, matched.price);
       if (!calc) {
+        const hasWeight = Number(blData?.kgs) > 0;
+        const hasPrice = !!(matched.price || '').toString().trim();
+        const reason = !hasWeight && !hasPrice
+          ? 'Weight not found in BL & price missing in Excel'
+          : !hasWeight
+            ? 'Weight (KGS) not found in BL'
+            : !hasPrice
+              ? 'Price missing in Excel row'
+              : 'Invalid weight/price value';
         const failed: BulkBlItem = {
           ...item,
           status: 'failed',
-          message: 'Missing weight/price',
+          message: reason,
           containerNumber,
           blNumber,
           invoiceNumber: matched.invoice,
           companyPrice: matched.price,
+          weight: Number(blData?.kgs) > 0 ? Number(blData.kgs) : undefined,
           blData,
           progress: 100,
         };
         updateItem(item.id, failed);
         return failed;
       }
+
 
       // 5. Same field resolution as single BL (matched.invoice -> blData.bl_number fallback handled via state in single)
       const invNum = matched.invoice || '';

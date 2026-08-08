@@ -145,25 +145,60 @@ function splitNameAddress(block: string | null): { name: string | null; address:
   return { name: parts[0], address: parts.slice(1).join('\n') || null };
 }
 
+/** Parses a weight token that may use either , or . as decimal/thousand separators. */
+function parseWeightToken(tok: string): number | null {
+  let s = tok.trim().replace(/\s/g, '');
+  if (!s) return null;
+  const lastComma = s.lastIndexOf(',');
+  const lastDot = s.lastIndexOf('.');
+  if (lastComma > -1 && lastDot > -1) {
+    // The later separator is the decimal one
+    if (lastComma > lastDot) s = s.replace(/\./g, '').replace(',', '.');
+    else s = s.replace(/,/g, '');
+  } else if (lastComma > -1) {
+    // "12,345" -> thousands ; "12,5" -> decimal
+    s = /,\d{3}$/.test(s) ? s.replace(/,/g, '') : s.replace(',', '.');
+  }
+  const n = parseFloat(s);
+  return isFinite(n) && n > 0 ? n : null;
+}
+
+/** Finds the gross weight in KGS. Tries labelled matches first, then any KGS token. */
+export function extractWeightKgs(text: string): { kgs: number | null; rawWeightText: string | null } {
+  const candidates: { value: number; raw: string; score: number }[] = [];
+  const push = (value: number | null, raw: string, score: number) => {
+    if (value && value >= 50 && value <= 100000) candidates.push({ value, raw, score });
+  };
+
+  const NUM = String.raw`\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{1,3})?|\d+(?:[.,]\d{1,3})?`;
+
+  // 1. Labelled: "GROSS WEIGHT : 12,345.00 KGS"
+  const labelled = new RegExp(
+    String.raw`(?:GROSS\s*(?:WEIGHT|WT\.?)|G\.?\s*W(?:EIGHT|T)?\.?|TOTAL\s*(?:GROSS\s*)?WEIGHT|WEIGHT)\s*(?:\(?\s*KGS?\s*\)?)?\s*[:.\-=]?\s*(${NUM})\s*(?:KGS?|KILOS?|KILOGRAMS?)?`,
+    'gi',
+  );
+  for (const m of text.matchAll(labelled)) push(parseWeightToken(m[1]), m[0].trim(), 3);
+
+  // 2. Number immediately followed by KGS
+  const withUnit = new RegExp(String.raw`(${NUM})\s*(?:KGS?|KILOS?|KILOGRAMS?)\b`, 'gi');
+  for (const m of text.matchAll(withUnit)) push(parseWeightToken(m[1]), m[0].trim(), 2);
+
+  // 3. "KGS 12345" (unit before value)
+  const unitFirst = new RegExp(String.raw`\bKGS?\b\s*[:.\-]?\s*(${NUM})`, 'gi');
+  for (const m of text.matchAll(unitFirst)) push(parseWeightToken(m[1]), m[0].trim(), 1);
+
+  if (!candidates.length) return { kgs: null, rawWeightText: null };
+  candidates.sort((a, b) => (b.score - a.score) || (b.value - a.value));
+  return { kgs: candidates[0].value, rawWeightText: candidates[0].raw };
+}
+
 export function parseBlText(lines: string[]) {
   const text = lines.join('\n');
   const upper = text.toUpperCase();
 
   // Weight (KGS)
-  let kgs: number | null = null;
-  let rawWeightText: string | null = null;
-  const weightPatterns = [
-    /(?:GROSS\s*(?:WEIGHT|WT\.?)|G\.?\s*WEIGHT|WEIGHT)\s*[:\-]?\s*([\d.,]+)\s*(?:KGS?|KILOS?)?/i,
-    /([\d]{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?)\s*KGS?\b/i,
-  ];
-  for (const re of weightPatterns) {
-    const m = text.match(re);
-    if (m) {
-      rawWeightText = m[0];
-      const n = parseFloat(m[1].replace(/,/g, ''));
-      if (!isNaN(n) && n > 0) { kgs = n; break; }
-    }
-  }
+  const { kgs, rawWeightText } = extractWeightKgs(text);
+
 
   // Bales / packages
   let bales: number | null = null;
